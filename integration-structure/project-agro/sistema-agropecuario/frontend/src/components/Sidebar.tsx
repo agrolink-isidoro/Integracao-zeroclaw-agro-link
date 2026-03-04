@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useRBAC } from '../hooks/useRBAC';
 import type { RBACModule } from '../types/rbac';
+import { useActions } from '../contexts/ActionsContext';
 
 interface SubMenuItem {
   name: string;
@@ -87,12 +88,14 @@ const allMenuItems: MenuItem[] = [
   },
   { name: 'Administrativo', path: '/administrativo', icon: 'bi-people', rbacModule: 'administrativo' },
   { name: 'Fiscal', path: '/fiscal', icon: 'bi-receipt', rbacModule: 'fiscal' },
+  { name: 'Isidoro IA', path: '/actions', icon: 'bi-robot', rbacModule: 'actions', title: 'Fila de ações geradas por IA' },
 ];
 
 const Sidebar: React.FC = () => {
   const location = useLocation();
   const [openMenu, setOpenMenu] = useState<string | null>(null);
   const { visibleModules } = useRBAC();
+  const { pendingCount } = useActions();
 
   // Filter menu items based on RBAC permissions
   const menuItems = useMemo(() => {
@@ -164,12 +167,34 @@ const Sidebar: React.FC = () => {
               ) : (
                 <Link
                   to={item.path}
-                  className={`nav-link text-white ${isActive ? 'bg-primary' : ''}`}
+                  className={`nav-link text-white d-flex justify-content-between align-items-center ${isActive ? 'bg-primary' : ''}`}
                   title={item.title ?? ''}
-                  style={item.path === '/dashboard/inteligencia' ? { background: isActive ? undefined : 'linear-gradient(90deg, rgba(253,126,20,0.06), transparent)', borderLeft: '4px solid #fd7e14' } : undefined}
+                  style={
+                    item.path === '/dashboard/inteligencia'
+                      ? { background: isActive ? undefined : 'linear-gradient(90deg, rgba(253,126,20,0.06), transparent)', borderLeft: '4px solid #fd7e14' }
+                      : item.path === '/actions'
+                      ? { background: isActive ? undefined : 'rgba(25,135,84,0.08)', borderLeft: '4px solid #198754' }
+                      : undefined
+                  }
                 >
-                  <i className={`bi ${item.icon} me-2`} style={item.path === '/dashboard/inteligencia' ? { color: '#fd7e14' } : undefined}></i>
-                  {item.name}
+                  <span>
+                    <i
+                      className={`bi ${item.icon} me-2`}
+                      style={
+                        item.path === '/dashboard/inteligencia'
+                          ? { color: '#fd7e14' }
+                          : item.path === '/actions'
+                          ? { color: '#198754' }
+                          : undefined
+                      }
+                    ></i>
+                    {item.name}
+                  </span>
+                  {item.path === '/actions' && pendingCount > 0 && (
+                    <span className="badge bg-warning text-dark" style={{ fontSize: '0.65rem' }}>
+                      {pendingCount > 99 ? '99+' : pendingCount}
+                    </span>
+                  )}
                 </Link>
               )}
             </div>

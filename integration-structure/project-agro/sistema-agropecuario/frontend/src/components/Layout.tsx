@@ -4,6 +4,7 @@ import { useAuthContext } from '../contexts/AuthContext';
 import { useTenant } from '../hooks/useTenant';
 import Sidebar from './Sidebar';
 import Notifications from './common/Notifications';
+import ChatWidget from './actions/ChatWidget';
 
 const Layout: React.FC = () => {
   const { user, logout } = useAuthContext();
@@ -72,6 +73,7 @@ const Layout: React.FC = () => {
         </header>
         <Outlet />
       </main>
+      <ChatWidget />
     </div>
   );
 };

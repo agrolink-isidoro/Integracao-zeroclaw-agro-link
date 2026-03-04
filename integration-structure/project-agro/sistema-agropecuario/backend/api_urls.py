@@ -86,6 +86,7 @@ urlpatterns = [
 # Add administrativo URLs (raise if missing so tests surface import issues)
 urlpatterns += [path('administrativo/', include('apps.administrativo.urls'))]
 urlpatterns += [path('dashboard/', include('apps.dashboard.urls'))]
+urlpatterns += [path('actions/', include('apps.actions.urls'))]
 # Fiscal is optional too in some branches, but we expect it exists; include if available
 try:
     urlpatterns += [path('fiscal/', include('apps.fiscal.urls'))]

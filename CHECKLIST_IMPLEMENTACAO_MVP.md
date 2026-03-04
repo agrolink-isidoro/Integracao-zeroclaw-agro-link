@@ -28,14 +28,18 @@
 ### API Endpoints (Backend)
 - [ ] **Revisar endpoints necessários:**
   ```
-  GET /api/agricultura/operacoes/        [Isidoro lê]
-  GET /api/agricultura/operacoes/{id}/   [Isidoro lê detalhes]
-  POST /api/actions/                     [Isidoro escreve draft]
-  GET /api/actions/pending/               [Dashboard lista]
-  PATCH /api/actions/{id}/edit/           [Usuário edita]
-  POST /api/actions/{id}/approve/         [Usuário aprova]
-  POST /api/actions/{id}/reject/          [Usuário rejeita]
-  GET /api/actions/{id}/execute-preview/  [Mostra o que vai fazer]
+  GET  /api/agricultura/operacoes/         [Isidoro lê]
+  GET  /api/agricultura/operacoes/{id}/    [Isidoro lê detalhes]
+  POST /api/actions/                       [Isidoro escreve draft]
+  POST /api/actions/bulk/                  [Isidoro escreve múltiplos drafts de arquivo]
+  POST /api/actions/bulk-approve/          [Usuário aprova lote]
+  GET  /api/actions/pending/               [Dashboard lista]
+  PATCH /api/actions/{id}/edit/            [Usuário edita]
+  POST /api/actions/{id}/approve/          [Usuário aprova]
+  POST /api/actions/{id}/reject/           [Usuário rejeita]
+  GET  /api/actions/{id}/execute-preview/  [Mostra o que vai fazer]
+  POST /api/channels/uploads/              [Upload de arquivo → análise IA]
+  GET  /api/channels/uploads/{id}/status/  [Status do processamento]
   ```
 
 - [ ] **Documentar com OpenAPI/Swagger**
@@ -112,6 +116,114 @@
 - [ ] Run migrations
 - [ ] Create admin interface
 
+### UploadedFile Model & Parsers (File Upload Pipeline)
+- [ ] Criar `UploadedFile` model em `apps/channels/models.py`
+  ```python
+  class UploadedFile(models.Model):
+      tenant       = ForeignKey(Tenant, on_delete=CASCADE)
+      uploaded_by  = ForeignKey(User)
+      original_name = CharField(max_length=255)
+      file_path    = CharField(max_length=500)   # /tmp/ ou S3 key
+      file_size    = IntegerField()               # bytes
+      mime_type    = CharField(max_length=100)
+      module       = CharField(max_length=50)     # "agricultura", "estoque", etc
+      status       = CharField(choices=[
+          ("uploaded",    "Enviado"),
+          ("processing",  "Processando"),
+          ("parsed",      "Analisado"),
+          ("drafts_created", "Drafts criados"),
+          ("error",       "Erro"),
+      ])
+      parse_result = JSONField(default=dict)      # resumo do que foi extraído
+      error_message = TextField(blank=True)
+      created_at   = DateTimeField(auto_now_add=True)
+      processed_at = DateTimeField(null=True)
+
+      class Meta:
+          indexes = [Index(fields=["tenant", "status"])]
+  ```
+- [ ] Run migrations para `UploadedFile`
+
+### Parsers por Formato e Módulo
+- [ ] **Endpoint de upload** `POST /api/channels/uploads/`
+  - Recebe `multipart/form-data` com `file` + `module` (agricultura|máquinas|estoque|fazendas)
+  - Salva arquivo em `/tmp/` (dev) ou S3 (prod)
+  - Cria `UploadedFile` com status=`uploaded`
+  - Dispara task assíncrona (Celery ou thread) para parsing
+
+- [ ] **Parser: Agricultura** (`apps/channels/parsers/agricultura_parser.py`)
+  ```python
+  # Formatos: .xlsx, .csv, .md
+  # Lógica:
+  # 1. Pandas lê planilha → detecta colunas: talhão, cultura, tipo_operacao, data, area_ha, insumos
+  # 2. Para cada linha válida → gera dict de payload para Action draft
+  # 3. Valida talhão via GET /api/fazendas/talhoes/
+  # 4. Retorna lista de payloads prontos para POST /api/actions/bulk/
+  # Max: 200 linhas por arquivo
+  ```
+  - [ ] Instalar: `pip install pandas openpyxl`
+  - [ ] Mapear sinônimos de colunas ("Area", "Área", "ha", "hectares" → campo `area_ha`)
+  - [ ] Tratar linhas com dados incompletos (avisar usuário, não bloquear)
+
+- [ ] **Parser: Máquinas** (`apps/channels/parsers/maquinas_parser.py`)
+  ```python
+  # Formatos: .xlsx, .csv, .pdf, .docx
+  # Lógica:
+  # 1. Excel/CSV: lê colunas [máquina, tipo_manutencao, data, custo, km_horas, observacao]
+  # 2. PDF: pdfplumber extrai texto → Gemini interpreta campos
+  # 3. DOCX: python-docx lê texto → Gemini extrai dados de manutenção
+  # 4. Mapeia nome de máquina para uuid via GET /api/maquinas/
+  # 5. Detecta padrões: manutenção vencida (>12 meses) → flag na action
+  ```
+  - [ ] Instalar: `pip install pdfplumber python-docx`
+  - [ ] Fuzzy matching de nomes de máquinas ("John Deere" ≈ "JD 8320R")
+  - [ ] Flag especial: `"alerta_manutencao_vencida": true` no draft
+
+- [ ] **Parser: Estoque** (`apps/channels/parsers/estoque_parser.py`)
+  ```python
+  # Formatos: .pdf (NF fornecedor), .xml (NF-e SEFAZ), .xlsx/.csv (inventário)
+  # Lógica NF-e XML:
+  # 1. ElementTree parseia XML SEFAZ leiaute 4.00
+  # 2. Extrai: CNPJ emitente, número NF, lista de itens (código, descrição, qtd, un, valor)
+  # 3. Mapeia item para cadastro via GET /api/estoque/itens/?codigo=XXX
+  # 4. Se não encontrado → draft especial action_type="criar_item_estoque"
+  # Lógica Inventário:
+  # 1. Compara coluna "Qtd Real" com quantidade atual do sistema
+  # 2. Diferença != 0 → draft action_type="ajuste_estoque"
+  ```
+  - [ ] Instalar: `pip install pdfplumber lxml`
+  - [ ] Validar schema XML NF-e (xsd)
+  - [ ] Tratar NF duplicada (campo `chave_acesso` como idempotência)
+
+- [ ] **Parser: Fazendas/KML** (`apps/channels/parsers/fazendas_parser.py`)
+  ```python
+  # Formatos: .kml, .kmz, .geojson, .gpx, .shp (zipado)
+  # Lógica:
+  # 1. fiona ou shapely lê geometrias
+  # 2. Para cada Feature/Polígono:
+  #    - Extrai nome (campo "name" ou "descrição")
+  #    - Calcula área em ha (reprojeção para UTM se necessário)
+  #    - Extrai centroide (lat/lng)
+  # 3. GET /api/fazendas/talhoes/?nome=X → decide CREATE ou UPDATE
+  # 4. Detecta sobreposição com talhões existentes (shapely.intersects)
+  #    → aviso no campo validation.warnings da Action
+  ```
+  - [ ] Instalar: `pip install fiona shapely pyproj`
+  - [ ] Suporte a `.kmz` (descompactar antes de parsear)
+  - [ ] Reprojeção automática para SIRGAS 2000 (datum padrão BR)
+  - [ ] Limite de polígonos por upload: 100 talhões
+
+- [ ] **Endpoint de upload em lote** `POST /api/actions/bulk/`
+  - Recebe lista de payloads de actions
+  - Cria todas dentro de uma transação
+  - Retorna lista de `action_id` criados
+
+- [ ] **Endpoint de aprovação em lote** `POST /api/actions/bulk-approve/`
+  - Recebe `{ action_ids: [uuid, uuid, ...] }`
+  - Executa todas as actions em sequência
+  - Retorna: `{ approved: N, failed: M, errors: [...] }`
+  - Transacional: falha em uma não impede as demais
+
 ### Serializers
 - [ ] Create `ActionSerializer` (DRF)
   - Full: pending, rejected, approved, executed status view
@@ -158,13 +270,23 @@
 - [ ] **Create ZeroClaw config** for intent detection
   ```toml
   [intent_mapping.agricultura]
-  plant = ["plantei", "Vou plantar", "nova plantação"]
-  harvest = ["colhendo", "colheita", "colhi"]
+  plant    = ["plantei", "vou plantar", "nova plantação"]
+  harvest  = ["colhendo", "colheita", "colhi"]
   irrigate = ["irrigar", "água", "rega"]
-  
+  upload   = ["planilha de operações", "importar safra", "arquivo de plantio"]
+
   [intent_mapping.estoque]
-  add = ["recebi", "entrada", "compra chegou"]
-  remove = ["saiu", "uso", "consumo"]
+  add    = ["recebi", "entrada", "compra chegou"]
+  remove = ["saíu", "uso", "consumo"]
+  upload = ["nota fiscal", "nf", "xml sefaz", "inventário físico", "planilha de itens"]
+
+  [intent_mapping.maquinas]
+  maintenance = ["manutenção", "revisão", "conserto"]
+  refuel      = ["abasteci", "combustível"]
+  upload      = ["histórico da frota", "relatório oficina", "laudo técnico"]
+
+  [intent_mapping.fazendas]
+  upload = ["kml", "geojson", "mapa de talhões", "importar áreas", "exportei do qgis"]
   ```
 
 - [ ] **Create intent router** (ZeroClaw agent)
@@ -311,13 +433,25 @@
   - [ ] **[Anexar] file upload button** (NEW!)
   - [ ] Send button
 
-- [ ] **FileUploadHandler.tsx** (NEW!)
-  - [ ] Accept: .xlsx, .csv, .docx, .pptx, .pdf
-  - [ ] Max 10 MB
-  - [ ] Drag & drop support
-  - [ ] Progress bar
-  - [ ] Error handling
-  - [ ] Analyze button after upload
+- [ ] **FileUploadHandler.tsx** (EXPANDIDO)
+  - [ ] **Formatos aceitos por módulo:**
+    - Agricultura: `.xlsx`, `.csv`, `.md`
+    - Máquinas:   `.xlsx`, `.csv`, `.pdf`, `.docx`
+    - Estoque:    `.pdf`, `.xml`, `.xlsx`, `.csv`
+    - Fazendas:   `.kml`, `.kmz`, `.geojson`, `.gpx`, `.zip` (shapefile)
+    - Qualquer módulo: `.pptx` (apresentações para análise)
+  - [ ] Max 10 MB (arquivos geográficos: 25 MB)
+  - [ ] Drag & drop support + botão [Anexar]
+  - [ ] Detecta módulo ativo no contexto do chat (envia junto com arquivo)
+  - [ ] Progress bar durante upload
+  - [ ] Status de processamento: "Analisando arquivo..." (polling GET /uploads/{id}/status/)
+  - [ ] Error handling com mensagem específica por tipo de erro
+  - [ ] Botão [Cancelar] durante processamento
+  - [ ] Exibe resumo do arquivo antes de gerar drafts:
+    ```
+    📎 operacoes_safra.xlsx | 3 linhas | Agricultura
+    [Analisar com Isidoro]
+    ```
 
 - [ ] **ActionPreviewCard.tsx** (Inline suggestions)
   - [ ] Embedded in chat
@@ -485,6 +619,87 @@
   - [ ] "APPROVE HERE" → inline approval with reason
   - [ ] "REJECT HERE" → inline rejection with reason
   - [ ] Shows even if user is only on web chat (no need to go to dashboard)
+
+### Upload de Arquivos — Pipeline Completo por Módulo (NOVO!)
+
+- [ ] **FileUploadResult.tsx** (Componente de resultado de análise)
+  - [ ] Exibido no chat após Isidoro processar o arquivo
+  - [ ] Header: ícone do tipo de arquivo + nome + tamanho
+  - [ ] Resumo: "3 operações encontradas" / "12 registros de manutenção" / "4 talhões no KML"
+  - [ ] Lista prévia dos drafts que serão criados (colapsável)
+  - [ ] Botões principais:
+    - [ ] [✅ Aprovar Todos] → `POST /api/actions/bulk-approve/`
+    - [ ] [👁 Revisar Um a Um] → abre BulkActionModal
+    - [ ] [❌ Cancelar] → descarta todos os drafts
+  - [ ] Progress bar durante processamento assíncrono do arquivo
+  - [ ] Estado de erro: "Não consegui ler este arquivo. [Tentar novamente]"
+
+- [ ] **BulkActionModal.tsx** (Modal de aprovação em lote — NOVO!)
+  - [ ] Abre como overlay centralizado no dashboard (igual ao TaskModal)
+  - [ ] Header: "Revisar X ações importadas de [nome_arquivo]"
+  - [ ] Navegação: [← Anterior] [1 de 3] [Próxima →]
+  - [ ] Para cada draft:
+    - [ ] Exibe campos editáveis do payload
+    - [ ] Status individual: ✅ aprovado | ⏭ pular | ❌ rejeitar
+    - [ ] Botão [Aprovar Este] → aprova e avança
+    - [ ] Botão [Pular] → mantém como pendente e avança
+    - [ ] Botão [Rejeitar Este] → rejeita com motivo e avança
+  - [ ] Footer: progresso "Revisados: 2/3 | Aprovados: 1 | Pulados: 1"
+  - [ ] Botão [Aprovar Restantes] → aprova todos os ainda não revisados
+  - [ ] Botão [Fechar] → salva estado parcial, fecha modal
+  - [ ] Keyboard: → para avançar, ← para voltar, Enter para aprovar
+
+- [ ] **Processamento por módulo — Agricultura (UC-6)**
+  - [ ] Aceitar: `.xlsx`, `.csv`, `.md` no upload do chat
+  - [ ] Após upload: `POST /api/channels/uploads/` com `module=agricultura`
+  - [ ] Backend detecta colunas: `talhao | cultura | tipo_operacao | data | area_ha | insumos`
+  - [ ] Sinônimos de colunas aceitos (ex: "Area", "Área", "ha", "hectares" → `area_ha`)
+  - [ ] Por linha válida: gera draft `type=operacao_agricola`
+  - [ ] Linhas incompletas: aviso no chat, não bloqueia as demais
+  - [ ] Chat exibe FileUploadResult com total de operações encontradas
+  - [ ] Limite: 200 linhas por arquivo
+
+- [ ] **Processamento por módulo — Máquinas (UC-7)**
+  - [ ] Aceitar: `.xlsx`, `.csv`, `.pdf`, `.docx`
+  - [ ] Para Excel/CSV: colunas `maquina | tipo_manutencao | data | custo | km_horas`
+  - [ ] Para PDF: `pdfplumber` extrai texto → Gemini identifica campos
+  - [ ] Para DOCX: `python-docx` lê parágrafos → Gemini extrai dados
+  - [ ] Fuzzy match de nomes de máquina com cadastro (GET /api/maquinas/)
+  - [ ] Detecta e flagra: manutenção vencida há > 12 meses
+  - [ ] Detecta e flagra: padrão corretivo frequente (> 3 ocorrências/60 dias)
+  - [ ] Draft com campo extra: `"alerta": "manutencao_vencida"` ou `"corretiva_frequente"`
+  - [ ] Limite: 200 registros por arquivo
+
+- [ ] **Processamento por módulo — Estoque (UC-8)**
+  - [ ] Aceitar: `.pdf`, `.xml` (NF-e), `.xlsx`, `.csv`
+  - [ ] Para XML NF-e (SEFAZ leiaute 4.00):
+    - [ ] Parsear com `ElementTree` ou `lxml`
+    - [ ] Extrair: CNPJ emitente, número NF, chave de acesso, itens
+    - [ ] Idempotência: rejeitar NF já importada (chave_acesso duplicada)
+    - [ ] Itens não encontrados no cadastro → draft especial `action_type=criar_item_estoque`
+  - [ ] Para PDF de fornecedor: `pdfplumber` + Gemini (estrutura variável)
+  - [ ] Para Excel (inventário físico):
+    - [ ] Comparar coluna "Qtd Real" vs estoque atual via GET /api/estoque/itens/
+    - [ ] Diferença ≠ 0 → draft `action_type=ajuste_estoque`
+  - [ ] Limite: 200 itens por arquivo
+
+- [ ] **Processamento por módulo — Fazendas/KML (UC-9)**
+  - [ ] Aceitar: `.kml`, `.kmz`, `.geojson`, `.gpx`, `.zip` (shapefile)
+  - [ ] Limite de tamanho para geoarquivos: 25 MB
+  - [ ] Parser geográfico (`fiona` + `shapely`):
+    - [ ] Lê geometrias e extrai: nome, área em ha, centroide (lat/lng)
+    - [ ] Reproja para SIRGAS 2000 (datum padrão BR) automaticamente
+    - [ ] `.kmz`: descompactar antes de parsear
+    - [ ] `.zip` (shapefile): extrair .shp, .shx, .dbf
+  - [ ] Cruza com cadastro: GET /api/fazendas/talhoes/?fazenda={id}
+    - [ ] Nome encontrado → draft `action_type=atualizar_talhao` (nova geometria/área)
+    - [ ] Nome não encontrado → draft `action_type=criar_talhao`
+  - [ ] Detectar sobreposição entre polígonos:
+    - [ ] `shapely.intersects()` entre todos os pares
+    - [ ] Sobreposição detectada → `validation.warnings = ["Sobreposição com Talhão X"]`
+    - [ ] Não bloqueia aprovação, mas exibe aviso destacado
+  - [ ] Limite: 100 polígonos por arquivo
+  - [ ] Chat exibe miniatura do mapa com polígonos (se possível via Leaflet)
 
 ### Voice Input
 - [ ] **Voice recording** (`src/utils/voiceRecorder.ts`)

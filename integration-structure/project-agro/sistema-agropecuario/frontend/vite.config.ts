@@ -26,30 +26,28 @@ export default defineConfig({
     proxy: {
       '/api': {
         target: (() => {
-          // Default to localhost:8000 for local development
-          // When VITE_API_BASE is a path (eg '/api/') we are likely running inside Docker Compose,
-          // so the proxy should target the backend service on the Docker network instead of localhost.
-          // For custom backend URLs: set VITE_API_BASE to a full URL (e.g., 'http://localhost:8000/api/')
           const defaultTarget = 'http://localhost:8000';
           const dockerBackendTarget = 'http://backend:8000';
           const env = process.env.VITE_API_BASE;
           if (env && /^https?:\/\//.test(env)) {
-            try {
-              return new URL(env).origin;
-            } catch (e) {
-              console.error('Invalid VITE_API_BASE URL:', env, e);
-              return defaultTarget;
-            }
+            try { return new URL(env).origin; } catch { return defaultTarget; }
           }
-          // If env is a path starting with '/', assume Docker Compose (eg '/api/') and use backend service
-          if (env && env.startsWith('/')) {
-            return dockerBackendTarget;
-          }
+          if (env && env.startsWith('/')) return dockerBackendTarget;
           return defaultTarget;
         })(),
         changeOrigin: true,
         secure: false,
-      }
+      },
+      '/ws': {
+        target: (() => {
+          const env = process.env.VITE_API_BASE;
+          if (env && env.startsWith('/')) return 'ws://backend:8000';
+          return 'ws://localhost:8000';
+        })(),
+        ws: true,
+        changeOrigin: true,
+        secure: false,
+      },
     }
   }
 })

@@ -22,5 +22,14 @@ if [ "${CREATE_DEV_USER:-false}" = "true" ]; then
   python manage.py seed_dev
 fi
 
+# Gera/renova o JWT do agente Isidoro (usuário de serviço ZeroClaw)
+echo "Gerando JWT para o agente Isidoro..."
+python manage.py generate_isidoro_token || echo "AVISO: Falha ao gerar token Isidoro (continuando...)"
+if [ -f /tmp/isidoro_token.txt ]; then
+  export ISIDORO_JWT_TOKEN
+  ISIDORO_JWT_TOKEN=$(cat /tmp/isidoro_token.txt)
+  echo "ISIDORO_JWT_TOKEN configurado (${#ISIDORO_JWT_TOKEN} chars)"
+fi
+
 # Execute the container command (e.g., runserver)
 exec "$@"

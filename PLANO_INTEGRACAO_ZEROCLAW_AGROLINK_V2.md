@@ -329,6 +329,197 @@ Detalhes:
 
 ---
 
+### UC-6: Upload de Arquivo — Agricultura (Planilha de Operações em Lote)
+
+**Usuário:** *[Anexa `operacoes_safra_2026.xlsx` no chat]*
+
+**Fluxo:**
+```
+1. Isidoro detecta: arquivo Excel com colunas
+   [talhão | cultura | tipo_operacao | data | área_ha | insumos | quantidade]
+
+2. Parser lê cada linha:
+   - Linha 1: Plantio Soja | Vila Nova | 12 fev | 48 ha | sementes 96kg
+   - Linha 2: Adubação   | Bloco B   | 13 fev | 32 ha | NPK 64kg
+   - Linha 3: Colheita   | Pivô 1    | 20 mar | 18 ha | -
+   (N linhas...)
+
+3. Isidoro valida cada linha contra o backend:
+   GET /api/fazendas/talhoes/ → confirma existência
+   GET /api/estoque/itens/    → confirma insumos disponíveis
+
+4. Gera N Action Drafts em lote:
+   POST /api/actions/bulk/
+   [
+     { type: operacao_agricola, payload: { tipo: plantio, ... } },
+     { type: operacao_agricola, payload: { tipo: adubacao, ... } },
+     { type: colheita,          payload: { ... } },
+   ]
+
+5. Resposta no chat:
+   "📎 Planilha analisada! Encontrei 3 operações:
+
+   ✏️ PLANTIO — Vila Nova | 48 ha | 12 fev
+   ✏️ ADUBAÇÃO — Bloco B  | 32 ha | 13 fev
+   ✏️ COLHEITA — Pivô 1   | 18 ha | 20 mar
+
+   [✅ Aprovar Todas] [👁 Revisar Uma a Uma] [❌ Cancelar]"
+
+6. Usuário clica [Aprovar Todas]:
+   POST /api/actions/bulk-approve/
+   → Backend executa todas as operações em sequência
+   → Retorna: 3/3 executadas com sucesso
+
+7. Chat atualiza:
+   "✅ 3 operações registradas!"
+```
+
+**Formatos aceitos:** `.xlsx`, `.csv`, `.md`  
+**Máximo de drafts por upload:** 200 linhas  
+**APIs Usadas:** GET /api/fazendas/talhoes/, GET /api/estoque/itens/, POST /api/actions/bulk/
+
+---
+
+### UC-7: Upload de Arquivo — Máquinas (Histórico de Manutenção)
+
+**Usuário:** *[Anexa `historico_manutencao_frota_2025.xlsx` no chat]*
+
+**Fluxo:**
+```
+1. Isidoro detecta: planilha com colunas
+   [máquina | tipo_manutencao | data | km_horas | custo | oficina | observação]
+
+2. Parser lê e cruza com cadastro de máquinas:
+   GET /api/maquinas/ → mapeia "John Deere 8320R" → uuid
+
+3. Detecta anomalias e padrões:
+   ⚠️ John Deere 8320R: 3 manutenções corretivas em 60 dias
+   ⚠️ Plantadeira CR700: última revisão há 14 meses (vencida)
+   ✅ Trator MF 7720: revisões em dia
+
+4. Gera Action Drafts:
+   ✏️ REGISTRAR HISTÓRICO — John Deere 8320R (12 entradas)
+   ✏️ ALERTAR MANUTENÇÃO VENCIDA — Plantadeira CR700
+   ✏️ REGISTRAR HISTÓRICO — MF 7720 (8 entradas)
+
+5. Resposta no chat:
+   "📎 Histórico de frota analisado!
+   12 máquinas | 47 registros de manutenção
+
+   ⚠️ ATENÇÃO:
+   • John Deere 8320R: padrão de manutenção corretiva frequente
+   • Plantadeira CR700: revisão vencida há 14 meses
+
+   ✏️ Preparei 3 grupos de ações para aprovação.
+   [✅ Aprovar Todas] [👁 Revisar Uma a Uma] [❌ Cancelar]"
+```
+
+**Formatos aceitos:** `.xlsx`, `.csv`, `.pdf` (laudos técnicos), `.docx` (relatórios de oficina)  
+**PDF:** Isidoro extrai texto via `pdfplumber` → Gemini interpreta tabelas e campos  
+**APIs Usadas:** GET /api/maquinas/, POST /api/actions/bulk/
+
+---
+
+### UC-8: Upload de Arquivo — Estoque (Nota Fiscal / Entrada em Lote)
+
+**Usuário:** *[Anexa `nota_fiscal_fornecedor.pdf` ou `pedido_compra.xlsx` no chat]*
+
+**Fluxo com PDF (NF de fornecedor):**
+```
+1. Isidoro detecta arquivo PDF
+
+2. Backend extrai texto via pdfplumber:
+   - CNPJ fornecedor: 12.345.678/0001-90
+   - Itens:
+     Item 01 | Fertilizante NPK 04-30-10 | 50 bags | 50kg cada | R$ 4.500
+     Item 02 | Herbicida Roundup | 20 cx   | 5L cada  | R$ 3.200
+     Item 03 | Semente Soja M8349 | 200 bags | 40kg      | R$ 28.000
+
+3. Cruza com cadastro de itens:
+   GET /api/estoque/itens/?nome=NPK → encontra item existente
+   GET /api/estoque/itens/?nome=Roundup → não encontrado → sugere criar
+
+4. Gera Action Drafts:
+   ✏️ ENTRADA ESTOQUE: NPK 04-30-10 | 2.500 kg | Galpão A
+   ✏️ ENTRADA ESTOQUE: Herbicida Roundup | 100 L | Galpão B [NOVO ITEM]
+   ✏️ ENTRADA ESTOQUE: Soja M8349 | 8.000 kg | Câmara Fria
+
+5. Resposta no chat:
+   "📎 Nota fiscal lida!
+   Fornecedor: [NOME] | Data: 03/03/2026 | Total: R$ 35.700
+
+   ✏️ 3 entradas de estoque preparadas:
+   • NPK 04-30-10 → 2.500 kg
+   • Herbicida Roundup → 100 L ⚠️ (item novo, será criado)
+   • Sememte Soja M8349 → 8.000 kg
+
+   [✅ Aprovar Tudo] [👁 Revisar Item Novo] [❌ Cancelar]"
+```
+
+**Fluxo com Excel (inventário completo):**
+```
+Usuário sobe: inventario_fisico_marco.xlsx
+Isidoro compara coluna "Qtd Real" vs estoque atual no sistema
+Gera drafts de AJUSTE para cada item com divergência:
+  ✏️ AJUSTE ESTOQUE: Ureia — Sistema: 1.200kg | Real: 980kg → Ajuste: -220kg
+  ✏️ AJUSTE ESTOQUE: Óleo Diesel — Sistema: 5.000L | Real: 4.850L → Ajuste: -150L
+```
+
+**Formatos aceitos:** `.pdf` (NFs, laudos), `.xlsx` / `.csv` (inventários, pedidos), `.xml` (NF-e XML)  
+**APIs Usadas:** GET /api/estoque/itens/, POST /api/actions/bulk/
+
+---
+
+### UC-9: Upload de Arquivo — Fazendas (KML / GeoJSON de Talhões)
+
+**Usuário:** *[Anexa `talhoes_vila_nova.kml` exportado do QGIS ou Google Earth]*
+
+**Fluxo:**
+```
+1. Isidoro detecta: arquivo KML ou GeoJSON
+
+2. Parser geográfico lê geometrias:
+   - Feature 1: Polígono "Bloco A"  → 45,2 ha | Centroide: -15.123, -47.456
+   - Feature 2: Polígono "Bloco B"  → 32,8 ha | Centroide: -15.130, -47.460
+   - Feature 3: Polígono "Pivô 1"   → 18,0 ha | Centroide: -15.140, -47.470
+   - Feature 4: Polígono "Mata Legal"→  8,5 ha | (reserva, sem cultivo)
+
+3. Cruza com talhões já cadastrados:
+   GET /api/fazendas/talhoes/?fazenda=vila-nova
+   → "Bloco A" já existe → propõe ATUALIZAR geometria
+   → "Bloco B", "Pivô 1", "Mata Legal" → não existem → propõe CRIAR
+
+4. Gera Action Drafts:
+   ✏️ ATUALIZAR TALHÃO: Bloco A | Nova área: 45,2 ha (era 44,8 ha)
+   ✏️ CRIAR TALHÃO: Bloco B | 32,8 ha | Fazenda Vila Nova
+   ✏️ CRIAR TALHÃO: Pivô 1  | 18,0 ha | Fazenda Vila Nova
+   ✏️ CRIAR TALHÃO: Mata Legal | 8,5 ha | Reserva (sem cultivo)
+
+5. Resposta no chat:
+   "📎 Mapeamento importado!
+   Arquivo: talhoes_vila_nova.kml
+   4 polígonos lidos | Área total: 104,5 ha
+
+   1 talhão existente (atualização de área)
+   3 talhões novos para criar
+
+   [✅ Aprovar Todos] [🗺️ Ver no Mapa] [👁 Revisar Um a Um] [❌ Cancelar]"
+
+6. Usuário aprova → Backend executa:
+   PATCH /api/fazendas/talhoes/{id}/      (Bloco A — atualiza geometria)
+   POST  /api/fazendas/talhoes/           (Bloco B, Pivô 1, Mata Legal)
+
+7. Chat confirma:
+   "✅ 4 talhões salvos! Área total da fazenda: 104,5 ha"
+```
+
+**Formatos aceitos:** `.kml`, `.kmz`, `.geojson`, `.gpx`, `.shp` (shapefile zipado)  
+**Validações:** Geometria válida (sem auto-intersecção), área > 0, sobreposição com talhões existentes (aviso)  
+**APIs Usadas:** GET /api/fazendas/talhoes/, POST /api/fazendas/talhoes/, PATCH /api/fazendas/talhoes/{id}/  
+**Nota:** Para o MVP, FAZENDAS passa a aceitar **criação de talhões via KML** (exceção à regra de leitura apenas)
+
+---
+
 ## 📋 Módulos no MVP
 
 ### **✅ AGRICULTURA (MVP Completo)**
@@ -338,12 +529,19 @@ Detalhes:
 - Culturas e safras
 - Histórico e análises
 
-**Ações (Drafts):**
+**Ações (Drafts) — via chat/voz:**
 - Registrar operação agrícola
 - Registrar colheita
 - Aplicação de defensivo/fertilizante
 
-**Dashboard:** Visualizar operações, recomendações
+**Upload de Arquivos (Drafts em Lote) — UC-6:**
+- `.xlsx` / `.csv` → importar planilha de operações (N linhas = N drafts)
+- `.pdf` → laudos agronômicos e recomendações de manejo → drafts de aplicação
+- `.md` → configurações de safra, parâmetros de cultivo → atualização de configurações
+- **Aprovação em lote:** [Aprovar Todas] ou [Revisar Uma a Uma]
+- **Limite:** 200 drafts por upload
+
+**Dashboard:** Visualizar operações, recomendações, histórico de arquivos importados
 
 ---
 
@@ -354,12 +552,20 @@ Detalhes:
 - Histórico de manutenção
 - Uso recente
 
-**Ações (Drafts):**
+**Ações (Drafts) — via chat/voz:**
 - Registrar manutenção
 - Registrar abastecimento
 - Marcar máquina como parada
 
-**Dashboard:** Status de máquinas, alertas de manutenção
+**Upload de Arquivos (Drafts em Lote) — UC-7:**
+- `.xlsx` / `.csv` → histórico de manutenção da frota (N registros = N drafts)
+- `.pdf` → laudos técnicos de oficina → drafts de manutenção corretiva
+- `.docx` → relatórios de visita técnica → extrair recomendações de manutenção
+- Isidoro detecta padrões: máquinas com manutenção corretiva frequente ou vencida
+- **Aprovação em lote:** [Aprovar Todas] ou [Revisar Uma a Uma]
+- **Limite:** 200 drafts por upload
+
+**Dashboard:** Status de máquinas, alertas de manutenção, histórico de arquivos importados
 
 ---
 
@@ -371,16 +577,25 @@ Detalhes:
 - Histórico de movimentações
 - Alertas de quantidade crítica
 
-**Ações (Drafts):**
+**Ações (Drafts) — via chat/voz:**
 - Registrar entrada de item
 - Registrar saída de item
 - Ajuste de inventário
 
-**Dashboard:** Níveis de estoque, recomendações de compra
+**Upload de Arquivos (Drafts em Lote) — UC-8:**
+- `.pdf` → Nota Fiscal de fornecedor → drafts de entrada de estoque por item da NF
+- `.xml` → NF-e XML (SEFAZ) → leitura estruturada de itens, quantidades, valores
+- `.xlsx` / `.csv` → inventário físico → comparação com sistema → drafts de ajuste
+- `.xlsx` → pedido de compra → pré-cadastro de itens esperados
+- Isidoro cria item novo automaticamente se não encontrado no cadastro (draft especial)
+- **Aprovação em lote:** [Aprovar Tudo] ou [Revisar Item Novo]
+- **Limite:** 200 drafts por upload
+
+**Dashboard:** Níveis de estoque, recomendações de compra, histórico de notas importadas
 
 ---
 
-### **✅ FAZENDAS (MVP - Leitura Apenas)**
+### **✅ FAZENDAS (MVP — Leitura + Upload KML)**
 
 **Leitura:**
 - Propriedades e talhões
@@ -388,9 +603,18 @@ Detalhes:
 - Área por cultura
 - Status de ocupação
 
-**Ações:** ❌ Nenhuma no MVP (criar talhão é Fase 2)
+**Ações (Drafts) — via upload de arquivo — UC-9:**
+- `.kml` / `.kmz` → importar talhões do QGIS, Google Earth, GPS agrícola
+- `.geojson` → talhões exportados de plataformas de agricultura de precisão
+- `.gpx` → trilhas e limites de campo coletados com receptor GPS
+- `.shp` (shapefile zipado) → compatibilidade com SIG técnico
+- Isidoro propõe: criar talhões novos + atualizar geometria de existentes
+- Detecta sobreposição entre polígonos e avisa antes de aprovar
+- Calcula área automaticamente (ha) a partir da geometria
+- **Exceção MVP:** FAZENDAS passa a permitir **criação de talhões via KML** (única ação permitida)
+- **Ações manuais (chat/voz):** ❌ Criar talhão ainda é Fase 2 (sem KML)
 
-**Dashboard:** Mapa de propriedades, ocupação
+**Dashboard:** Mapa de propriedades, ocupação, talhões importados destacados
 
 ---
 

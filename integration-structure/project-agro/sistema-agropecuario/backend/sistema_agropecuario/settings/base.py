@@ -33,6 +33,7 @@ INSTALLED_APPS = [
     "apps.fiscal",
     "apps.maquinas",
     "apps.dashboard",
+    "apps.actions",
 
     "channels",
 ]
@@ -73,6 +74,17 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = "sistema_agropecuario.wsgi.application"
+ASGI_APPLICATION = "sistema_agropecuario.asgi.application"
+
+# Configurações do Isidoro (ZeroClaw Agent)
+AGROLINK_API_URL = os.environ.get("AGROLINK_API_URL", "http://backend:8000/api")
+ISIDORO_LLM_MODEL = os.environ.get("ISIDORO_LLM_MODEL", "gemini-2.5-flash")
+ISIDORO_API_KEY = os.environ.get("ISIDORO_API_KEY", "")
+ISIDORO_LLM_BASE_URL = os.environ.get(
+    "ISIDORO_LLM_BASE_URL", "https://generativelanguage.googleapis.com/v1beta/openai/"
+)
+ISIDORO_LLM_TEMPERATURE = float(os.environ.get("ISIDORO_LLM_TEMPERATURE", "0.3"))
+ISIDORO_JWT_TOKEN = os.environ.get("ISIDORO_JWT_TOKEN", "")
 
 DATABASES = {
     "default": {

@@ -31,7 +31,7 @@ services:
     build: ./backend
     working_dir: /app/backend
     entrypoint: ["/app/backend/docker-entrypoint.sh"]
-    command: ["python", "manage.py", "runserver", "0.0.0.0:8000"]
+    command: ["daphne", "-b", "0.0.0.0", "-p", "8000", "sistema_agropecuario.asgi:application"]
     # Mount only backend dir to avoid triggering autoreload on unrelated file changes (e.g. frontend HMR)
     volumes:
       - ./backend:/app/backend
@@ -39,16 +39,24 @@ services:
       # Also mount the package directory used by the running process so runtime imports see the
       # updated settings and other top-level modules (overrides files copied at image build time)
       - ./backend/sistema_agropecuario:/app/sistema_agropecuario
+      # ZeroClaw Python SDK (montado para desenvolvimento sem reinstalação)
+      - ../../zeroclaw/python:/zeroclaw_sdk
     ports:
       - "8001:8000"
     environment:
       - DATABASE_URL=postgresql://agro_user:secret_password@db:5432/agro_db
       - REDIS_URL=redis://redis:6379/0
-      - PYTHONPATH=/app/backend
+      - PYTHONPATH=/app/backend:/zeroclaw_sdk
       - DB_HOST=db
       - DB_PORT=5432
       - POSTGRES_USER=agro_user
       - CREATE_DEV_USER=true
+      # --- Isidoro / ZeroClaw ---
+      - ISIDORO_LLM_MODEL=gemini-2.5-flash
+      - ISIDORO_API_KEY=AIzaSyAJmD06K9GAUDMlOSNGGtYT0Ar8hyojcFE
+      - ISIDORO_LLM_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai/
+      - ISIDORO_LLM_TEMPERATURE=0.3
+      - AGROLINK_API_URL=http://backend:8000/api
       - DEV_SUPERUSER_PASSWORD=admin123
       - DEBUG=True
       # Chave para criptografia de certificados (deve ser a mesma em todos os containers)
@@ -101,11 +109,13 @@ services:
       - ./backend:/app/backend
       - ./frontend:/app/backend/frontend
       - ./backend/sistema_agropecuario:/app/sistema_agropecuario
+      # ZeroClaw Python SDK (montado para desenvolvimento sem reinstalação)
+      - ../../zeroclaw/python:/zeroclaw_sdk
     environment:
       - DATABASE_URL=postgresql://agro_user:secret_password@db:5432/agro_db
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
-      - PYTHONPATH=/app/backend
+      - PYTHONPATH=/app/backend:/zeroclaw_sdk
       - DB_HOST=db
       - DB_PORT=5432
       - POSTGRES_USER=agro_user
@@ -117,6 +127,12 @@ services:
       - SEFAZ_SIMULATE_ONLY=True
       - SEFAZ_SSL_VERIFY=False
       - SEFAZ_DISTRIB_ENDPOINT=https://hom.nfe.fazenda.gov.br/NFeDistribuicaoDFe/NFeDistribuicaoDFe.asmx
+      # --- Isidoro / ZeroClaw ---
+      - ISIDORO_LLM_MODEL=gemini-2.5-flash
+      - ISIDORO_API_KEY=AIzaSyAJmD06K9GAUDMlOSNGGtYT0Ar8hyojcFE
+      - ISIDORO_LLM_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai/
+      - ISIDORO_LLM_TEMPERATURE=0.3
+      - AGROLINK_API_URL=http://backend:8000/api
     depends_on:
       db:
         condition: service_healthy

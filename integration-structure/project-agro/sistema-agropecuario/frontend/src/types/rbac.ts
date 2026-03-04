@@ -14,7 +14,8 @@ export type RBACModule =
   | 'administrativo'
   | 'fiscal'
   | 'comercial'
-  | 'user_management';
+  | 'user_management'
+  | 'actions';
 
 export const MODULE_LABELS: Record<RBACModule, string> = {
   dashboard: 'Dashboard',
@@ -28,6 +29,7 @@ export const MODULE_LABELS: Record<RBACModule, string> = {
   fiscal: 'Fiscal',
   comercial: 'Comercial',
   user_management: 'Gestão de Usuários',
+  actions: 'Isidoro IA',
 };
 
 export const ALL_MODULES: RBACModule[] = Object.keys(MODULE_LABELS) as RBACModule[];

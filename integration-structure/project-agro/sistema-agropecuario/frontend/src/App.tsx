@@ -67,6 +67,10 @@ import Login from '@/pages/auth/Login';
 import Register from '@/pages/auth/Register';
 import ForgotPassword from '@/pages/auth/ForgotPassword';
 
+// Isidoro Actions
+import Actions from '@/pages/Actions';
+import { ActionsProvider } from './contexts/ActionsContext';
+
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { isAuthenticated, loading } = useAuthContext();
 
@@ -104,7 +108,9 @@ function App() {
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/" element={
             <ProtectedRoute>
-              <Layout />
+              <ActionsProvider>
+                <Layout />
+              </ActionsProvider>
             </ProtectedRoute>
           }>
             <Route index element={<Dashboard />} />
@@ -178,6 +184,7 @@ function App() {
 
             <Route path="administrativo" element={<Administrativo />} />
             <Route path="fiscal" element={<RBACGuard module="fiscal" showMessage><Fiscal /></RBACGuard>} />
+            <Route path="actions" element={<RBACGuard module="actions" showMessage><Actions /></RBACGuard>} />
           </Route>
         </Routes>
       </Router>
