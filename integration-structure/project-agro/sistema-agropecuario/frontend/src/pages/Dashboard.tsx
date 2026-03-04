@@ -1,7 +1,14 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { Link } from 'react-router-dom';
 import { useApiQuery } from '../hooks/useApi';
 import { formatCurrency } from '../utils/formatters';
+import { useActions } from '../contexts/ActionsContext';
+import {
+  ACTION_STATUS_LABELS,
+  ACTION_STATUS_COLORS,
+  MODULE_LABELS,
+  type ActionType,
+} from '../services/actions';
 
 interface DashboardResumo {
   kpis: {
@@ -25,35 +32,30 @@ const Dashboard: React.FC = () => {
     ['dashboard-resumo'],
     '/dashboard/resumo/'
   );
-  const [chatInput, setChatInput] = useState('');
+  const { pendingActions, isLoadingActions } = useActions();
+
+  // Show only pending_approval, capped at 6 for the dashboard widget
+  const dashboardPending = pendingActions
+    .filter((a) => a.status === 'pending_approval')
+    .slice(0, 6);
 
   const kpis = resumo?.kpis;
 
   const formatNumber = (n: number | undefined) =>
     n != null ? n.toLocaleString('pt-BR') : '—';
 
-  /* Placeholder AI pending tasks — will be populated via real endpoint */
-  const aiPendingTasks = [
-    { id: 1, title: 'Analisar variação de custos operacionais', status: 'pendente', priority: 'alta', module: 'Financeiro' },
-    { id: 2, title: 'Gerar relatório de produtividade por talhão', status: 'em andamento', priority: 'média', module: 'Agricultura' },
-    { id: 3, title: 'Classificar notas fiscais importadas', status: 'pendente', priority: 'alta', module: 'Fiscal' },
-    { id: 4, title: 'Sugerir reposição de estoque mínimo', status: 'concluído', priority: 'baixa', module: 'Estoque' },
-    { id: 5, title: 'Prever manutenção preventiva — frota', status: 'pendente', priority: 'média', module: 'Máquinas' },
-  ];
-
-  const statusBadge = (s: string) => {
-    switch (s) {
-      case 'em andamento': return 'bg-primary';
-      case 'concluído': return 'bg-success';
-      default: return 'bg-warning text-dark';
-    }
-  };
-  const priorityIcon = (p: string) => {
-    switch (p) {
-      case 'alta': return 'bi-arrow-up-circle-fill text-danger';
-      case 'média': return 'bi-dash-circle-fill text-warning';
-      default: return 'bi-arrow-down-circle-fill text-info';
-    }
+  const ACTION_TYPE_LABELS: Record<ActionType, string> = {
+    operacao_agricola: 'Operação agrícola',
+    colheita: 'Colheita',
+    manutencao_maquina: 'Manutenção de máquina',
+    abastecimento: 'Abastecimento',
+    parada_maquina: 'Parada de máquina',
+    entrada_estoque: 'Entrada de estoque',
+    saida_estoque: 'Saída de estoque',
+    ajuste_estoque: 'Ajuste de estoque',
+    criar_item_estoque: 'Criar item (estoque)',
+    criar_talhao: 'Criar talhão',
+    atualizar_talhao: 'Atualizar talhão',
   };
 
   return (
@@ -177,51 +179,8 @@ const Dashboard: React.FC = () => {
 
       {/* ─── Main Content: 2 columns ─── */}
       <div className="row">
-        {/* Left column — AI Chat + Modules */}
+        {/* Left column — Modules */}
         <div className="col-lg-8">
-          {/* AI Chat Section */}
-          <div className="card mb-4 shadow-sm">
-            <div className="card-header bg-dark text-white d-flex align-items-center">
-              <i className="bi bi-robot fs-5 me-2"></i>
-              <h5 className="mb-0 flex-grow-1">Assistente IA</h5>
-              <span className="badge bg-success"><i className="bi bi-circle-fill me-1" style={{ fontSize: '0.5rem' }}></i>Online</span>
-            </div>
-            <div className="card-body" style={{ minHeight: 220 }}>
-              {/* Chat messages area */}
-              <div className="bg-light rounded-3 p-3 mb-3" style={{ minHeight: 140, maxHeight: 300, overflowY: 'auto' }}>
-                <div className="d-flex mb-3">
-                  <div className="flex-shrink-0">
-                    <span className="badge bg-dark rounded-circle p-2"><i className="bi bi-robot"></i></span>
-                  </div>
-                  <div className="ms-2 bg-white rounded-3 p-2 px-3 shadow-sm" style={{ maxWidth: '85%' }}>
-                    <small className="text-muted d-block mb-1" style={{ fontSize: '0.7rem' }}>Assistente IA</small>
-                    <span>Olá! Sou o assistente inteligente do Agro-link. Posso ajudar com análises de dados, relatórios, previsões e automações. Como posso ajudar?</span>
-                  </div>
-                </div>
-              </div>
-              {/* Input */}
-              <div className="input-group">
-                <input
-                  type="text"
-                  className="form-control"
-                  placeholder="Pergunte algo ao assistente... Ex: Qual o saldo financeiro do mês?"
-                  value={chatInput}
-                  onChange={(e) => setChatInput(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && e.preventDefault()}
-                />
-                <button className="btn btn-dark" type="button" disabled={!chatInput.trim()}>
-                  <i className="bi bi-send"></i>
-                </button>
-              </div>
-              <div className="mt-2 d-flex gap-2 flex-wrap">
-                <small className="text-muted">Sugestões:</small>
-                <button className="btn btn-outline-secondary btn-sm py-0 px-2" style={{ fontSize: '0.75rem' }} onClick={() => setChatInput('Resumo financeiro do mês')}>Resumo financeiro</button>
-                <button className="btn btn-outline-secondary btn-sm py-0 px-2" style={{ fontSize: '0.75rem' }} onClick={() => setChatInput('Produtos com estoque crítico')}>Estoque crítico</button>
-                <button className="btn btn-outline-secondary btn-sm py-0 px-2" style={{ fontSize: '0.75rem' }} onClick={() => setChatInput('Previsão de colheita')}>Previsão colheita</button>
-                <button className="btn btn-outline-secondary btn-sm py-0 px-2" style={{ fontSize: '0.75rem' }} onClick={() => setChatInput('Manutenções pendentes')}>Manutenções</button>
-              </div>
-            </div>
-          </div>
 
           {/* Quick Access Modules */}
           <h6 className="text-muted text-uppercase fw-semibold mb-3" style={{ fontSize: '0.75rem', letterSpacing: '0.05em' }}>
@@ -259,32 +218,65 @@ const Dashboard: React.FC = () => {
             <div className="card-header bg-dark text-white d-flex align-items-center">
               <i className="bi bi-list-check fs-5 me-2"></i>
               <h5 className="mb-0 flex-grow-1">Pendências IA</h5>
-              <span className="badge bg-warning text-dark">{aiPendingTasks.filter(t => t.status !== 'concluído').length}</span>
+              {!isLoadingActions && (
+                <span className="badge bg-warning text-dark">{dashboardPending.length}</span>
+              )}
+              {isLoadingActions && (
+                <span className="badge bg-secondary">...</span>
+              )}
             </div>
             <div className="card-body p-0">
-              <div className="list-group list-group-flush">
-                {aiPendingTasks.map((task) => (
-                  <div key={task.id} className={`list-group-item list-group-item-action ${task.status === 'concluído' ? 'bg-light' : ''}`}>
-                    <div className="d-flex align-items-start">
-                      <i className={`bi ${priorityIcon(task.priority)} flex-shrink-0 mt-1 me-2`}></i>
-                      <div className="flex-grow-1">
-                        <div className={`fw-semibold ${task.status === 'concluído' ? 'text-decoration-line-through text-muted' : ''}`} style={{ fontSize: '0.85rem' }}>
-                          {task.title}
-                        </div>
-                        <div className="d-flex align-items-center gap-2 mt-1">
-                          <span className={`badge ${statusBadge(task.status)}`} style={{ fontSize: '0.65rem' }}>{task.status}</span>
-                          <small className="text-muted" style={{ fontSize: '0.7rem' }}>{task.module}</small>
+              {isLoadingActions ? (
+                <div className="text-center py-4 text-muted">
+                  <div className="spinner-border spinner-border-sm me-2" role="status"></div>
+                  Carregando...
+                </div>
+              ) : dashboardPending.length === 0 ? (
+                <div className="text-center py-4 text-muted">
+                  <i className="bi bi-check2-all fs-3 d-block mb-2 text-success"></i>
+                  <small>Nenhuma ação pendente de aprovação</small>
+                </div>
+              ) : (
+                <div className="list-group list-group-flush">
+                  {dashboardPending.map((action) => (
+                    <Link
+                      key={action.id}
+                      to="/actions"
+                      className="list-group-item list-group-item-action"
+                    >
+                      <div className="d-flex align-items-start">
+                        <i className="bi bi-robot flex-shrink-0 mt-1 me-2 text-muted"></i>
+                        <div className="flex-grow-1 min-width-0">
+                          <div className="fw-semibold text-truncate" style={{ fontSize: '0.85rem' }}>
+                            {ACTION_TYPE_LABELS[action.action_type] ?? action.action_type}
+                          </div>
+                          <div className="d-flex align-items-center gap-2 mt-1">
+                            <span
+                              className={`badge bg-${ACTION_STATUS_COLORS[action.status]} ${action.status === 'pending_approval' ? 'text-dark' : ''}`}
+                              style={{ fontSize: '0.65rem' }}
+                            >
+                              {ACTION_STATUS_LABELS[action.status]}
+                            </span>
+                            <small className="text-muted" style={{ fontSize: '0.7rem' }}>
+                              {MODULE_LABELS[action.module]}
+                            </small>
+                            {action.upload_nome && (
+                              <small className="text-muted text-truncate" style={{ fontSize: '0.65rem' }}>
+                                · {action.upload_nome}
+                              </small>
+                            )}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
+                    </Link>
+                  ))}
+                </div>
+              )}
             </div>
             <div className="card-footer text-center">
-              <button className="btn btn-sm btn-outline-dark">
-                <i className="bi bi-plus-circle me-1"></i>Nova tarefa IA
-              </button>
+              <Link to="/actions" className="btn btn-sm btn-outline-dark">
+                <i className="bi bi-arrow-right-circle me-1"></i>Ver todas as pendências
+              </Link>
             </div>
           </div>
 
