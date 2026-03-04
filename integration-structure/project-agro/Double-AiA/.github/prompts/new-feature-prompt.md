@@ -1,0 +1,1 @@
+@architect, planeje essa nova feature baseada em docs/requirements/: [descreva a feature aqui]. Divida em tasks, atualize TASKS.md, e handoff para @implementer.

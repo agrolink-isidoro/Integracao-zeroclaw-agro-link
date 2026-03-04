@@ -1,0 +1,10 @@
+{
+  "extends": "./tsconfig.app.json",
+  "compilerOptions": {
+    "module": "es2020",
+    "moduleResolution": "node",
+    "noEmit": true,
+    "verbatimModuleSyntax": false,
+    "skipLibCheck": true
+  }
+}

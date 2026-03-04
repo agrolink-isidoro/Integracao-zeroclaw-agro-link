@@ -1,0 +1,110 @@
+.upload-zone {
+  border: 2px dashed #dee2e6;
+  border-radius: 8px;
+  padding: 2rem;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  background-color: #f8f9fa;
+  min-height: 200px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  &:hover {
+    border-color: #0d6efd;
+    background-color: #e7f1ff;
+  }
+
+  &.active {
+    border-color: #28a745;
+    background-color: #d4edda;
+    border-width: 3px;
+  }
+
+  &__content {
+    pointer-events: none;
+  }
+
+  &__icon {
+    font-size: 2.5rem;
+    color: #0d6efd;
+    margin-bottom: 1rem;
+    display: block;
+  }
+
+  &__title {
+    margin: 0 0 0.5rem 0;
+    font-size: 1.1rem;
+    color: #212529;
+    font-weight: 600;
+  }
+
+  &__subtitle {
+    margin: 0.5rem 0;
+    font-size: 0.9rem;
+    color: #6c757d;
+  }
+
+  &__size {
+    margin: 0.5rem 0 0 0;
+    font-size: 0.85rem;
+    color: #999;
+  }
+}
+
+/* SCSS Fallback (in case using CSS-in-JS) */
+.upload-zone {
+  border: 2px dashed #dee2e6;
+  border-radius: 8px;
+  padding: 2rem;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  background-color: #f8f9fa;
+  min-height: 200px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.upload-zone:hover {
+  border-color: #0d6efd;
+  background-color: #e7f1ff;
+}
+
+.upload-zone.active {
+  border-color: #28a745;
+  background-color: #d4edda;
+  border-width: 3px;
+}
+
+.upload-zone__content {
+  pointer-events: none;
+}
+
+.upload-zone__icon {
+  font-size: 2.5rem;
+  color: #0d6efd;
+  margin-bottom: 1rem;
+  display: block;
+}
+
+.upload-zone__title {
+  margin: 0 0 0.5rem 0;
+  font-size: 1.1rem;
+  color: #212529;
+  font-weight: 600;
+}
+
+.upload-zone__subtitle {
+  margin: 0.5rem 0;
+  font-size: 0.9rem;
+  color: #6c757d;
+}
+
+.upload-zone__size {
+  margin: 0.5rem 0 0 0;
+  font-size: 0.85rem;
+  color: #999;
+}

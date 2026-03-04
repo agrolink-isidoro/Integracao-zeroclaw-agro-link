@@ -1,0 +1,81 @@
+# Manutenção de Certificados SEFAZ
+
+Este documento descreve comandos e procedimentos seguros para migrar, rotacionar e validar certificados PKCS#12 (P12/PFX) armazenados pelo sistema.
+
+⚠️ Aviso de segurança: sempre realize backup das chaves e dos arquivos antes de operar em produção. Utilize `--dry-run` nas ferramentas abaixo para validar o que será alterado.
+
+Comandos úteis
+
+- Migrar arquivos plaintext para armazenamento cifrado (idempotente):
+
+  # No ambiente com Django configurado (ex.: container `backend`)
+  $ python manage.py migrate_cert_files --dry-run
+  $ python manage.py migrate_cert_files
+
+  Notas:
+  - `--dry-run` apenas reporta o que seria feito; não persiste alterações.
+  - O comando tentará ler `arquivo` (FileField), cifrar com a chave atual (`CERT_ENCRYPTION_KEY`) e salvar em `arquivo_encrypted`.
+  - É recomendado rodar o `--dry-run` em staging antes de production.
+
+**Status de testes (2026-01-12):** ao rodar a suíte de testes do app `fiscal` localmente, **5 testes relacionados a migração/rotação de certificados falharam**. Sintomas observados: consultas que referenciam `arquivo_encrypted` levantam `FieldError` (campo inexistente) e uploads de certificado não retornam `arquivo_name` no JSON de resposta. Recomendações imediatas:
+
+- Adicionar migrations para criar os campos `arquivo_encrypted` (armazenamento cifrado dos bytes, ou campo de texto/base64) e `arquivo_name` (nome original do arquivo).
+
+**Atual (2026-01-12):** migrations e ajustes foram aplicados; upload agora popula `arquivo_name`, armazena `arquivo_encrypted` quando `CERT_ENCRYPTION_KEY` está configurada, e os comandos `migrate_cert_files` / `rotate_cert_keys` foram ajustados para operar corretamente. Testes unitários e E2E relevantes foram atualizados e a suíte `apps/fiscal/tests` passa localmente.
+
+- **Auditoria:** o sistema agora grava `CertificadoActionAudit` para ações sensíveis (upload, migrate, rotate, emit, cancel, callback). Consulte o endpoint read-only `GET /api/fiscal/certificado-audits/` para inspeção. Para exportar os registros de auditoria em CSV (por exemplo para análise operacional), use `GET /api/fiscal/certificado-audits/export_csv/` (admin only).
+- **CI/Runbook:** adicionamos um workflow de verificação (`.github/workflows/fiscal-tests.yml` + `cert_rotation_dry_run.yml`) e o template de issue `.github/ISSUE_TEMPLATES/cert_rotation_dry_run_report.md` para facilitar a revisão quando `migrate_cert_files --dry-run` indicar alterações/falhas.
+- Atualizar o serializer do model `CertificadoSefaz` para incluir `arquivo_name` na resposta e garantir que o upload suporte criptografia at-rest quando `CERT_ENCRYPTION_KEY` estiver configurada.
+
+### Verificação local de PKCS#12
+Em cenários de debugging e validação, pode ser útil verificar se o arquivo PKCS#12 (.pfx/.p12) contém as chaves e certificados esperados. Use o OpenSSL para inspeção rápida:
+
+```bash
+# Ver conteúdo do PKCS#12 (talvez peça senha):
+openssl pkcs12 -in /path/to/cert.pfx -nodes -nomacver
+# Extrair PEMs (privada + cert):
+openssl pkcs12 -in /path/to/cert.pfx -nodes -passin pass:yourpass -nokeys -out cert.pem
+openssl pkcs12 -in /path/to/cert.pfx -nodes -passin pass:yourpass -nocerts -out key.pem
+```
+
+Observações:
+- Alguns PKCS#12 exigem senha não-vazia mesmo quando aparentemente foram criados sem senha; durante a investigação usamos a senha `testpass` para o PFX gerado pelos scripts de teste.
+- Na implementação atual do `SefazClient`, há um fallback que tenta extração via `openssl` se a extração via `cryptography` falhar. Não mantenha arquivos sensíveis no repositório; utilize o `docs/FISCAL_TEMP/SECRETS_CLEANUP_CHECKLIST.md` após testes locais.
+
+
+- KMS cache: quando usando `CERT_ENCRYPTION_KMS_PROVIDER='aws'` e `CERT_ENCRYPTION_KMS_SECRET_NAME`, o código usa um TTL em memória configurável via `CERT_ENCRYPTION_KMS_CACHE_TTL` (segundos) para reduzir latência e chamadas ao Secrets Manager (padrão: 300s).
+- Corrigir os management commands `migrate_cert_files` e `rotate_cert_keys` para usar os campos existentes ou migrados; adicionar testes de integração para `--dry-run` e execução efetiva.
+- Documentar as migrations e passos de rollback no changelog / deployment notes.
+
+- Rotacionar chaves (re-encrypt all):
+
+  $ python manage.py rotate_cert_keys --new-key "<nova_chave_base64>" --old-keys "<old1>,<old2>" --dry-run
+  $ python manage.py rotate_cert_keys --new-key "<nova_chave_base64>" --old-keys "<old1>,<old2>"
+
+  Notas:
+  - Forneça `--old-keys` explicitamente se a chave atual não está disponível no ambiente (por exemplo, ao executar a rotação em um job externo).
+  - `--dry-run` permite verificar resultados antes de persistir.
+
+Boas práticas / Checklist de deploy
+
+1. Fazer backup dos certificados e da DB.
+2. No ambiente de staging, executar `migrate_cert_files --dry-run` e revisar resultados.
+3. Executar `migrate_cert_files` no ambiente controlado.
+4. Gerar `nova_chave` (Fernet) de forma segura e armazenar em KMS ou secret manager.
+5. Executar `rotate_cert_keys --new-key <nova_chave> --old-keys <key_antiga>` com `--dry-run` e revisar.
+6. Executar sem `--dry-run` para aplicar.
+7. Verificar em logs e via API que certificados são acessíveis e operacionais.
+8. Atualizar qualquer configuração/secret manager para apontar para a nova chave primária e mover a antiga para `CERT_ENCRYPTION_FALLBACK_KEYS` por um período de transição.
+
+Integração com KMS / Automação
+
+- Recomendamos integrar o Key Provider (KMS ou Vault) em produção: não deixar chaves em texto plano no `settings.py`.
+- Um job CI/CD seguro pode executar `--dry-run` periodicamente via `workflow_dispatch` (ação manual) para validar alterações antes de aplicar.
+
+Runbook
+
+- A runbook detalhada com exemplos de comandos, dry-run, rollback e instruções de AWS Secrets Manager está em `docs/FISCAL_TEMP/CERT_ROTATION_RUNBOOK.md`.
+
+Exemplo rápido (modo manual) - GitHub Actions: criar um workflow `cert_rotation_dry_run.yml` com `workflow_dispatch` para rodar `migrate_cert_files --dry-run` em um runner que tenha acesso ao ambiente.
+
+Se precisar, posso adicionar um template de job CI específico para o seu provedor (GitHub Actions/GitLab CI) e instruções de integração com KMS.

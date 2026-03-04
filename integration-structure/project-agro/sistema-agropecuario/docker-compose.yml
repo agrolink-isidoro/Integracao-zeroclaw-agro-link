@@ -1,0 +1,129 @@
+version: '3.8'
+services:
+  db:
+    image: postgis/postgis:15-3.4
+    restart: always
+    environment:
+      POSTGRES_DB: agro_db
+      POSTGRES_USER: agro_user
+      POSTGRES_PASSWORD: secret_password  # Mude para algo forte em prod; use isso por agora
+    ports:
+      - "5435:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data/
+      - ./backend/sql:/docker-entrypoint-initdb.d  # Para scripts init SQL (criaremos depois)
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U agro_user -d agro_db -h localhost -p 5432 || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
+
+  redis:
+    image: redis:7-alpine
+    restart: always
+    ports:
+      - "6380:6379"
+    volumes:
+      - redis_data:/data
+
+  backend:
+    build: ./backend
+    working_dir: /app/backend
+    entrypoint: ["/app/backend/docker-entrypoint.sh"]
+    command: ["python", "manage.py", "runserver", "0.0.0.0:8000"]
+    # Mount only backend dir to avoid triggering autoreload on unrelated file changes (e.g. frontend HMR)
+    volumes:
+      - ./backend:/app/backend
+      - ./frontend:/app/backend/frontend
+      # Also mount the package directory used by the running process so runtime imports see the
+      # updated settings and other top-level modules (overrides files copied at image build time)
+      - ./backend/sistema_agropecuario:/app/sistema_agropecuario
+    ports:
+      - "8001:8000"
+    environment:
+      - DATABASE_URL=postgresql://agro_user:secret_password@db:5432/agro_db
+      - REDIS_URL=redis://redis:6379/0
+      - PYTHONPATH=/app/backend
+      - DB_HOST=db
+      - DB_PORT=5432
+      - POSTGRES_USER=agro_user
+      - CREATE_DEV_USER=true
+      - DEV_SUPERUSER_PASSWORD=admin123
+      - DEBUG=True
+      # Chave para criptografia de certificados (deve ser a mesma em todos os containers)
+      - CERT_ENCRYPTION_KEY=FiWNDA006OucJwSuejkt-EjBpmybzMLwq_zMYR_z-98=
+      # Configuração SEFAZ para homologação (sandbox)
+      - SEFAZ_AMBIENTE=2
+      - SEFAZ_SIMULATE_ONLY=True
+      - SEFAZ_SSL_VERIFY=False
+      - SEFAZ_DISTRIB_ENDPOINT=https://hom.nfe.fazenda.gov.br/NFeDistribuicaoDFe/NFeDistribuicaoDFe.asmx
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health/', timeout=5)\""]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+
+  frontend:
+    image: node:20
+    working_dir: /app/frontend
+    command: sh -c "npm ci && npm run dev -- --host 0.0.0.0"
+    volumes:
+      - ./frontend:/app/frontend
+      - /app/frontend/node_modules
+    ports:
+      - "5173:5173"
+    depends_on:
+      - backend
+    environment:
+      - CHOKIDAR_USEPOLLING=true
+      - VITE_API_BASE=/api/
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:5173/ || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 5s
+
+  worker:
+    build: ./backend
+    working_dir: /app/backend
+    entrypoint: ["/app/backend/docker-entrypoint.sh"]
+    command: ["celery", "-A", "sistema_agropecuario", "worker", "--loglevel=info", "--concurrency=1"]
+    volumes:
+      - ./backend:/app/backend
+      - ./frontend:/app/backend/frontend
+      - ./backend/sistema_agropecuario:/app/sistema_agropecuario
+    environment:
+      - DATABASE_URL=postgresql://agro_user:secret_password@db:5432/agro_db
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - PYTHONPATH=/app/backend
+      - DB_HOST=db
+      - DB_PORT=5432
+      - POSTGRES_USER=agro_user
+      - DEBUG=True
+      # Chave para criptografia de certificados (deve ser a mesma em todos os containers)
+      - CERT_ENCRYPTION_KEY=FiWNDA006OucJwSuejkt-EjBpmybzMLwq_zMYR_z-98=
+      # Configuração SEFAZ para homologação (sandbox)
+      - SEFAZ_AMBIENTE=2
+      - SEFAZ_SIMULATE_ONLY=True
+      - SEFAZ_SSL_VERIFY=False
+      - SEFAZ_DISTRIB_ENDPOINT=https://hom.nfe.fazenda.gov.br/NFeDistribuicaoDFe/NFeDistribuicaoDFe.asmx
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  redis_data:

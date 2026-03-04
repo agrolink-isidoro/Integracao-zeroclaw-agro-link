@@ -1,0 +1,139 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+
+  /* Forçar tema claro para compatibilidade com Bootstrap */
+  color-scheme: light;
+  color: #212529;
+  background-color: #ffffff;
+
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+a {
+  font-weight: 500;
+  color: #646cff;
+  text-decoration: inherit;
+}
+a:hover {
+  color: #535bf2;
+}
+
+html, body, #root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+  /* Do not center the entire app globally — layout components handle centering when needed */
+}
+
+h1 {
+  font-size: 3.2em;
+  line-height: 1.1;
+}
+
+button:not(.btn) {
+  border-radius: 8px;
+  border: 1px solid transparent;
+  padding: 0.6em 1.2em;
+  font-size: 1em;
+  font-weight: 500;
+  font-family: inherit;
+  background-color: #f8f9fa;
+  color: #212529;
+  cursor: pointer;
+  transition: border-color 0.25s;
+}
+button:not(.btn):hover {
+  border-color: #646cff;
+  background-color: #e9ecef;
+}
+button:not(.btn):focus,
+button:not(.btn):focus-visible {
+  outline: 4px auto -webkit-focus-ring-color;
+}
+
+/* Ensure form selects are readable across browsers (fixes Opera rendering issues) */
+.form-select,
+.form-select option {
+  color: #212529 !important;
+  background-color: #ffffff !important;
+}
+
+/* For dark mode keep readable too */
+@media (prefers-color-scheme: dark) {
+  .form-select,
+  .form-select option {
+    color: #e9ecef !important;
+    background-color: #2b2b2b !important;
+  }
+}
+
+/* Chart focus styling for keyboard navigation */
+.chart-focusable:focus {
+  outline: 3px solid rgba(59,130,246,0.6);
+  outline-offset: 4px;
+  border-radius: 6px;
+}
+
+/* Ensure top-level page containers expand to fill the viewport (account for header) */
+.container-fluid {
+  min-height: calc(100vh - 64px);
+  box-sizing: border-box;
+}
+
+/* Simple CSS-based tooltip (lightweight, works without JS) */
+.tooltip-styled {
+  position: relative;
+  display: inline-block;
+  color: #0d6efd; /* bootstrap primary */
+}
+.tooltip-styled::after {
+  content: attr(data-tooltip);
+  white-space: pre-wrap;
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(33,37,41,0.95);
+  color: white;
+  padding: 8px 10px;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  min-width: 180px;
+  text-align: left;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.12s ease-in-out;
+  z-index: 9999;
+}
+.tooltip-styled:hover::after,
+.tooltip-styled:focus::after {
+  opacity: 1;
+}
+.tooltip-styled::before {
+  content: '';
+  position: absolute;
+  bottom: calc(100% + 2px);
+  left: 50%;
+  transform: translateX(-50%);
+  border-width: 6px;
+  border-style: solid;
+  border-color: rgba(33,37,41,0.95) transparent transparent transparent;
+  opacity: 0;
+  transition: opacity 0.12s ease-in-out;
+}
+.tooltip-styled:hover::before,
+.tooltip-styled:focus::before { opacity: 1; }
+

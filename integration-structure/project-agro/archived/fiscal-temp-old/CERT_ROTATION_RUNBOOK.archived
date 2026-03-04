@@ -1,0 +1,97 @@
+# Runbook — Migração e Rotação de Certificados (SEFAZ)
+
+Objetivo: descrever passos seguros, comandos e procedimentos para migrar arquivos plaintext para armazenamento cifrado, rotacionar chaves de cifragem e procedimentos de rollback. Inclui exemplos para uso com `migrate_cert_files` e `rotate_cert_keys` e recomendações de KMS (AWS Secrets Manager) como fonte da chave.
+
+Pré-requisitos
+- Ter backup completo da DB e dos arquivos de certificados (`certificados_sefaz/`) antes de operar.
+- Evitar executar em horários de pico; usar staging para testar antes de production.
+- Variáveis de ambiente:
+  - `CERT_ENCRYPTION_KEY` — chave Fernet base64 (quando não usar KMS)
+  - `CERT_ENCRYPTION_KMS_PROVIDER='aws'` e `CERT_ENCRYPTION_KMS_SECRET_NAME='my-secret'` — opção para buscar a chave em AWS Secrets Manager. O código implementa `_get_key_from_kms_if_configured()` que faz fetch do `SecretString` e armazena em cache na memória por `CERT_ENCRYPTION_KMS_CACHE_TTL` segundos (padrão: 300s) para reduzir chamadas ao Secrets Manager. Certifique-se de que a role/credentials do ambiente tenham permissão `secretsmanager:GetSecretValue` para o `SecretId` configurado.
+
+Comandos úteis
+
+1) Dry-run de migração (reporta o que seria feito):
+
+```bash
+# no container/backend com Django configurado
+python manage.py migrate_cert_files --dry-run
+```
+
+2) Migração efetiva (plaintext -> encrypted):
+
+```bash
+python manage.py migrate_cert_files
+```
+
+O comando:
+- Lê `CertificadoSefaz.arquivo` (FileField), cifra os bytes com a chave atual e grava em `arquivo_encrypted`.
+- Em dry-run, apenas reporta; em execução efetiva, deve atualizar a DB e, quando possível, remover ou restringir o arquivo plaintext.
+
+3) Verificando o resultado
+
+- Listar certificados com dados cifrados:
+
+```bash
+python manage.py shell
+>>> from backend.apps.fiscal.models_certificados import CertificadoSefaz
+>>> CertificadoSefaz.objects.exclude(arquivo_encrypted__isnull=True).count()
+```
+
+- Validar que `get_arquivo_bytes()` retorna bytes válidos (descriptografados):
+
+```python
+c = CertificadoSefaz.objects.first()
+print(bool(c.arquivo_encrypted), c.arquivo_name, c.get_arquivo_bytes()[:10])
+```
+
+4) Rotacionar chaves (re-encrypt all)
+
+- Dry-run com nova chave:
+
+```bash
+python manage.py rotate_cert_keys --new-key "<nova_chave_base64>" --old-keys "<old1>,<old2>" --dry-run
+```
+
+- Execução:
+
+```bash
+python manage.py rotate_cert_keys --new-key "<nova_chave_base64>" --old-keys "<old1>,<old2>"
+```
+
+Notas:
+- `--old-keys` deve conter chaves antigas que possam descriptografar tokens existentes.
+- Se nenhum `--old-keys` for fornecido, o comando tenta usar `CERT_ENCRYPTION_KEY` e `CERT_ENCRYPTION_FALLBACK_KEYS`.
+
+Rollback e mitigação
+- Antes de rotacionar, execute `--dry-run` e confirme que o número de certificados que será alterado é o esperado.
+- Mantenha um backup da DB e um snapshot dos arquivos cifrados (export `arquivo_encrypted` se possível).
+- Se a rotação falhar parcialmente com alguns certificados não re-encryptados, corrija os tokens manualmente (usar `decrypt_with_keys` com chaves antigas) ou restaure o backup.
+
+KMS (AWS Secrets Manager) — notas operacionais
+- Configurar secret com a chave base64 Fernet em Secrets Manager (SecretString contém a chave inteira).
+- Para ativar no app, defina:
+  - `CERT_ENCRYPTION_KMS_PROVIDER='aws'`
+  - `CERT_ENCRYPTION_KMS_SECRET_NAME='my-secret'`
+- Durante rotação via KMS, o workflow recomendado:
+  1. Criar nova secret com `new_key` (não substituir a atual).
+  2. Atualizar app/config para apontar para `new_secret` e testar `migrate_cert_files --dry-run` / `rotate_cert_keys --dry-run` com `--old-keys` apontando para o secret antigo (ou forneça diretamente as chaves via `--old-keys`).
+  3. Após validação, aplicar rotação e monitorar erros.
+
+CI / Tests
+- Adicionar testes unitários para:
+  - `_get_key_from_kms_if_configured()` (mock boto3)
+  - `rotate_cert_keys` dry-run and execution paths
+- Incluir `--dry-run` check as part of a manual workflow in CI with `workflow_dispatch` for safety.
+
+Permissões e auditoria
+- Somente usuários e processos autorizados (ops/admin) devem executar migração/rotação.
+- Logar (audit log) quem executou mudanças e os resultados (changed/failed counts).
+
+Contatos
+- Time responsável: backend (dono do módulo `fiscal`).
+- Para suporte em produção: follow runbook escalation (on-call).
+
+---
+
+Se quiser, posso: adicionar um workflow GitHub Action `cert_rotation_dry_run.yml` que roda `migrate_cert_files --dry-run` com `workflow_dispatch` e um template de alerta caso `changed > 0` e `failed > 0`.

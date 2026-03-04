@@ -1,0 +1,75 @@
+# Roadmap: Integração SEFAZ — Emissão de NF-e/NFC-e
+
+Objetivo: projetar e priorizar a implementação da emissão eletrônica (NF-e / NFC-e) integrada ao sistema, cobrindo requisitos de segurança (certificados), endpoints, comportamento de homologação e critérios de aceitação.
+
+Resumo rápido
+- Escopo inicial: emissão de NF-e via SEFAZ em ambiente de homologação (simulado) e produção (integração real) com rollback seguro e auditoria.
+- Não escopo (fase 1): contingência offline completa, integração fiscal com ERPs externos (podem ser fases posteriores).
+
+Visão de alto nível
+1. Dados fonte: NFe já persistida com `xml_content` e itens processados (fluxo de upload XML).
+2. Emissão: endpoint que recebe comando de emissão (ou fila) e usa certificado digital do cliente para assinar XML e enviar para SEFAZ. **Atual:** Implementado endpoint `emit` que cria um `EmissaoJob` e tenta enfileirar o processamento via Celery (`process_emissao_job`). Em caso de `simulate=True` (homolog), `SefazClient` retorna autorização automaticamente; se o enqueue falhar (Celery indisponível), o job ainda é criado e o endpoint responde `202` com `job_id` e uma mensagem indicando o problema (ex.: "Emissão enfileirada (background enqueue failed)").
+
+   - Auditoria: o sistema grava `CertificadoActionAudit` com `details` contendo `job_id` e `enqueued=True|False`, permitindo rastrear falhas de enfileiramento (teste: `apps/fiscal/tests/test_emissao_async.py::test_emit_handles_enqueue_failure_and_reports`).
+
+   - Existe teste E2E que usa mock server (`apps/fiscal/tests/test_e2e_sefaz.py`).
+3. Recebimento de resposta: armazenar `protocolo_autorizacao`, `data_autorizacao`, `status` e logs; expor endpoint para consulta de status e cancelamento (quando aplicável).
+
+Principais componentes
+- API endpoints (DRF):
+  - POST /api/fiscal/nfes/{id}/emit/  — solicita emissão (aceita certificado id, ambiente, opções)
+  - GET /api/fiscal/nfes/{id}/status/ — consulta status e protocolo
+  - POST /api/fiscal/nfes/{id}/cancel/ — solicita cancelamento (regras e prazos)
+  - Webhook / callback (opcional) — endpoint para receber notificações externas
+
+- Serviço SEFAZ client:
+  - Implementar cliente com suporte a ambientes `homolog` e `producao`.
+  - Requer: timeout, retries com backoff, circuit breaker para seções instáveis.
+  - Mecanismo de testes e mock (modo `simulate` / `dry_run`) para homolog.
+  - O processamento de emissão é assíncrono (`EmissaoJob`). O task `process_emissao_job` tem fallback para agendamento local de tentativas quando Celery não está disponível, e existe um comando de reconciliação (`reconcile_emissao_jobs`) que marca jobs `processing` travados como `failed`.
+  - Correções internas: foi corrigido um bug que duplicava o incremento de `tentativa_count` quando uma tentativa falhava e era agendada localmente; o problema foi coberto por teste unitário (`test_retry_schedules_next_attempt_when_not_celery`) e a lógica foi simplificada para garantir que `tentativa_count` seja incrementado exatamente uma vez por tentativa.
+
+- Gestão de certificados:
+  - Upload seguro de arquivo P12 (ou PKCS#12), armazenamento cifrado (recomendar KMS ou .env+ filesystem cifrado em produção).
+  - Rotação e revogação: permitir substituir certificado com histórico e auditoria.
+  - Testes de validação: senha correta, formato válido, chave pública válida.
+
+Regras de negócio e validações
+- Permissões: somente usuários staff ou com permissão `fiscal.send_to_sefaz` podem emitir/cancelar.
+- Pré-condições para emissão: NFe deve ter `xml_content` válido, `status != '100'` (não autorizada), e estar dentro das regras fiscais (ex.: ambiente correto).
+- Comportamento de erros: mapear códigos SEFAZ para respostas amigáveis e registrar stacktrace em logs protegidos.
+
+Testes e homologação
+- Fixtures: XML de exemplo (já presente em `apps/fiscal/tests/fixtures/`) e resposta simulada de SEFAZ.
+- Testes unitários e de integração: validar assinatura, envio, armazenamento de protocolo, retry behavior.
+- E2E homolog: ambiente que simula respostas SEFAZ (mock server) e valida fluxo completo de emissão → status autorizado.
+
+Critérios de aceitação
+- Endpoint `emit` implementado com contrato documentado e cobertura de testes unitários básicos.
+- Assinatura do XML validada em ambiente de homolog (pode usar biblioteca de testes/simulação).
+- Armazenamento seguro de `protocolo_autorizacao`, `status` e logs de comunicação.
+
+Fases da implementação (sprint-sized):
+1. Planejamento e design (este documento). Entregável: contrato de API + testes esqueleto. (1 sprint)
+2. Gerenciamento de certificados (upload validação, UI básica, armazenamento seguro). (1 sprint)
+3. SEFAZ client (homolog + simulate mode), endpoint `emit` e tratamento de respostas. (1-2 sprints)
+4. Testes de integração e E2E em homolog (incl. mock SEFAZ). (1 sprint)
+5. Produção: configurar certificado de produção, governança e monitoramento (1 sprint)
+
+Segurança e compliance
+- Criptografia at-rest para certificados (KMS/Hashicorp/Vault recomendados).
+- Log de auditoria para todas as ações (quem solicitou emissão, quando, resultado).
+- Limitar exposição de dados sensíveis em responses (não retornar senha do P12).
+
+Tarefas próximas (para criação como issues/todos):
+- [ ] Criar modelos e migrations para armazenar certificados com metadados (nome, fingerprint, ambiente, `criado_por`).
+- [ ] Criar endpoints e UI para upload/gerenciamento de certificados (admin-only).
+- [ ] Implementar endpoint `emit` e testar com modo `simulate` retornando protocolo falso.
+- [ ] Implementar SEFAZ client (homolog simulate + production adapter).  
+  - **Atual:** `SefazClient.send_manifestacao` e suporte a assinatura `infEvento` foram adicionados para manifestações. Implementação inclui geração de XML, extração de PEM de PKCS#12 e assinatura XMLDSig *enveloped* quando `signxml`/`xmlsec` estiverem disponíveis; testes unitários foram adicionados para validar o comportamento de assinatura localmente. Um workflow CI (`.github/workflows/fiscal-sign-integration.yml`) existe como referência, mas está **desativado/arquivado** devido a restrições de billing: a recomendação atual é executar a validação localmente via container (veja `docs/FISCAL_TEMP/TEST_CERT_GENERATION.md` e `docs/FISCAL_TEMP/SEFAZ_MANIFESTACAO_DEBUG_REPORT.md`).
+  - **Atual:** `SefazClient` agora suporta `max_retries` e `backoff_factor` para retries com exponential backoff via `urllib3.Retry` quando `requests` estiver disponível. A configuração default é `max_retries=3` e `backoff_factor=0.5`. O cliente usa `requests.Session` para performance e tolera ambientes sem `requests` (faz fallback para `urllib`).
+- [ ] Criar mocks de SEFAZ para E2E tests (Playwright / integration tests).
+
+Notas finais
+- Posso transformar essas tarefas em subtarefas do TODO list e iniciar a implementação da primeira (criar models/serializers para certificados e endpoint `emit`).
+- Documentação: adicionado `docs/FISCAL_TEMP/SEFAZ_CERTIFICATE_MAINTENANCE.md` com checklist de migração/rotação e exemplo de integração CI (workflow manual em `.github/workflows/cert_rotation_dry_run.yml`).

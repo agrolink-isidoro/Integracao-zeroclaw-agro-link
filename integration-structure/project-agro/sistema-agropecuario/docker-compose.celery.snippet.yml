@@ -1,0 +1,49 @@
+# Snippet: Adicionar serviços Celery ao docker-compose.yml principal
+# Copiar as seções worker e beat abaixo para seu docker-compose.yml ou include como override
+
+services:
+  worker:
+    build: ./backend
+    working_dir: /app/backend
+    command: celery -A sistema_agropecuario worker --loglevel=info --concurrency=1
+    volumes:
+      - ./:/app
+    environment:
+      - DATABASE_URL=postgresql://agro_user:secret_password@db:5432/agro_db
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+    depends_on:
+      - redis
+      - db
+
+  beat:
+    build: ./backend
+    working_dir: /app/backend
+    command: celery -A sistema_agropecuario beat --loglevel=info --scheduler django_celery_beat.schedulers:DatabaseScheduler
+    volumes:
+      - ./:/app
+    environment:
+      - DATABASE_URL=postgresql://agro_user:secret_password@db:5432/agro_db
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+    depends_on:
+      - redis
+      - db
+
+# Opcional: service para monitoramento (Flower)
+#  flower:
+#    image: mher/flower:0.9.7
+#    ports:
+#      - "5555:5555"
+#    environment:
+#      - FLOWER_PORT=5555
+#      - CELERY_BROKER_URL=redis://redis:6379/0
+#    depends_on:
+#      - redis
+
+# Nota: Ajuste "build", "working_dir" e variáveis de ambiente conforme sua configuração do backend.
+# Depois de adicionar, rode:
+# docker-compose up -d db redis backend worker beat
+# E aplique migrações dentro do backend (docker-compose exec backend python manage.py migrate)

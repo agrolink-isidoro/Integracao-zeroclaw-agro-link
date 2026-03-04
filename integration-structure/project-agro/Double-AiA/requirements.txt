@@ -1,0 +1,4 @@
+# Dependências mínimas para agentes de automação
+python-dotenv
+flask
+requests

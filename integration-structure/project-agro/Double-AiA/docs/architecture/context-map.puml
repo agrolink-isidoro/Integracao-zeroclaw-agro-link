@@ -1,0 +1,8 @@
+@startuml
+actor User
+rectangle System {
+  User --> Frontend
+  Frontend --> Backend
+  Backend --> DB
+}
+@enduml

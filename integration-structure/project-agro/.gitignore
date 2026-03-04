@@ -1,0 +1,115 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+
+# Pytest
+.pytest_cache/
+.pytest_cache_local/
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Virtualenvs
+.env/
+.env.*
+
+# Django
+db.sqlite3
+media/
+
+# Node
+node_modules/
+/package-lock.json
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# Vite / frontend build
+dist/
+.vite/
+
+# IDEs
+.vscode/
+.idea/
+*.sublime-workspace
+*.sublime-project
+
+# System
+.DS_Store
+Thumbs.db
+
+# Docker
+**/postgres_data/
+**/redis_data/
+
+# Misc
+*.log
+*.tmp
+
+# Ignore Windows alternate data streams (Zone.Identifier) created on some files
+# These are often added by Windows and are not relevant on Linux/macOS
+*:Zone.Identifier
+*.Zone.Identifier
+**/*:Zone.Identifier
+**/*.Zone.Identifier
+
+# local secrets
+.env
+*.pem
+*.key
+# ignore generated test certs
+scripts/certs/
+*.pfx
+
+# Ignore compiled bytecode anywhere
+**/__pycache__/
+
+# Ignore coverage
+htmlcov/
+.coverage
+coverage.xml
+
+# Ignore any .pytest_cache files accidentally owned by root
+sistema-agropecuario/backend/.pytest_cache/
+
+# Ignore backend certificate upload dir (runtime)
+sistema-agropecuario/backend/certificados_sefaz/
+
+# Ignore frontend generated node_modules in volume dir
+sistema-agropecuario/frontend/node_modules/
+
+/sistema-agropecuario/frontend/coverage/
+backup_pre_refactor_*.tar.gz
+backups/
+bank_statements/
+.copilot/
+docs/archived/
+# Ignore local and large binary backups
+Double-AiA-backup.*
+*.backup
+*_BACKUP.*
+sistema-agropecuario/backups/*
+
+# temp files
+tmp/
+
+# Env
+.env
+
+# 🚨 PREVENIR DUPLICAÇÕES DE PASTAS - NÃO REMOVER!
+# Se estas pastas aparecerem no root, é um ERRO da IA
+/backend/
+/frontend/
+/project-agro/
+/apps/__pycache__/
+*.tar.gz

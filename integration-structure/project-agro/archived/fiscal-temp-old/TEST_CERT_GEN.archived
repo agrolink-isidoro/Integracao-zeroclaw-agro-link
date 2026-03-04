@@ -1,0 +1,135 @@
+# Geração de Certificado de Teste (PKCS#12 / .pfx)
+
+Objetivo: prover um certificado autoassinado para uso em testes de integração (assinatura XMLDSig). Este fluxo é seguro quando usado apenas em ambiente de teste, e **não** deve ser usado em produção.
+
+## Resumo rápido
+- Script: `scripts/generate_test_pfx.sh` — gera `scripts/certs/test.pfx`, `test.key`, `test.crt` e `test_combined.pem`.
+- Não commit: a pasta `scripts/certs/` e arquivos `.pfx`/`.key`/`.pem` estão listados em `.gitignore`.
+- CI: codifique o `.pfx` em base64 e armazene como secret (ex.: `FISCAL_TEST_PFX_BASE64`) + `FISCAL_TEST_PFX_PASS`.
+
+## Passo-a-passo local (rápido)
+1. Execute o script (Linux / macOS):
+
+   ```bash
+   chmod +x scripts/generate_test_pfx.sh
+   ./scripts/generate_test_pfx.sh
+   ```
+
+   O arquivo será criado em `scripts/certs/test.pfx` por padrão.
+
+2. Adicione ao seu `.env` (local):
+
+   ```ini
+   FISCAL_TEST_PFX_PATH=scripts/certs/test.pfx
+   FISCAL_TEST_PFX_PASS=testpass
+   ```
+
+3. Execute os testes de assinatura/integração (os testes devem verificar a presença de `FISCAL_TEST_PFX_PATH` e rodar condicionalmente).
+
+Local homolog integration test (mock SEFAZ):
+- Para rodar o teste de integração homolog localmente, defina a variável de ambiente `RUN_HOMOLOG_INTEGRATION=true` e execute o pytest correspondente ou toda a suíte (`apps/fiscal/tests/test_manifestacao_homolog_integration.py`). Exemplo:
+
+```bash
+# exportar o caminho para o pfx gerado pelo script
+export FISCAL_TEST_PFX_PATH="/full/path/to/scripts/certs/test.pfx"
+export FISCAL_TEST_PFX_PASS="testpass"
+export RUN_HOMOLOG_INTEGRATION=true
+# rodar só o teste de homolog (local)
+cd sistema-agropecuario/backend
+python -m pytest apps/fiscal/tests/test_manifestacao_homolog_integration.py -q
+```
+
+- Nota: este teste levanta um servidor HTTP mock local que simula respostas SEFAZ (cStat 135/136) e valida a geração, assinatura e envio do XML de evento. Ele também exercita o task `send_manifestacao_task` chamando sua função interna para atualização do modelo.
+
+Testes unitários e de integração (rápidos):
+- Unit tests (assinar/verificar comportamento em memória):
+
+```bash
+export USE_SQLITE_FOR_TESTS=1
+cd sistema-agropecuario/backend
+python -m pytest apps/fiscal/tests/test_sefaz_client_manifestacao.py -q
+```
+
+- Integration test (com dependências nativas, via container - comando documentado neste arquivo e em `docs/FISCAL_TEMP/SEFAZ_MANIFESTACAO_DEBUG_REPORT.md`):
+
+```bash
+# Roda o teste de integração que valida a assinatura com um PFX de teste
+# (veja o comando container detalhado neste arquivo)
+```
+
+- Nota: os testes de assinatura foram adaptados para aceitar verificações com `SignatureConfiguration(require_x509=False)` em cenários de teste com certificados autoassinados. Para validação estrita (produção), verifique se os certificados estão em conformidade com ICP-Brasil e ajuste os testes para `require_x509=True` conforme necessário.
+
+
+## Execução local recomendada (container) — GitHub Actions desativado por enquanto
+**ATENÇÃO:** por decisão operacional (custos de GitHub Actions/`billing`) **não estamos usando** a execução automática deste fluxo no GitHub Actions por enquanto. **Não adicione** `FISCAL_TEST_PFX_BASE64` ou `FISCAL_TEST_PFX_PASS` como secrets no repositório enquanto essa política estiver em vigor. Se houver secrets existentes, veja o checklist de remoção abaixo.
+
+Por que esta mudança: a execução local em container reproduz de forma determinística as dependências nativas (xmlsec/libxml2/openssl) sem consumir minutos de CI, e nos permitiu depurar a extração do PKCS#12 e a assinatura XML de forma reprodutível.
+
+### Execução recomendada (com Docker)
+Use o comando abaixo para reproduzir o job de assinatura em um container Ubuntu (este é o comando que usamos durante a investigação):
+
+```bash
+docker run --rm -v "$(pwd)":/work -w /work -e DEBIAN_FRONTEND=noninteractive -e FISCAL_TEST_PFX_PASS=testpass ubuntu:22.04 bash -lc "apt-get update && apt-get install -y --no-install-recommends python3-pip python3-dev build-essential libxml2-dev libxmlsec1-dev libxmlsec1-openssl pkg-config libssl-dev openssl git ca-certificates gdal-bin libgdal-dev && pip3 install --upgrade pip setuptools wheel && pip3 install -r sistema-agropecuario/backend/requirements.txt && pip3 install signxml xmlsec && mkdir -p /work/tmp && base64 -d sistema-agropecuario/scripts/certs/test.pfx.b64 > /work/tmp/test.pfx && export FISCAL_TEST_PFX_PATH=/work/tmp/test.pfx && export USE_SQLITE_FOR_TESTS=1 && cd sistema-agropecuario/backend && pytest apps/fiscal/tests/test_manifestacao_integration.py::ManifestacaoIntegrationTest::test_sign_with_local_pfx_if_present -q"
+```
+
+#### Alternativa rápida: usar a imagem runner pré-build (`project-agro/ci:local`)
+A imagem pré-build contém GDAL e as principais bibliotecas nativas e Python (por exemplo: `libxml2`, `xmlsec`, `signxml`, `lxml`, `cryptography`) — isto reduz tempo de setup e garante ambiente consistente para os testes de assinatura.
+
+```bash
+# build localmente (uma vez)
+IMAGE_NAME=project-agro/ci:local ./scripts/build-fiscal-test-image.sh
+
+# rodar o teste de assinatura usando a imagem pré-build
+docker run --rm -u root \
+  -e FISCAL_TEST_PFX_BASE64="$(cat /tmp/test.pfx.b64)" \
+  -e FISCAL_TEST_PFX_PASS=testpass \
+  -e DJANGO_SETTINGS_MODULE=sistema_agropecuario.settings.minimal_test \
+  -e MINIMAL_TEST_INCLUDE_FISCAL=1 \
+  -e PYTHONPATH=/src/sistema_agropecuario \
+  -v $(pwd):/src -w /src/sistema-agropecuario/backend \
+  project-agro/ci:local bash -lc 'echo "$FISCAL_TEST_PFX_BASE64" | base64 -d > /tmp/test_cert.pfx; export FISCAL_TEST_PFX_PATH=/tmp/test_cert.pfx; python -m pip install -r requirements.txt; pytest -q apps/fiscal/tests/test_manifestacao_integration.py -q --maxfail=1'
+```
+
+Alternativa (mais integrada com o repo): use o container `backend` do `docker compose`. Este método evita reinstalar todas as dependências no container de execução, reutiliza a stack definida no `docker-compose.yml` e é o método recomendado para desenvolvedores locais. Exemplo de execução rápida para testes unitários que não requerem `xmlsec`/lxml/openssl nativos:
+
+```bash
+cd sistema-agropecuario
+# Executa os unit tests em um backend container com sqlite em memória e settings mínimos (evita carregar todos os apps):
+docker compose exec -T -e USE_SQLITE_FOR_TESTS=1 -e DJANGO_SETTINGS_MODULE=sistema_agropecuario.settings.minimal_test backend python -m pytest apps/fiscal/tests/test_sefaz_client_manifestacao_unit.py -q
+```
+
+Recomendações de otimização de tempo:
+- Criar uma imagem Docker pré-buildada (Ubuntu + libs nativas + wheels Python) e publicá-la em um registry (GHCR) para reduzir tempo de setup; um script `scripts/build-fiscal-test-image.sh` é sugerido no roadmap para automação.
+- Use `docker compose` para runs repetidos em vez do `docker run` pesado quando estiver iterando localmente.
+
+Nota: os testes de assinatura continuam condicionais ao `signxml/xmlsec` (skip quando libs não estão presentes) para manter a suíte de testes rápida em ambientes de desenvolvimento.
+
+
+Observações:
+- O comando instala dependências de sistema necessárias para `xmlsec` e ferramentas auxiliares, instala as dependências Python do backend e `signxml`/`xmlsec` e executa o teste de integração específico.
+- Se preferir, decodifique manualmente `scripts/certs/test.pfx.b64` para ` /work/tmp/test.pfx` e exporte `FISCAL_TEST_PFX_PATH` em vez de confiar no `base64 -d` do container.
+
+### Nota sobre `act`
+Tentamos executar a workflow com `act` (simulador de Actions local), mas encontramos incompatibilidades com algumas Actions JS (runtime/versions) que impediram a execução completa de forma reprodutível. Por isso **recomendamos** a execução em container (comando acima) como método confiável para reproduzir o job.
+
+### Checklist para remoção de secrets (se optar por não usar Actions)
+1. GitHub → *Settings* → *Secrets and variables* → *Actions*.
+2. Localize e remova `FISCAL_TEST_PFX_BASE64` e `FISCAL_TEST_PFX_PASS`.
+3. Atualize `docs/FISCAL_TEMP/TEST_CERT_GENERATION.md` (este arquivo) confirmando que os secrets foram removidos.
+4. (Opcional) Caso você queira que eu verifique a remoção do secret, me autorize e eu confirmo manualmente.
+
+### Segurança / boas práticas
+- Se você, no futuro, optar por armazenar secrets no GitHub, limite o acesso, use short-lived credentials e prefira self-hosted runners para reduzir riscos.
+
+(Se necessário, ainda podemos manter o arquivo `.github/workflows/fiscal-sign-integration.yml` como referência, mas ele **não** será usado ativamente enquanto a política de não uso permanecer.)
+
+## Segurança e Boas Práticas
+- Use um certificado **apenas para testes** (autoassinado). Nunca colocar certificado de cliente real em CI ou repo.
+- Se o sistema aceitar upload de certificados por usuários, guarde-os **criptografados** (Fernet), audite acessos e permita rotação de chaves.
+
+## Perguntas frequentes
+- Posso usar em produção? **Não**. Use um certificado emitido por autoridade e processos específicos de segurança para produção.
+
+---
+
+Se quiser, eu já adiciono um job da GitHub Actions que valida a presença do secret e roda os testes de assinatura (opcional).
