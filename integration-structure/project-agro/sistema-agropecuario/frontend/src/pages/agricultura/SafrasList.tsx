@@ -325,7 +325,7 @@ export const SafrasList: React.FC = () => {
                                         )}
                                       </div>
                                       <div className="text-end">
-                                        <strong>R$ {(manejo.custo_total ?? manejo.custo ?? 0).toFixed(2)}</strong>
+                                        <strong>R$ {Number(manejo.custo_total ?? manejo.custo ?? 0).toFixed(2)}</strong>
                                         <div className="mt-2">
                                           {manejo.contabilizado ? (
                                             <span className="badge bg-success">Contabilizado</span>
@@ -381,7 +381,7 @@ export const SafrasList: React.FC = () => {
                                         </small>
                                       </div>
                                       <div className="text-end">
-                                        <strong>R$ {os.custo_total.toFixed(2)}</strong>
+                                        <strong>R$ {Number(os.custo_total ?? 0).toFixed(2)}</strong>
                                       </div>
                                     </div>
                                   </div>
@@ -413,7 +413,7 @@ export const SafrasList: React.FC = () => {
                               <div className="small text-muted">{r.descricao}</div>
                             </div>
                             <div className="text-end">
-                              <div>R$ {r.valor_total.toFixed(2)}</div>
+                              <div>R$ {Number(r.valor_total ?? 0).toFixed(2)}</div>
                               <small className="text-muted">{new Date(r.data_rateio).toLocaleDateString()}</small>
                             </div>
                           </a>
