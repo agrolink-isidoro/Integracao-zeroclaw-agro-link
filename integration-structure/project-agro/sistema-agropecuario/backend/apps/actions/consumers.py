@@ -241,11 +241,24 @@ class IsidoroChatConsumer(AsyncWebsocketConsumer):
 
         logger.info("WebSocket chat connected: user=%s tenant=%s", self.user_id, self.tenant_id)
 
-        # Mensagem de boas-vindas
-        await self._send_message(
-            text=f"Olá! Sou o Isidoro, seu assistente agrícola. Como posso ajudar hoje?",
-            sender="isidoro",
-        )
+        # Briefing contextualizado do dia (chama ferramentas: safras, pendências, estoque, máquinas)
+        await self._send_typing(True)
+        try:
+            tenant_nome = getattr(self.tenant, "nome", "Sua Fazenda")
+            greeting = await self.isidoro.initialize_session(
+                tenant_id=self.tenant_id,
+                user_id=self.user_id,
+                tenant_nome=tenant_nome,
+            )
+            await self._send_typing(False)
+            await self._send_message(text=greeting.text, sender="isidoro")
+        except Exception as exc:
+            logger.exception("Erro ao gerar briefing inicial: %s", exc)
+            await self._send_typing(False)
+            await self._send_message(
+                text="Olá! Sou o Isidoro, seu assistente agrícola. Como posso ajudar hoje?",
+                sender="isidoro",
+            )
 
     async def disconnect(self, close_code):
         """Sai do grupo ao desconectar."""

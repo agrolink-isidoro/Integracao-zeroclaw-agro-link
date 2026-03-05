@@ -59,12 +59,18 @@ REGRAS FUNDAMENTAIS:
    - Para cada campo opcional, ofereça o valor padrão e pergunte se o usuário confirma
      ou quer alterar. Exemplo: "Unidade: 'sc' (sacas). Confirma ou quer alterar?"
    - NÃO chame a ferramenta com campos vazios/padrão sem antes confirmar com o usuário.
-3. SAFRA ATIVA — FLUXO OBRIGATÓRIO:
-   - Antes de registrar QUALQUER operação agrícola (colheita, operação, manejo ou OS),
-     use SEMPRE consultar_safras_ativas para listar as safras em andamento ou planejadas.
-   - Apresente a lista ao usuário, informe o status de cada safra e peça para ele
-     escolher qual safra está vinculada ao registro.
-   - NUNCA pergunte "qual cultura" — pergunte "qual safra" mostrando as ativas disponíveis.
+3. ══════════════════════════════════════════════════════
+   REGRA ABSOLUTA — SAFRA ATIVA (SEM EXCEÇÕES):
+   ══════════════════════════════════════════════════════
+   SEMPRE que o usuário mencionar QUALQUER atividade agrícola — seja colheita,
+   operação (pulverização, adubação, correção de solo, calagem, dessecação, plantio,
+   irrigação, capina, etc.), manejo ou ordem de serviço — a SUA PRIMEIRA AÇÃO deve
+   ser chamar a ferramenta consultar_safras_ativas() ANTES de perguntar qualquer coisa.
+   - Apresente as safras encontradas ao usuário e peça para ele escolher qual safra
+     está vinculada ao registro.
+   - NUNCA pergunte "qual cultura" ou "qual a cultura" — pergunte "qual safra".
+   - NUNCA inicie o preenchimento do formulário sem antes confirmar a safra.
+   ══════════════════════════════════════════════════════
 4. Após criar um draft, informe o ID de aprovação e que aguarda revisão humana.
 5. Se o usuário enviar um arquivo (Excel, PDF, KML, CSV), oriente que será processado automaticamente.
 6. Responda sempre em Português brasileiro, de forma amigável e objetiva.
@@ -80,7 +86,7 @@ CAMPOS OBRIGATÓRIOS POR FORMULÁRIO (sempre pergunte todos):
   criar_talhao          → nome*, area_ha*, area_nome, fazenda, codigo, custo_arrendamento
   registrar_arrendamento→ arrendador*, arrendatario*, fazenda*, areas*, start_date*, custo_sacas_hectare*, end_date
 
-▶ AGRICULTURA  (sempre llame consultar_safras_ativas ANTES de qualquer registro abaixo)
+▶ AGRICULTURA  (── OBRIGATÓRIO: chame consultar_safras_ativas() PRIMEIRO, antes de qualquer registro abaixo ──)
   criar_safra           → fazenda*, cultura*, data_plantio*, talhoes*, variedades, status, observacoes
   registrar_colheita    → safra(ativa)*, talhao*, data_colheita*, producao_total*, unidade, area_ha,
                           umidade_perc, qualidade, placa, motorista, tara, peso_bruto,
@@ -115,10 +121,20 @@ CAMPOS OBRIGATÓRIOS POR FORMULÁRIO (sempre pergunte todos):
 
 (* = obrigatório)
 
-EXEMPLOS DE INTERPRETAÇÃO:
-- "Pulverizei o talhão 3 com Roundup hoje" → 1) consultar_safras_ativas → confirmar safra com usuário → perguntar demais campos de registrar_operacao_agricola
-- "Quero registrar a colheita do talhão Andressa" → 1) consultar_safras_ativas → confirmar safra com usuário → perguntar demais campos de registrar_colheita
-- "Registrar manejo de dessecação" → 1) consultar_safras_ativas → confirmar safra → perguntar demais campos de registrar_manejo
+EXEMPLOS DE INTERPRETAÇÃO (siga EXATAMENTE estes fluxos):
+
+Operações agrícolas — SEMPRE: consultar_safras_ativas() PRIMEIRO:
+- "Pulverizei o talhão 3 com Roundup" → 1) consultar_safras_ativas → 2) confirmar safra → 3) perguntar campos de registrar_operacao_agricola
+- "Quero registrar a colheita do talhão Andressa" → 1) consultar_safras_ativas → 2) confirmar safra → 3) perguntar campos de registrar_colheita
+- "Registrar manejo de dessecação" → 1) consultar_safras_ativas → 2) confirmar safra → 3) perguntar campos de registrar_manejo
+- "Preciso lançar uma operação de correção de solo" → 1) consultar_safras_ativas → 2) confirmar safra → 3) perguntar campos de registrar_operacao_agricola (atividade=Correção de solo)
+- "Fiz calagem no talhão B2 ontem" → 1) consultar_safras_ativas → 2) confirmar safra → 3) perguntar campos de registrar_operacao_agricola (atividade=Calagem)
+- "Preciso registrar uma adubação de cobertura" → 1) consultar_safras_ativas → 2) confirmar safra → 3) perguntar campos de registrar_operacao_agricola (atividade=Adubação de cobertura)
+- "Fizemos o preparo de solo no talhão 4" → 1) consultar_safras_ativas → 2) confirmar safra → 3) perguntar campos de registrar_manejo (tipo=preparo_solo)
+- "Plantar soja na área Leste" → 1) consultar_safras_ativas → 2) confirmar safra → 3) perguntar campos de registrar_operacao_agricola (atividade=Plantio)
+- "OS para irrigação do talhão C1" → 1) consultar_safras_ativas → 2) confirmar safra → 3) perguntar campos de registrar_ordem_servico_agricola
+
+Máquinas / Estoque / Dados (sem safra):
 - "Trator D6 fez revisão ontem custou R$1500" → perguntar todos os campos de registrar_manutencao_maquina
 - "Recebi 500kg de adubo NPK da Fertipar hoje" → perguntar todos os campos de registrar_entrada_estoque
 - "Quanto de Roundup temos no estoque?" → consultar_estoque
@@ -323,6 +339,104 @@ class IsidoroAgent:
                 text="Encontrei um problema técnico. Por favor, tente novamente.",
                 error=str(exc),
             )
+
+    async def initialize_session(
+        self,
+        tenant_id: str,
+        user_id: str,
+        tenant_nome: str = "Sua Fazenda",
+    ) -> IsidoroResponse:
+        """
+        Gera o briefing de boas-vindas ao conectar.
+
+        Chama consultar_safras_ativas, consultar_actions_pendentes, consultar_estoque
+        e consultar_maquinas via LLM/tools, e retorna uma saudação personalizada
+        com o resumo do dia. O trigger interno é descartado do histórico —
+        a sessão começa limpa com apenas a saudação do agente.
+
+        Se a sessão já existe (reconexão), retorna uma saudação simples.
+        """
+        from datetime import date, datetime
+
+        history = self._get_history(tenant_id, user_id)
+
+        # Reconexão: sessão já tem histórico — saudação simples
+        if history:
+            hora = datetime.now().hour
+            saudacao = "Bom dia" if hora < 12 else "Boa tarde" if hora < 18 else "Boa noite"
+            return IsidoroResponse(text=f"{saudacao}! Estou de volta. Como posso ajudar?")
+
+        # Nova sessão: injeta SystemMessage
+        system_content = ISIDORO_SYSTEM_PROMPT.format(
+            data_hoje=date.today().strftime("%d/%m/%Y"),
+            tenant_nome=tenant_nome,
+        )
+        history.append(SystemMessage(content=system_content))
+
+        hora = datetime.now().hour
+        saudacao = "Bom dia" if hora < 12 else "Boa tarde" if hora < 18 else "Boa noite"
+        data_fmt = date.today().strftime("%d/%m/%Y")
+
+        # Mensagem interna de trigger — NÃO fica no histórico permanente
+        trigger = HumanMessage(content=(
+            f"[BRIEFING_SESSÃO — resposta automática, não exibir este prompt ao usuário]\n"
+            f"Hoje é {data_fmt}. Execute nesta ordem:\n"
+            f"1. Chame consultar_safras_ativas() para listar safras em andamento/planejadas\n"
+            f"2. Chame consultar_actions_pendentes() para ver ações aguardando aprovação\n"
+            f"3. Chame consultar_estoque() para uma visão geral do estoque\n"
+            f"4. Chame consultar_maquinas() para ver os equipamentos cadastrados\n"
+            f"Com base nos dados coletados, gere uma mensagem de {saudacao} para a fazenda {tenant_nome}.\n"
+            f"A mensagem deve incluir:\n"
+            f"  - Saudação com a data de hoje\n"
+            f"  - Safras ativas: nome, cultura e status de cada uma\n"
+            f"  - Pendências: quantidade e módulos das ações aguardando aprovação\n"
+            f"  - Estoque: destaques (itens com estoque baixo ou recentes)\n"
+            f"  - Máquinas: quantidade de equipamentos e se há alguma OS aberta\n"
+            f"  - Finalize perguntando em que pode ajudar hoje\n"
+            f"Seja conciso, amigável e objetivo. Use bullet points. NÃO peça nada ao usuário."
+        ))
+
+        # Invoca o agente com histórico temporário (trigger não é persistido)
+        temp_messages = history + [trigger]
+        try:
+            result = await self._agent.ainvoke({"messages": temp_messages})
+            messages = result.get("messages", [])
+            ai_messages = [m for m in messages if isinstance(m, AIMessage)]
+            last_ai = ai_messages[-1] if ai_messages else None
+
+            greeting_text = (
+                last_ai.content
+                if last_ai and isinstance(last_ai.content, str)
+                else (
+                    f"{saudacao}! Sou o Isidoro, seu assistente agrícola da fazenda {tenant_nome}.\n"
+                    f"Hoje é {data_fmt}. Como posso ajudar?"
+                )
+            )
+
+            # Persiste apenas a saudação no histórico (não o trigger)
+            if last_ai:
+                history.append(last_ai)
+
+            tool_call_names = []
+            for msg in messages:
+                if hasattr(msg, "tool_calls") and msg.tool_calls:
+                    tool_call_names.extend(tc.get("name", "") for tc in msg.tool_calls)
+
+            logger.info(
+                "Isidoro greeting: tenant=%s user=%s tools=%s",
+                tenant_id, user_id, tool_call_names,
+            )
+            return IsidoroResponse(text=greeting_text, tool_calls=tool_call_names)
+
+        except Exception as exc:
+            logger.exception("Erro ao gerar briefing inicial: %s", exc)
+            fallback = (
+                f"{saudacao}! Sou o Isidoro, seu assistente agrícola da fazenda {tenant_nome}.\n"
+                f"Hoje é {data_fmt}. Estou pronto para ajudar com operações agrícolas, "
+                f"estoque, máquinas e muito mais. Como posso ajudar hoje?"
+            )
+            history.append(AIMessage(content=fallback))
+            return IsidoroResponse(text=fallback, error=str(exc))
 
     def chat_sync(
         self,
