@@ -236,12 +236,23 @@ class IsidoroChatConsumer(AsyncWebsocketConsumer):
         await self.channel_layer.group_add(self.group_name, self.channel_name)
         await self.accept()
 
-        # Inicia o agente Isidoro
-        self.isidoro = self._get_isidoro_agent()
+        # Inicia o agente Isidoro (com fallback se API key ausente)
+        try:
+            self.isidoro = self._get_isidoro_agent()
+        except (ValueError, Exception) as exc:
+            logger.error("Falha ao inicializar Isidoro agent: %s", exc)
+            self.isidoro = None
 
         logger.info("WebSocket chat connected: user=%s tenant=%s", self.user_id, self.tenant_id)
 
         # Briefing contextualizado do dia (chama ferramentas: safras, pendências, estoque, máquinas)
+        if self.isidoro is None:
+            await self._send_error(
+                "⚠️ Isidoro está offline — a chave de API do LLM não está configurada. "
+                "Configure `ISIDORO_API_KEY` no `.env` e reinicie o backend."
+            )
+            return
+
         await self._send_typing(True)
         try:
             tenant_nome = getattr(self.tenant, "nome", "Sua Fazenda")
@@ -290,6 +301,13 @@ class IsidoroChatConsumer(AsyncWebsocketConsumer):
     async def _handle_chat_message(self, text: str):
         """Processa mensagem de texto do usuário."""
         if not text:
+            return
+
+        if self.isidoro is None:
+            await self._send_error(
+                "Isidoro está offline — chave de API não configurada. "
+                "Configure ISIDORO_API_KEY no .env e reinicie o backend."
+            )
             return
 
         # Mostra "digitando..."
