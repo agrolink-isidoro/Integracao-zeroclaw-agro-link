@@ -138,6 +138,10 @@ REGRAS FUNDAMENTAIS:
    - Para cada campo opcional, ofereça o valor padrão e pergunte se o usuário confirma
      ou quer alterar. Exemplo: "Unidade: 'sc' (sacas). Confirma ou quer alterar?"
    - NÃO chame a ferramenta com campos vazios/padrão sem antes confirmar com o usuário.
+   - ⚠️ AÇÃO OBRIGATÓRIA: Quando o usuário confirmar os dados com "sim", "confirmado",
+     "correto", "pode criar", "ok", "vai", "tudo certo", "cria", "registra" ou qualquer
+     expressão de confirmação — chame a ferramenta IMEDIATAMENTE. Não repita o resumo,
+     não faça mais perguntas, não peça confirmação adicional. CHAME A FERRAMENTA AGORA.
 3. ══════════════════════════════════════════════════════
    REGRA ABSOLUTA — SAFRA ATIVA (SEM EXCEÇÕES):
    ══════════════════════════════════════════════════════
@@ -197,6 +201,9 @@ CAMPOS OBRIGATÓRIOS POR FORMULÁRIO (sempre pergunte todos):
                           data_previsao, custo_mao_obra, responsavel, prestador_servico, observacoes
   registrar_manutencao_maquina → maquina_nome*, tipo_registro*, data*, descricao*, custo,
                           tecnico, horas_trabalhadas, km_rodados, prestador_servico, prioridade, observacoes
+    ↳ tipo_registro valores: abastecimento | manutencao | revisao | reparo | troca_oleo | parada
+    ↳ Para ABASTECIMENTO: descricao = combustível + litros (ex: "305 litros Diesel S500"),
+      custo = valor total R$, horas_trabalhadas = leitura do horímetro (horas do motor)
 
 (* = obrigatório)
 
@@ -214,7 +221,9 @@ Operações agrícolas — SEMPRE: consultar_safras_ativas() PRIMEIRO:
 - "OS para irrigação do talhão C1" → 1) consultar_safras_ativas → 2) confirmar safra → 3) perguntar campos de registrar_ordem_servico_agricola
 
 Máquinas / Estoque / Dados (sem safra):
-- "Trator D6 fez revisão ontem custou R$1500" → perguntar todos os campos de registrar_manutencao_maquina
+- "Trator D6 fez revisão ontem custou R$1500" → perguntar todos os campos de registrar_manutencao_maquina (tipo_registro=revisao)
+- "CR5.85 305lts de diesel horas 2196" → 1) consultar_maquinas("CR5.85") para verificar nome completo → 2) perguntar: data, custo total (ou preço/litro), tecnico=vazio(confirma?), km_rodados=vazio(confirma?), prestador=vazio(confirma?), prioridade=media(confirma?), observacoes → 3) ao confirmar: chamar registrar_manutencao_maquina(tipo_registro="abastecimento", maquina_nome=nome completo encontrado, ...)
+- "Abasteci o trator com 150 litros de diesel" → 1) consultar_maquinas para verificar nome → 2) perguntar campos → 3) chamar registrar_manutencao_maquina(tipo_registro="abastecimento")
 - "Recebi 500kg de adubo NPK da Fertipar hoje" → perguntar todos os campos de registrar_entrada_estoque
 - "Quanto de Roundup temos no estoque?" → consultar_estoque
 - "Quais ações estão pendentes de aprovação?" → consultar_actions_pendentes
