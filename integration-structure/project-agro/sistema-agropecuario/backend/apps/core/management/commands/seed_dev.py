@@ -25,6 +25,12 @@ class Command(BaseCommand):
         self.stdout.write(f"DEBUG: User model: {User}")
 
         if User.objects.filter(username=username).exists():
+            user = User.objects.get(username=username)
+            # Always sync the password from env so containers stay updated
+            if password and not user.check_password(password):
+                user.set_password(password)
+                user.save(update_fields=["password"])
+                self.stdout.write(self.style.SUCCESS(f"Senha do '{username}' atualizada via DEV_SUPERUSER_PASSWORD."))
             self.stdout.write(self.style.WARNING(f"Usuário '{username}' já existe."))
         else:
             user = User.objects.create_superuser(username=username, email=email, password=password)

@@ -44,21 +44,33 @@ class ActionModule(models.TextChoices):
 
 
 class ActionType(models.TextChoices):
-    # Agricultura
-    OPERACAO_AGRICOLA   = "operacao_agricola",   "Operação Agrícola"
-    COLHEITA            = "colheita",            "Colheita"
-    # Máquinas
-    MANUTENCAO_MAQUINA  = "manutencao_maquina",  "Manutenção de Máquina"
-    ABASTECIMENTO       = "abastecimento",       "Abastecimento"
-    PARADA_MAQUINA      = "parada_maquina",      "Parada de Máquina"
-    # Estoque
-    ENTRADA_ESTOQUE     = "entrada_estoque",     "Entrada de Estoque"
-    SAIDA_ESTOQUE       = "saida_estoque",       "Saída de Estoque"
-    AJUSTE_ESTOQUE      = "ajuste_estoque",      "Ajuste de Estoque"
-    CRIAR_ITEM_ESTOQUE  = "criar_item_estoque",  "Criar Item de Estoque"
-    # Fazendas
-    CRIAR_TALHAO        = "criar_talhao",        "Criar Talhão"
-    ATUALIZAR_TALHAO    = "atualizar_talhao",    "Atualizar Talhão"
+    # ── Fazendas ──────────────────────────────────────────────
+    CRIAR_PROPRIETARIO    = "criar_proprietario",    "Criar Proprietário"
+    CRIAR_FAZENDA         = "criar_fazenda",         "Criar Fazenda"
+    CRIAR_AREA            = "criar_area",            "Criar Área"
+    CRIAR_TALHAO          = "criar_talhao",          "Criar Talhão"
+    ATUALIZAR_TALHAO      = "atualizar_talhao",      "Atualizar Talhão"
+    REGISTRAR_ARRENDAMENTO = "registrar_arrendamento", "Registrar Arrendamento"
+    # ── Agricultura ───────────────────────────────────────────
+    CRIAR_SAFRA           = "criar_safra",           "Criar Safra / Plantio"
+    OPERACAO_AGRICOLA     = "operacao_agricola",     "Operação Agrícola"
+    COLHEITA              = "colheita",              "Colheita"
+    MOVIMENTACAO_CARGA    = "movimentacao_carga",    "Movimentação de Carga"
+    REGISTRAR_MANEJO      = "registrar_manejo",      "Registrar Manejo"
+    ORDEM_SERVICO_AGRICOLA = "ordem_servico_agricola", "Ordem de Serviço Agrícola"
+    # ── Estoque ───────────────────────────────────────────────
+    CRIAR_PRODUTO         = "criar_produto",         "Criar Produto"
+    ENTRADA_ESTOQUE       = "entrada_estoque",       "Entrada de Estoque"
+    SAIDA_ESTOQUE         = "saida_estoque",         "Saída de Estoque"
+    AJUSTE_ESTOQUE        = "ajuste_estoque",        "Ajuste de Estoque"
+    CRIAR_ITEM_ESTOQUE    = "criar_item_estoque",    "Criar Item de Estoque"
+    MOVIMENTACAO_INTERNA  = "movimentacao_interna",  "Movimentação Interna"
+    # ── Máquinas ──────────────────────────────────────────────
+    CRIAR_EQUIPAMENTO     = "criar_equipamento",     "Criar Equipamento"
+    MANUTENCAO_MAQUINA    = "manutencao_maquina",    "Manutenção de Máquina"
+    ABASTECIMENTO         = "abastecimento",         "Abastecimento"
+    ORDEM_SERVICO_MAQUINA = "ordem_servico_maquina", "Ordem de Serviço Máquina"
+    PARADA_MAQUINA        = "parada_maquina",        "Parada de Máquina"
 
 
 class UploadStatus(models.TextChoices):

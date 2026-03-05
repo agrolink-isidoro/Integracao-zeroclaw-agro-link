@@ -2,8 +2,12 @@
 Executors para o módulo Estoque.
 
 Converte Actions aprovados em movimentações de estoque reais.
-  entrada_estoque → Produto + MovimentacaoEstoque tipo 'entrada'
-  saida_estoque   → MovimentacaoEstoque tipo 'saida'
+  criar_produto        → Produto
+  criar_item_estoque   → Produto (alias)
+  entrada_estoque      → Produto + MovimentacaoEstoque tipo 'entrada'
+  saida_estoque        → MovimentacaoEstoque tipo 'saida'
+  ajuste_estoque       → MovimentacaoEstoque tipo 'ajuste'
+  movimentacao_interna → MovimentacaoEstoque tipo 'transferencia'
 """
 from __future__ import annotations
 
@@ -129,3 +133,185 @@ def execute_saida_estoque(action) -> None:
         "quantidade": str(quantidade),
     })
     logger.info("execute_saida_estoque OK: action=%s produto=%s qtd=%s", action.id, produto.nome, quantidade)
+
+
+# ─── Criar Produto ────────────────────────────────────────────────────────────
+
+def execute_criar_produto(action) -> None:
+    """Cria um Produto de estoque a partir do draft_data."""
+    from apps.estoque.models import Produto, LocalArmazenamento
+
+    data = action.draft_data
+    tenant = action.tenant
+    criado_por = action.criado_por
+
+    nome = (data.get("nome") or data.get("nome_produto", "")).strip()
+    if not nome:
+        raise ValueError("Nome do produto é obrigatório.")
+
+    with transaction.atomic():
+        # Verificar duplicata
+        existing = Produto.objects.filter(tenant=tenant, nome__iexact=nome).first()
+        if existing:
+            action.mark_executed({
+                "produto_id": existing.pk,
+                "nome": existing.nome,
+                "mensagem": "Produto já existe com esse nome.",
+                "ja_existia": True,
+            })
+            return
+
+        # Gerar código automático se não informado
+        codigo = data.get("codigo", "").strip()
+        if not codigo:
+            count = Produto.objects.filter(tenant=tenant).count()
+            codigo = f"PROD-{count + 1:04d}"
+
+        unidade = (data.get("unidade") or "un").strip()
+        categoria = (data.get("categoria") or "outro").lower()
+
+        # Validar categoria
+        valid_cats = [c[0] for c in Produto.CATEGORIA_CHOICES]
+        if categoria not in valid_cats:
+            categoria = "outro"
+
+        # Resolve local de armazenamento (opcional)
+        local = None
+        local_nome = data.get("local_armazenamento", "").strip()
+        if local_nome:
+            local = LocalArmazenamento.objects.filter(
+                tenant=tenant, nome__icontains=local_nome
+            ).first()
+
+        produto = Produto(
+            tenant=tenant,
+            codigo=codigo,
+            nome=nome,
+            descricao=data.get("descricao", ""),
+            unidade=unidade,
+            categoria=categoria,
+            quantidade_estoque=_parse_decimal(data.get("quantidade_inicial") or data.get("quantidade_estoque"), "0"),
+            estoque_minimo=_parse_decimal(data.get("estoque_minimo"), "0"),
+            custo_unitario=_parse_decimal(data.get("custo_unitario") or data.get("valor_unitario"), "0") or None,
+            preco_venda=_parse_decimal(data.get("preco_venda"), "0") or None,
+            principio_ativo=data.get("principio_ativo", ""),
+            local_armazenamento=local,
+            criado_por=criado_por,
+        )
+        produto.save()
+
+    action.mark_executed({
+        "produto_id": produto.pk,
+        "nome": produto.nome,
+        "codigo": produto.codigo,
+        "unidade": produto.unidade,
+        "categoria": produto.categoria,
+    })
+    logger.info("execute_criar_produto OK: action=%s produto=%s", action.id, produto.pk)
+
+
+# Alias — criar_item_estoque usa o mesmo executor que criar_produto
+execute_criar_item_estoque = execute_criar_produto
+
+
+# ─── Ajuste de Estoque ────────────────────────────────────────────────────────
+
+def execute_ajuste_estoque(action) -> None:
+    """Registra um ajuste (inventário) de estoque."""
+    from apps.estoque.services import create_movimentacao
+
+    data = action.draft_data
+    tenant = action.tenant
+    criado_por = action.criado_por
+
+    with transaction.atomic():
+        nome_produto = data.get("nome_produto") or data.get("produto", "")
+        produto = _resolve_produto(tenant, nome_produto)
+
+        quantidade = _parse_decimal(data.get("quantidade"), "0")
+        if quantidade == Decimal("0"):
+            raise ValueError("Quantidade do ajuste deve ser diferente de zero.")
+
+        # Ajuste positivo → entrada, negativo → saída
+        tipo = "entrada" if quantidade > Decimal("0") else "saida"
+        quantidade_abs = abs(quantidade)
+
+        mov = create_movimentacao(
+            produto=produto,
+            tipo=tipo,
+            quantidade=quantidade_abs,
+            criado_por=criado_por,
+            origem="ajuste_inventario",
+            motivo=data.get("motivo", "Ajuste de inventário via assistente Isidoro."),
+            documento_referencia=data.get("documento_referencia", ""),
+        )
+
+    action.mark_executed({
+        "movimentacao_id": str(getattr(mov, "pk", "?")),
+        "produto": produto.nome,
+        "tipo_ajuste": tipo,
+        "quantidade": str(quantidade_abs),
+    })
+    logger.info("execute_ajuste_estoque OK: action=%s produto=%s tipo=%s qtd=%s", action.id, produto.nome, tipo, quantidade_abs)
+
+
+# ─── Movimentação Interna ─────────────────────────────────────────────────────
+
+def execute_movimentacao_interna(action) -> None:
+    """Registra uma transferência interna entre locais de armazenamento."""
+    from apps.estoque.services import create_movimentacao
+    from apps.estoque.models import LocalArmazenamento
+
+    data = action.draft_data
+    tenant = action.tenant
+    criado_por = action.criado_por
+
+    with transaction.atomic():
+        nome_produto = data.get("nome_produto") or data.get("produto", "")
+        produto = _resolve_produto(tenant, nome_produto)
+
+        quantidade = _parse_decimal(data.get("quantidade"), "0")
+        if quantidade <= Decimal("0"):
+            raise ValueError("Quantidade deve ser maior que zero.")
+
+        # Registra como saída do local de origem e entrada no destino
+        local_origem_nome = data.get("local_origem", "").strip()
+        local_destino_nome = data.get("local_destino", "").strip()
+
+        motivo_base = data.get("motivo", "Transferência interna via assistente Isidoro.")
+
+        # Saída do origem
+        mov_saida = create_movimentacao(
+            produto=produto,
+            tipo="saida",
+            quantidade=quantidade,
+            criado_por=criado_por,
+            origem="transferencia_interna",
+            motivo=f"[SAÍDA] {motivo_base} → Destino: {local_destino_nome or 'N/A'}",
+        )
+
+        # Entrada no destino
+        local_destino = None
+        if local_destino_nome:
+            local_destino = LocalArmazenamento.objects.filter(
+                tenant=tenant, nome__icontains=local_destino_nome
+            ).first()
+
+        mov_entrada = create_movimentacao(
+            produto=produto,
+            tipo="entrada",
+            quantidade=quantidade,
+            criado_por=criado_por,
+            origem="transferencia_interna",
+            motivo=f"[ENTRADA] {motivo_base} ← Origem: {local_origem_nome or 'N/A'}",
+        )
+
+    action.mark_executed({
+        "movimentacao_saida_id": str(getattr(mov_saida, "pk", "?")),
+        "movimentacao_entrada_id": str(getattr(mov_entrada, "pk", "?")),
+        "produto": produto.nome,
+        "quantidade": str(quantidade),
+        "local_origem": local_origem_nome,
+        "local_destino": local_destino_nome,
+    })
+    logger.info("execute_movimentacao_interna OK: action=%s produto=%s qtd=%s", action.id, produto.nome, quantidade)

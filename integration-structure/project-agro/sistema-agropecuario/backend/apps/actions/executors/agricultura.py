@@ -2,8 +2,12 @@
 Executors para o módulo Agricultura.
 
 Converte Actions aprovados em registros reais:
-  colheita            → agricultura.Colheita  (+  MovimentacaoCarga se houver dados de transporte)
-  movimentacao_carga  → agricultura.MovimentacaoCarga
+  criar_safra           → agricultura.Plantio  (via Cultura)
+  colheita              → agricultura.Colheita  (+  MovimentacaoCarga se houver dados de transporte)
+  movimentacao_carga    → agricultura.MovimentacaoCarga
+  operacao_agricola     → agricultura.Operacao
+  registrar_manejo      → agricultura.Manejo
+  ordem_servico_agricola → agricultura.OrdemServico
 """
 from __future__ import annotations
 
@@ -80,13 +84,13 @@ def _resolve_plantio(tenant, safra_nome: str):
 
 
 def _resolve_talhao(tenant, talhao_nome: str, plantio=None):
-    """Busca Talhão por nome, opcionalmente dentro de um plantio."""
+    """Busca Talhão por nome, opcionalmente dentro de um plantio. Filtra por tenant."""
     from apps.fazendas.models import Talhao
 
     if not talhao_nome:
         return None
 
-    qs = Talhao.objects.all()
+    qs = Talhao.objects.filter(area__fazenda__tenant=tenant)
 
     # Se o plantio possui talhões associados, priorizar dentro dele
     if plantio is not None:
@@ -97,7 +101,7 @@ def _resolve_talhao(tenant, talhao_nome: str, plantio=None):
         if t:
             return t
 
-    # Fallback: qualquer talhão com esse nome
+    # Fallback: qualquer talhão do tenant com esse nome
     t = qs.filter(name__iexact=talhao_nome).first()
     if t:
         return t
@@ -354,3 +358,310 @@ def execute_movimentacao_carga(action) -> None:
         "execute_movimentacao_carga OK: action=%s mov=%s talhao=%s placa=%s",
         action.id, mov.pk, data.get("talhao"), mov.placa,
     )
+
+
+# ─── Criar Safra (Plantio) ────────────────────────────────────────────────────
+
+def execute_criar_safra(action) -> None:
+    """
+    Cria um Plantio (safra) a partir de criar_safra draft_data.
+    Resolve Cultura por nome (busca ou cria) e vincula talhões opcionais.
+    """
+    from apps.agricultura.models import Cultura, Plantio, PlantioTalhao
+    from apps.fazendas.models import Fazenda
+
+    data = action.draft_data
+    tenant = action.tenant
+    criado_por = action.criado_por
+
+    cultura_nome = (data.get("cultura") or data.get("nome_cultura", "")).strip()
+    if not cultura_nome:
+        raise ValueError("Nome da cultura é obrigatório (ex: 'Soja', 'Milho').")
+
+    with transaction.atomic():
+        # Resolve ou cria Cultura
+        cultura = Cultura.objects.filter(nome__iexact=cultura_nome).first()
+        if not cultura:
+            cultura = Cultura.objects.filter(nome__icontains=cultura_nome).first()
+        if not cultura:
+            cultura = Cultura.objects.create(nome=cultura_nome.title())
+
+        # Resolve fazenda (opcional)
+        fazenda = None
+        fazenda_nome = data.get("fazenda", "").strip()
+        if fazenda_nome:
+            fazenda = Fazenda.objects.filter(tenant=tenant, name__icontains=fazenda_nome).first()
+
+        data_plantio = _parse_date(data.get("data_plantio", ""))
+        data_plantio_date = data_plantio.date() if hasattr(data_plantio, "date") else data_plantio
+
+        status = data.get("status", "em_andamento").lower()
+        if status not in ("planejado", "em_andamento", "colhido", "perdido"):
+            status = "em_andamento"
+
+        plantio = Plantio(
+            tenant=tenant,
+            fazenda=fazenda,
+            cultura=cultura,
+            data_plantio=data_plantio_date,
+            quantidade_sementes=_parse_decimal(data.get("quantidade_sementes"), "0") or None,
+            observacoes=data.get("observacoes", ""),
+            status=status,
+            criado_por=criado_por,
+        )
+        plantio.save()
+
+        # Vincular talhões se informados
+        talhoes_list = data.get("talhoes", [])
+        if isinstance(talhoes_list, str):
+            talhoes_list = [t.strip() for t in talhoes_list.split(",") if t.strip()]
+
+        talhoes_vinculados = []
+        for t_nome in talhoes_list:
+            talhao = _resolve_talhao(tenant, t_nome)
+            if talhao:
+                PlantioTalhao.objects.get_or_create(
+                    plantio=plantio,
+                    talhao=talhao,
+                    defaults={"variedade": data.get("variedade", "")},
+                )
+                talhoes_vinculados.append(talhao.name)
+
+    action.mark_executed({
+        "plantio_id": plantio.pk,
+        "cultura": cultura.nome,
+        "fazenda": fazenda.name if fazenda else None,
+        "data_plantio": str(data_plantio_date),
+        "status": plantio.status,
+        "talhoes_vinculados": talhoes_vinculados,
+    })
+    logger.info("execute_criar_safra OK: action=%s plantio=%s cultura=%s", action.id, plantio.pk, cultura.nome)
+
+
+# ─── Operação Agrícola ────────────────────────────────────────────────────────
+
+def execute_operacao_agricola(action) -> None:
+    """
+    Cria uma Operação agrícola a partir de registrar_operacao_agricola draft_data.
+    Usa o modelo Operacao (sistema unificado).
+    """
+    from apps.agricultura.models import Operacao
+
+    data = action.draft_data
+    tenant = action.tenant
+    criado_por = action.criado_por
+
+    with transaction.atomic():
+        # Resolve safra/plantio (opcional)
+        plantio = None
+        safra_nome = data.get("safra", "").strip()
+        if safra_nome:
+            try:
+                plantio = _resolve_plantio(tenant, safra_nome)
+            except ValueError:
+                logger.warning("execute_operacao_agricola: safra '%s' não encontrada", safra_nome)
+
+        # Resolve fazenda
+        from apps.fazendas.models import Fazenda
+        fazenda = None
+        fazenda_nome = data.get("fazenda", "").strip()
+        if fazenda_nome:
+            fazenda = Fazenda.objects.filter(tenant=tenant, name__icontains=fazenda_nome).first()
+        elif plantio and plantio.fazenda:
+            fazenda = plantio.fazenda
+
+        # Mapear tipo e categoria
+        tipo_raw = (data.get("tipo_operacao") or data.get("tipo") or "prep_limpeza").lower().strip()
+        # Map de nomes amigáveis para keys
+        _tipo_map = {
+            "aracao": "prep_aracao", "gradagem": "prep_gradagem",
+            "subsolagem": "prep_subsolagem", "correcao": "prep_correcao",
+            "limpeza": "prep_limpeza", "adubacao_base": "adub_base",
+            "adubacao_cobertura": "adub_cobertura", "adubacao_foliar": "adub_foliar",
+            "dessecacao": "plant_dessecacao", "plantio_direto": "plant_direto",
+            "plantio_convencional": "plant_convencional",
+            "irrigacao": "trato_irrigacao", "poda": "trato_poda",
+            "desbaste": "trato_desbaste", "amontoa": "trato_amontoa",
+            "herbicida": "pulv_herbicida", "fungicida": "pulv_fungicida",
+            "inseticida": "pulv_inseticida", "pulverizacao": "pulv_herbicida",
+            "rocada": "mec_rocada", "cultivo_mecanico": "mec_cultivo",
+        }
+        tipo = _tipo_map.get(tipo_raw, tipo_raw)
+
+        # Derivar categoria do prefixo do tipo
+        _cat_map = {
+            "prep": "preparacao", "adub": "adubacao", "plant": "plantio",
+            "trato": "tratos", "pulv": "pulverizacao", "mec": "mecanicas",
+        }
+        prefix = tipo.split("_")[0] if "_" in tipo else tipo[:4]
+        categoria = _cat_map.get(prefix, "preparacao")
+
+        data_op = _parse_date(data.get("data", ""))
+        data_op_date = data_op.date() if hasattr(data_op, "date") else data_op
+
+        operacao = Operacao(
+            tenant=tenant,
+            categoria=categoria,
+            tipo=tipo,
+            plantio=plantio,
+            fazenda=fazenda,
+            data_operacao=data_op_date,
+            custo_mao_obra=_parse_decimal(data.get("custo_mao_obra"), "0"),
+            custo_maquina=_parse_decimal(data.get("custo_maquina"), "0"),
+            custo_insumos=_parse_decimal(data.get("custo_insumos"), "0"),
+            status=data.get("status", "concluida").lower(),
+            observacoes=data.get("observacoes", ""),
+            criado_por=criado_por,
+        )
+        operacao.save()
+
+        # Vincular talhões
+        talhoes_info = data.get("talhoes", [])
+        if isinstance(talhoes_info, str):
+            talhoes_info = [t.strip() for t in talhoes_info.split(",") if t.strip()]
+        talhao_nome = data.get("talhao", "").strip()
+        if talhao_nome and talhao_nome not in talhoes_info:
+            talhoes_info.append(talhao_nome)
+
+        for t_nome in talhoes_info:
+            talhao = _resolve_talhao(tenant, t_nome, plantio)
+            if talhao:
+                operacao.talhoes.add(talhao)
+
+    action.mark_executed({
+        "operacao_id": operacao.pk,
+        "tipo": operacao.tipo,
+        "categoria": operacao.categoria,
+        "data": str(data_op_date),
+        "safra": plantio.nome_safra if plantio else None,
+    })
+    logger.info("execute_operacao_agricola OK: action=%s operacao=%s tipo=%s", action.id, operacao.pk, operacao.tipo)
+
+
+# ─── Registrar Manejo ─────────────────────────────────────────────────────────
+
+def execute_registrar_manejo(action) -> None:
+    """
+    Cria um Manejo a partir de registrar_manejo draft_data.
+    """
+    from apps.agricultura.models import Manejo
+
+    data = action.draft_data
+    tenant = action.tenant
+    criado_por = action.criado_por
+
+    with transaction.atomic():
+        # Resolve safra/plantio (opcional)
+        plantio = None
+        safra_nome = data.get("safra", "").strip()
+        if safra_nome:
+            try:
+                plantio = _resolve_plantio(tenant, safra_nome)
+            except ValueError:
+                logger.warning("execute_registrar_manejo: safra '%s' não encontrada", safra_nome)
+
+        # Resolve fazenda
+        from apps.fazendas.models import Fazenda
+        fazenda = None
+        fazenda_nome = data.get("fazenda", "").strip()
+        if fazenda_nome:
+            fazenda = Fazenda.objects.filter(tenant=tenant, name__icontains=fazenda_nome).first()
+        elif plantio and plantio.fazenda:
+            fazenda = plantio.fazenda
+
+        tipo = (data.get("tipo_manejo") or data.get("tipo") or "outro").lower()
+        # Validar contra Manejo.TIPO_CHOICES
+        valid_tipos = [c[0] for c in Manejo.TIPO_CHOICES]
+        if tipo not in valid_tipos:
+            tipo = "outro"
+
+        data_manejo = _parse_date(data.get("data", ""))
+        data_manejo_date = data_manejo.date() if hasattr(data_manejo, "date") else data_manejo
+
+        manejo = Manejo(
+            tenant=tenant,
+            plantio=plantio,
+            fazenda=fazenda,
+            tipo=tipo,
+            data_manejo=data_manejo_date,
+            descricao=data.get("descricao", ""),
+            custo=_parse_decimal(data.get("custo"), "0"),
+            custo_mao_obra=_parse_decimal(data.get("custo_mao_obra"), "0"),
+            custo_maquinas=_parse_decimal(data.get("custo_maquinas"), "0"),
+            custo_insumos=_parse_decimal(data.get("custo_insumos"), "0"),
+            equipamento=data.get("equipamento", ""),
+            observacoes=data.get("observacoes", ""),
+            criado_por=criado_por,
+        )
+        manejo.save()
+
+        # Vincular talhões
+        talhao_nome = data.get("talhao", "").strip()
+        if talhao_nome:
+            talhao = _resolve_talhao(tenant, talhao_nome, plantio)
+            if talhao:
+                manejo.talhoes.add(talhao)
+
+    action.mark_executed({
+        "manejo_id": manejo.pk,
+        "tipo": manejo.tipo,
+        "data": str(data_manejo_date),
+        "safra": plantio.nome_safra if plantio else None,
+        "fazenda": fazenda.name if fazenda else None,
+    })
+    logger.info("execute_registrar_manejo OK: action=%s manejo=%s", action.id, manejo.pk)
+
+
+# ─── Ordem de Serviço Agrícola ────────────────────────────────────────────────
+
+def execute_ordem_servico_agricola(action) -> None:
+    """
+    Cria uma OrdemServico agrícola a partir de ordem_servico_agricola draft_data.
+    """
+    from apps.agricultura.models import OrdemServico as OSAgricola
+
+    data = action.draft_data
+    tenant = action.tenant
+    criado_por = action.criado_por
+
+    tarefa = data.get("tarefa", "").strip()
+    if not tarefa:
+        tarefa = data.get("descricao", "Ordem de serviço agrícola").strip()
+
+    with transaction.atomic():
+        # Resolve fazenda (opcional)
+        from apps.fazendas.models import Fazenda
+        fazenda = None
+        fazenda_nome = data.get("fazenda", "").strip()
+        if fazenda_nome:
+            fazenda = Fazenda.objects.filter(tenant=tenant, name__icontains=fazenda_nome).first()
+
+        data_inicio = _parse_date(data.get("data_inicio") or data.get("data", ""))
+
+        os_agr = OSAgricola(
+            tenant=tenant,
+            fazenda=fazenda,
+            tarefa=tarefa,
+            maquina=data.get("maquina", ""),
+            insumos=data.get("insumos", []),
+            data_inicio=data_inicio,
+            status=data.get("status", "pendente"),
+            custo_total=_parse_decimal(data.get("custo_total"), "0"),
+            criado_por=criado_por,
+        )
+        os_agr.save()
+
+        # Vincular talhões
+        talhao_nome = data.get("talhao", "").strip()
+        if talhao_nome:
+            talhao = _resolve_talhao(tenant, talhao_nome)
+            if talhao:
+                os_agr.talhoes.add(talhao)
+
+    action.mark_executed({
+        "ordem_servico_id": os_agr.pk,
+        "tarefa": os_agr.tarefa,
+        "status": os_agr.status,
+        "fazenda": fazenda.name if fazenda else None,
+    })
+    logger.info("execute_ordem_servico_agricola OK: action=%s os=%s", action.id, os_agr.pk)

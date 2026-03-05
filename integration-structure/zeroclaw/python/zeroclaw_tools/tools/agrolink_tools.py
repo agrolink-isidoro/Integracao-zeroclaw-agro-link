@@ -18,7 +18,15 @@ Cobertura de formulários (todos os 4 módulos):
                registrar_manutencao_maquina
   Consultas  : consultar_actions_pendentes, consultar_estoque,
                consultar_talhoes, consultar_maquinas,
-               consultar_safras_ativas, consultar_safras
+               consultar_safras_ativas, consultar_safras,
+               consultar_sessoes_colheita_ativas, consultar_fazendas,
+               consultar_proprietarios, consultar_colheitas,
+               consultar_movimentacoes_estoque, consultar_vencimentos,
+               consultar_lancamentos_financeiros
+  Relatórios : relatorio_resumo_geral, relatorio_financeiro,
+               relatorio_estoque, relatorio_agricultura,
+               relatorio_comercial, relatorio_administrativo,
+               relatorio_maquinas
 
 Uso:
     from zeroclaw_tools.tools.agrolink_tools import get_agrolink_tools
@@ -1147,6 +1155,204 @@ def get_agrolink_tools(base_url: str, jwt_token: str) -> list:
             params["search"] = fazenda
         return _get(base_url, jwt_token, "/agricultura/harvest-sessions/", params)
 
+    # ── Relatórios / Analytics ────────────────────────────────────────────────
+
+    @tool
+    def relatorio_resumo_geral() -> str:
+        """
+        Gera um RELATÓRIO RESUMO GERAL do sistema com KPIs de todos os módulos:
+        áreas cultivadas, receita/despesa do mês, saldo, produtos em estoque,
+        máquinas ativas, total de fazendas, vencimentos próximos.
+
+        Use quando o usuário pedir: "resumo geral", "como está a fazenda?",
+        "me dê um panorama", "dashboard", "visão geral".
+        """
+        return _get(base_url, jwt_token, "/dashboard/resumo/")
+
+    @tool
+    def relatorio_financeiro(periodo_dias: int = 30) -> str:
+        """
+        Gera um relatório FINANCEIRO detalhado com:
+        - Caixa disponível no período
+        - Saldo de contas bancárias
+        - Vencimentos próximos e atrasados
+        - Transferências pendentes
+        - Financiamentos e empréstimos ativos
+        - Fluxo de caixa diário e mensal
+
+        Use quando o usuário pedir: "relatório financeiro", "como estão as finanças?",
+        "fluxo de caixa", "vencimentos", "contas a pagar", "situação financeira".
+
+        Args:
+            periodo_dias: Período em dias para análise (padrão: 30 dias).
+        """
+        return _get(base_url, jwt_token, "/dashboard/financeiro/", {"period": periodo_dias})
+
+    @tool
+    def relatorio_estoque() -> str:
+        """
+        Gera um relatório de ESTOQUE com:
+        - Valor total em estoque (R$)
+        - Total de produtos cadastrados
+        - Produtos abaixo do estoque mínimo (lista com nomes e quantidades)
+        - Movimentações dos últimos 7 dias (entradas vs saídas)
+
+        Use quando o usuário pedir: "relatório de estoque", "como está o estoque?",
+        "produtos em falta", "estoque baixo", "valor do estoque",
+        "movimentações de estoque".
+        """
+        return _get(base_url, jwt_token, "/dashboard/estoque/")
+
+    @tool
+    def relatorio_agricultura() -> str:
+        """
+        Gera um relatório de AGRICULTURA com:
+        - Plantios ativos e total do ano
+        - Produção real colhida (kg e sacas de 60kg)
+        - Produção estimada (kg e sacas)
+        - Produção por sessões de colheita
+        - Top 10 talhões por produção (kg e sacas)
+
+        Use quando o usuário pedir: "relatório de agricultura", "como está a produção?",
+        "total de colheitas", "produção por talhão", "safras ativas",
+        "quanto colhemos este ano?", "produtividade".
+        """
+        return _get(base_url, jwt_token, "/dashboard/agricultura/")
+
+    @tool
+    def relatorio_comercial() -> str:
+        """
+        Gera um relatório COMERCIAL com:
+        - Fornecedores ativos e total
+        - Vendas do mês (quantidade e valor total)
+        - Compras do mês (quantidade e valor total)
+        - Contratos vencendo nos próximos 30 dias
+        - Contratos ativos
+
+        Use quando o usuário pedir: "relatório comercial", "vendas do mês",
+        "compras do mês", "fornecedores", "contratos", "situação comercial".
+        """
+        return _get(base_url, jwt_token, "/dashboard/comercial/")
+
+    @tool
+    def relatorio_administrativo() -> str:
+        """
+        Gera um relatório ADMINISTRATIVO com:
+        - Folha de pagamento do mês (total e quantidade)
+        - Despesas administrativas do mês
+        - Total de funcionários (ativos vs total)
+
+        Use quando o usuário pedir: "relatório administrativo", "folha de pagamento",
+        "despesas admin", "funcionários", "RH".
+        """
+        return _get(base_url, jwt_token, "/dashboard/administrativo/")
+
+    @tool
+    def relatorio_maquinas() -> str:
+        """
+        Gera um relatório de MÁQUINAS E EQUIPAMENTOS com lista de equipamentos,
+        status, e informações de manutenção.
+
+        Use quando o usuário pedir: "relatório de máquinas", "como estão as máquinas?",
+        "equipamentos", "manutenções pendentes", "status das máquinas".
+        """
+        return _get(base_url, jwt_token, "/maquinas/equipamentos/")
+
+    @tool
+    def consultar_fazendas() -> str:
+        """
+        Lista todas as fazendas cadastradas com informações de proprietário, 
+        matrícula e áreas.
+
+        Use quando o usuário pedir: "listar fazendas", "quais fazendas temos?",
+        "informações das propriedades".
+        """
+        return _get(base_url, jwt_token, "/fazendas/fazendas/")
+
+    @tool
+    def consultar_proprietarios() -> str:
+        """
+        Lista todos os proprietários rurais cadastrados no sistema.
+
+        Use quando o usuário pedir: "listar proprietários", "quem são os donos?",
+        "proprietários cadastrados".
+        """
+        return _get(base_url, jwt_token, "/fazendas/proprietarios/")
+
+    @tool
+    def consultar_colheitas(ano: int = 0) -> str:
+        """
+        Lista as colheitas registradas no sistema. Pode filtrar por ano.
+
+        Use quando o usuário pedir: "listar colheitas", "colheitas do ano",
+        "histórico de colheitas".
+
+        Args:
+            ano: Ano para filtrar (ex: 2026). 0 para listar todas.
+        """
+        params = {}
+        if ano > 0:
+            params["year"] = ano
+        return _get(base_url, jwt_token, "/agricultura/colheitas/", params)
+
+    @tool
+    def consultar_movimentacoes_estoque(tipo: str = "", produto: str = "", dias: int = 30) -> str:
+        """
+        Lista movimentações de estoque recentes (entradas, saídas, ajustes).
+
+        Use quando o usuário pedir: "movimentações de estoque", "entradas e saídas",
+        "histórico de estoque", "o que entrou/saiu do estoque".
+
+        Args:
+            tipo: Filtrar por tipo: 'entrada', 'saida', ou vazio para todas.
+            produto: Filtrar pelo nome do produto.
+            dias: Período em dias para buscar (padrão: 30).
+        """
+        params = {}
+        if tipo:
+            params["tipo"] = tipo
+        if produto:
+            params["search"] = produto
+        if dias:
+            params["days"] = dias
+        return _get(base_url, jwt_token, "/estoque/movimentacoes/", params)
+
+    @tool
+    def consultar_vencimentos(status: str = "pendente", dias: int = 30) -> str:
+        """
+        Lista vencimentos financeiros (contas a pagar/receber).
+
+        Use quando o usuário pedir: "vencimentos", "contas a pagar",
+        "o que vence essa semana", "pagamentos pendentes".
+
+        Args:
+            status: Status do vencimento: 'pendente', 'pago', 'atrasado'. Padrão: pendente.
+            dias: Período em dias à frente para buscar. Padrão: 30.
+        """
+        params = {"status": status}
+        if dias:
+            params["days"] = dias
+        return _get(base_url, jwt_token, "/financeiro/vencimentos/", params)
+
+    @tool
+    def consultar_lancamentos_financeiros(tipo: str = "", dias: int = 30) -> str:
+        """
+        Lista lançamentos financeiros recentes (receitas e despesas).
+
+        Use quando o usuário pedir: "lançamentos", "receitas e despesas",
+        "gastos do mês", "entradas financeiras".
+
+        Args:
+            tipo: Filtrar por tipo: 'entrada', 'saida', ou vazio para todos.
+            dias: Período em dias para buscar (padrão: 30).
+        """
+        params = {}
+        if tipo:
+            params["tipo"] = tipo
+        if dias:
+            params["days"] = dias
+        return _get(base_url, jwt_token, "/financeiro/lancamentos/", params)
+
     return [
         # Fazendas
         criar_proprietario,
@@ -1179,4 +1385,18 @@ def get_agrolink_tools(base_url: str, jwt_token: str) -> list:
         consultar_safras_ativas,
         consultar_safras,
         consultar_sessoes_colheita_ativas,
+        consultar_fazendas,
+        consultar_proprietarios,
+        consultar_colheitas,
+        consultar_movimentacoes_estoque,
+        consultar_vencimentos,
+        consultar_lancamentos_financeiros,
+        # Relatórios / Analytics
+        relatorio_resumo_geral,
+        relatorio_financeiro,
+        relatorio_estoque,
+        relatorio_agricultura,
+        relatorio_comercial,
+        relatorio_administrativo,
+        relatorio_maquinas,
     ]

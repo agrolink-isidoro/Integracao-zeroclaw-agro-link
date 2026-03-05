@@ -260,12 +260,19 @@ def execute_criar_equipamento(action) -> None:
     criado_por = action.criado_por
 
     with transaction.atomic():
-        # Resolve categoria (por nome — usa ou cria)
+        # Resolve categoria (por nome — usa ou cria, com proteção contra duplicatas)
         cat_nome = data.get("categoria", "Outros")
-        categoria, _ = CategoriaEquipamento.objects.get_or_create(
-            nome__iexact=cat_nome,
-            defaults={"nome": cat_nome, "tipo_mobilidade": "autopropelido"},
-        )
+        try:
+            categoria = CategoriaEquipamento.objects.filter(nome__iexact=cat_nome).first()
+            if not categoria:
+                categoria = CategoriaEquipamento.objects.create(
+                    nome=cat_nome,
+                    tipo_mobilidade="autopropelido",
+                )
+        except Exception:
+            categoria = CategoriaEquipamento.objects.filter(nome__iexact=cat_nome).first()
+            if not categoria:
+                categoria = CategoriaEquipamento.objects.first()
 
         data_aquisicao = _parse_date(data.get("data_aquisicao", ""), fallback_now=False)
 
@@ -300,12 +307,13 @@ def execute_parada_maquina(action) -> None:
     data = action.draft_data
     tenant = action.tenant
 
-    equipamento = _resolve_equipamento(tenant, data.get("maquina_nome", ""))
-    motivo = data.get("descricao", "Parada registrada pelo assistente Isidoro.")
+    with transaction.atomic():
+        equipamento = _resolve_equipamento(tenant, data.get("maquina_nome", ""))
+        motivo = data.get("descricao", "Parada registrada pelo assistente Isidoro.")
 
-    # Atualiza status do equipamento para manutenção
-    equipamento.status = "manutencao"
-    equipamento.save(update_fields=["status"])
+        # Atualiza status do equipamento para manutenção
+        equipamento.status = "manutencao"
+        equipamento.save(update_fields=["status"])
 
     action.mark_executed({
         "equipamento_id": equipamento.pk,
