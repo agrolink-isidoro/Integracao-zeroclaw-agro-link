@@ -452,8 +452,43 @@ class IsidoroAgent:
                 tenant_id, user_id, len(safras_text),
             )
 
+        # ── DETECÇÃO DE CONFIRMAÇÃO ────────────────────────────────────────────
+        # Quando o usuário confirma com "sim"/"ok"/etc., injeta instrução mandatória
+        # para forçar o LLM a chamar a ferramenta de registro imediatamente.
+        _CONFIRM_RE = re.compile(
+            r'^(sim|s|ok|yes|é|e|isso|confirmo|confirmado|correto|certo|pode|'
+            r'pode\s+criar|cria|vai|faz|tudo\s+certo|registra|perfeito|'
+            r'ótimo|otimo|exato|está\s+certo|tá|ta|vamos|vamo|aceito|'
+            r'manda|manda\s+ver|fecha|bora|bom|feito|pode\s+ser|tudo\s+ok)'
+            r'\s*[!\.,]?\s*$',
+            re.IGNORECASE | re.UNICODE,
+        )
+        confirmation_injected = False
+        prev_ai_in_history = [m for m in history if isinstance(m, AIMessage)]
+        if (_CONFIRM_RE.match(user_message.strip())
+                and prev_ai_in_history
+                and len(prev_ai_in_history[-1].content or "") > 80):
+            history.append(SystemMessage(content=(
+                "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                "AÇÃO OBRIGATÓRIA — EXECUTE AGORA:\n"
+                "O usuário acabou de CONFIRMAR os dados resumidos acima.\n"
+                "Você DEVE chamar a ferramenta de registro imediatamente.\n"
+                "Use os dados que você mesmo listou na mensagem anterior.\n"
+                "NÃO responda com texto. NÃO repita o resumo.\n"
+                "NÃO peça mais confirmações. CHAME A FERRAMENTA AGORA.\n"
+                "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            )))
+            confirmation_injected = True
+            logger.info(
+                "Isidoro: confirmation detected, forcing tool call. tenant=%s user=%s msg=%r",
+                tenant_id, user_id, user_message,
+            )
+
         history.append(HumanMessage(content=user_message))
         self._trim_history(history)
+
+        # Captura tamanho do histórico antes do invoke para extrair mensagens novas depois
+        history_len_before_invoke = len(history)
 
         # Tenta até 2 vezes: na 1ª tentativa normal; se 429 com retryDelay ≤ 70s, aguarda e tenta mais uma vez.
         last_exc = None
@@ -493,18 +528,27 @@ class IsidoroAgent:
             else "Desculpe, não foi possível processar sua solicitação."
         )
 
-        # Atualiza histórico com a resposta
-        if last_ai:
-            history.append(last_ai)
+        # Atualiza histórico com TODAS as mensagens novas deste turno
+        # (tool_calls AIMessage, ToolMessages, AIMessage final)
+        # Isso garante que turnos futuros vejam o contexto completo das ferramentas.
+        result_messages = result.get("messages", [])
+        new_messages = result_messages[history_len_before_invoke:]
+        for m in new_messages:
+            history.append(m)
 
-        # Remove SystemMessage de injeção de safras (instrução temporária)
-        # para não poluir turnos futuros da conversa
+        # Remove SystemMessages temporárias injetadas neste turno
+        # (safra injection + confirmation injection) para não poluir turnos futuros
+        _remove_markers = []
         if safra_context_injected:
+            _remove_markers.append("DADOS DO SISTEMA — SAFRAS ATIVAS")
+        if confirmation_injected:
+            _remove_markers.append("AÇÃO OBRIGATÓRIA — EXECUTE AGORA")
+        if _remove_markers:
             history[:] = [
                 m for m in history
                 if not (
                     isinstance(m, SystemMessage)
-                    and "DADOS DO SISTEMA — SAFRAS ATIVAS" in (m.content or "")
+                    and any(marker in (m.content or "") for marker in _remove_markers)
                 )
             ]
 
