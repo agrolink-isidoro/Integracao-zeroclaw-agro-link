@@ -94,14 +94,26 @@ async def _fetch_safras_ativas(base_url: str, jwt_token: str) -> str:
 
         lines = ["Safras ativas no sistema:"]
         for i, s in enumerate(results, 1):
-            nome = s.get("nome") or s.get("name") or s.get("cultura") or f"Safra {i}"
+            nome = (
+                s.get("nome_safra")
+                or s.get("nome")
+                or s.get("name")
+                or s.get("cultura_nome")
+                or f"Safra #{s.get('id', i)}"
+            )
             status = s.get("status", "—")
             fazenda = s.get("fazenda_nome") or s.get("fazenda") or ""
+            cultura = s.get("cultura_nome") or ""
             sid = s.get("id") or s.get("uuid") or ""
+            data_plantio = s.get("data_plantio") or ""
             linha = f"  {i}. {nome}"
+            if cultura and cultura not in nome:
+                linha += f" ({cultura})"
             if fazenda:
                 linha += f" | Fazenda: {fazenda}"
             linha += f" | Status: {status}"
+            if data_plantio:
+                linha += f" | Plantio: {data_plantio}"
             if sid:
                 linha += f" | ID: {sid}"
             lines.append(linha)

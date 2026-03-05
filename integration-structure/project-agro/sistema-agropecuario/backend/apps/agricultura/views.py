@@ -36,10 +36,19 @@ class PlantioViewSet(TenantQuerySetMixin, viewsets.ModelViewSet):
     serializer_class = PlantioSerializer
     permission_classes = [permissions.IsAuthenticated, RBACViewPermission]
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
-    filterset_fields = ['fazenda', 'cultura', 'status', 'data_plantio', 'criado_por']
+    filterset_fields = ['fazenda', 'cultura', 'data_plantio', 'criado_por']
     search_fields = ['talhoes__name', 'cultura__nome', 'observacoes']
     ordering_fields = ['data_plantio', 'criado_em']
     ordering = ['-data_plantio']
+
+    def get_queryset(self):
+        """Suporta status=em_andamento,planejado (múltiplos valores separados por vírgula)."""
+        qs = super().get_queryset()
+        status_param = self.request.query_params.get('status', '')
+        if status_param:
+            valores = [s.strip() for s in status_param.split(',') if s.strip()]
+            qs = qs.filter(status__in=valores)
+        return qs
 
     def perform_create(self, serializer):
         """Define o usuário que criou o registro"""
