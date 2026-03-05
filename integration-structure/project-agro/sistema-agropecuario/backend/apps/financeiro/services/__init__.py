@@ -18,6 +18,7 @@ from .financeiro_services import (
     match_bank_transaction_to_transfer,
     generate_rateio_from_despesa,
     create_rateio_from_despesa,
+    create_rateio_from_operacao,
     create_rateios_proporcional_safras,
 )
 from .conciliacao import ConciliacaoService
@@ -41,6 +42,7 @@ __all__ = [
     'match_bank_transaction_to_transfer',
     'generate_rateio_from_despesa',
     'create_rateio_from_despesa',
+    'create_rateio_from_operacao',
     'create_rateios_proporcional_safras',
     'ConciliacaoService',
 ]
