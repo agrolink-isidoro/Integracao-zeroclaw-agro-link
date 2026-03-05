@@ -1,18 +1,18 @@
 """URLs para o módulo actions (fila de aprovação)."""
 
 from django.urls import path, include
-from rest_framework.routers import DefaultRouter
+from rest_framework.routers import SimpleRouter
 
 from .views import ActionViewSet, UploadedFileViewSet
 
 app_name = "actions"
 
-# Uploads router must be included FIRST so that "uploads/" is matched
-# before ActionViewSet's generic "^(?P<pk>[^/.]+)/$" pattern.
-uploads_router = DefaultRouter()
+# Use SimpleRouter to avoid DefaultRouter's API root view at "^$" which
+# would intercept POST /api/actions/ before ActionViewSet can handle it.
+uploads_router = SimpleRouter()
 uploads_router.register(r"uploads", UploadedFileViewSet, basename="upload")
 
-actions_router = DefaultRouter()
+actions_router = SimpleRouter()
 actions_router.register(r"", ActionViewSet, basename="action")
 
 urlpatterns = [

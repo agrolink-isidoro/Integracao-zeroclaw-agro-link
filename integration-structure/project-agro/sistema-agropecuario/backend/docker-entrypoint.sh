@@ -22,6 +22,20 @@ if [ "${CREATE_DEV_USER:-false}" = "true" ]; then
   python manage.py seed_dev
 fi
 
+# Ensure daphne is installed (ASGI server required for WebSockets)
+if ! command -v daphne &> /dev/null; then
+  echo "Installing daphne (ASGI server for WebSocket support)..."
+  pip install daphne==4.1.2 -q
+fi
+
+# Ensure LangChain packages are installed (required for AI/WebSocket consumers)
+echo "Checking LangChain dependencies..."
+pip install -q \
+  langchain-core>=0.3.0 \
+  langchain-openai>=0.2.0 \
+  langgraph>=0.2.0 \
+  2>/dev/null || echo "LangChain already installed"
+
 # Gera/renova o JWT do agente Isidoro (usuário de serviço ZeroClaw)
 echo "Gerando JWT para o agente Isidoro..."
 python manage.py generate_isidoro_token || echo "AVISO: Falha ao gerar token Isidoro (continuando...)"
@@ -31,5 +45,5 @@ if [ -f /tmp/isidoro_token.txt ]; then
   echo "ISIDORO_JWT_TOKEN configurado (${#ISIDORO_JWT_TOKEN} chars)"
 fi
 
-# Execute the container command (e.g., runserver)
+# Execute the container command (e.g., daphne or runserver)
 exec "$@"

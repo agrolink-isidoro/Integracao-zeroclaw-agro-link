@@ -12,7 +12,6 @@ Uso:
 Chamado automaticamente pelo docker-entrypoint.sh após as migrations.
 O token é escrito em /tmp/isidoro_token.txt e também exibido no stdout.
 """
-import secrets
 from datetime import timedelta
 
 from django.apps import apps
@@ -54,17 +53,21 @@ class Command(BaseCommand):
             username=service_username,
             defaults={
                 "email": "isidoro@agrolink.internal",
-                "is_staff": False,
+                # is_staff=True → _is_owner_level() returns True → bypasses RBAC checks
+                "is_staff": True,
                 "is_superuser": False,
                 "is_active": True,
                 "cargo": "Agente IA (ZeroClaw/Isidoro)",
             },
         )
 
+        # Usa a senha definida em ISIDORO_AGENT_PASSWORD (padrão: admin123).
+        # Isso permite logar via UI/API com as mesmas credenciais.
+        import os  # noqa: PLC0415
+        agent_password = os.environ.get("ISIDORO_AGENT_PASSWORD", "admin123")
+
         if created:
-            # Senha aleatória longa — este usuário nunca faz login com senha
-            random_pw = secrets.token_urlsafe(48)
-            user.set_password(random_pw)
+            user.set_password(agent_password)
             user.save(update_fields=["password"])
             self.stdout.write(
                 self.style.SUCCESS(f"Usuário de serviço '{service_username}' criado.")
@@ -72,17 +75,32 @@ class Command(BaseCommand):
         else:
             self.stdout.write(
                 self.style.WARNING(
-                    f"Usuário de serviço '{service_username}' já existe — reutilizando."
+                    f"Usuário de serviço '{service_username}' já existe — atualizando."
                 )
             )
 
-        # Gera refresh token com vida longa
-        days = options["days"]
-        refresh = RefreshToken.for_user(user)
+        # Garante is_staff=True e a senha correta a cada execução,
+        # independente de quando o usuário foi criado ou se a senha foi mudada.
+        update_fields = []
+        if not user.is_staff:
+            user.is_staff = True
+            update_fields.append("is_staff")
+        # Sincroniza sempre a senha com ISIDORO_AGENT_PASSWORD
+        user.set_password(agent_password)
+        update_fields.append("password")
+        if update_fields:
+            user.save(update_fields=update_fields)
+            self.stdout.write(self.style.SUCCESS(f"Campos atualizados: {update_fields}"))
 
-        # Sobrescreve o lifetime diretamente no payload
-        refresh.set_exp(lifetime=timedelta(days=days))
-        access_token = str(refresh.access_token)
+        # Gera access token de longa duração diretamente.
+        # Não usamos refresh.access_token porque esse ignora set_exp no refresh
+        # e usa o ACCESS_TOKEN_LIFETIME padrão (5 min). Em vez disso, criamos
+        # um AccessToken independente e sobrescrevemos o exp manualmente.
+        from rest_framework_simplejwt.tokens import AccessToken  # noqa: PLC0415
+        days = options["days"]
+        token = AccessToken.for_user(user)
+        token.set_exp(lifetime=timedelta(days=days))
+        access_token = str(token)
 
         # Escreve token em arquivo temporário (lido pelo entrypoint)
         token_file = "/tmp/isidoro_token.txt"

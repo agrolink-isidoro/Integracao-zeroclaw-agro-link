@@ -21,6 +21,9 @@ dist/
 # Virtualenvs
 .env/
 .env.*
+# Allow the template — it contains no real secrets
+!.env.example
+!**/.env.example
 
 # Django
 db.sqlite3

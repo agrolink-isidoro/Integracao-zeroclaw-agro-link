@@ -118,10 +118,19 @@ export interface PaginatedResponse<T> {
 export async function listActions(
   filters: ActionFilters = {}
 ): Promise<PaginatedResponse<Action>> {
-  const { data } = await api.get<PaginatedResponse<Action>>('/actions/', {
-    params: filters,
-  });
-  return data;
+  // The api.ts response interceptor normalises paginated DRF responses:
+  // it replaces response.data with just the results[] array and saves
+  // { count, next, previous } on the non-enumerable response.meta field.
+  // We therefore access the response object directly to re-assemble the
+  // full PaginatedResponse expected by callers like ActionsPanel.
+  const response = await api.get<Action[]>('/actions/', { params: filters });
+  const meta = (response as unknown as { meta?: { count?: number; next?: string | null; previous?: string | null } }).meta;
+  return {
+    count: meta?.count ?? response.data.length,
+    next: meta?.next ?? null,
+    previous: meta?.previous ?? null,
+    results: response.data,
+  };
 }
 
 /** Lista apenas actions pendentes de aprovação. */

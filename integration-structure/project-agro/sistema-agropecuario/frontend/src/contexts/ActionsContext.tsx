@@ -142,8 +142,18 @@ export function ActionsProvider({ children }: { children: React.ReactNode }) {
     destroyedRef.current = false;
 
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const host = window.location.host;
-    const wsUrl = `${protocol}//${host}/ws/chat/?token=${accessToken}`;
+    
+    // Determine backend host:
+    // - In Docker: use relative URL (both services on same network)
+    // - In dev: detect if frontend is on port 5173 and backend on 8001
+    let wsUrl: string;
+    if (window.location.port === '5173') {
+      // Development: frontend on 5173, backend on 8001
+      wsUrl = `${protocol}//localhost:8001/ws/chat/?token=${accessToken}`;
+    } else {
+      // Production/Docker: use relative URL to same host
+      wsUrl = `${protocol}//${window.location.host}/ws/chat/?token=${accessToken}`;
+    }
 
     const ws = new WebSocket(wsUrl);
     wsRef.current = ws;
@@ -289,8 +299,14 @@ export function ActionsProvider({ children }: { children: React.ReactNode }) {
       wsRef.current?.close(1000, 'User logged out');
       return;
     }
-    connectWebSocket();
+    // Small delay prevents React StrictMode's double-invoke from closing a
+    // CONNECTING WebSocket (which would cause an abnormal 1006 close error).
+    destroyedRef.current = false;
+    const timer = setTimeout(() => {
+      if (!destroyedRef.current) connectWebSocket();
+    }, 50);
     return () => {
+      clearTimeout(timer);
       destroyedRef.current = true;
       if (reconnectTimeout.current) clearTimeout(reconnectTimeout.current);
       wsRef.current?.close(1000, 'Component unmounted');

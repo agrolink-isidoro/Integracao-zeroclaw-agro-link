@@ -1,0 +1,40 @@
+# Secrets — never commit real credentials
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+*.pfx
+credentials.json
+.secret_key
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyc
+.venv/
+venv/
+env/
+*.egg-info/
+
+# Node
+node_modules/
+npm-debug.log*
+
+# IDEs
+.vscode/
+.idea/
+*.code-workspace
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker volumes
+**/postgres_data/
+**/redis_data/
+
+# Misc
+*.log
+*.tmp
+backups/
