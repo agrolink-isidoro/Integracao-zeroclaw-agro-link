@@ -34,15 +34,82 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 from dataclasses import dataclass, field
 from typing import Optional
 
+import httpx
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 
 from ..agent import ZeroclawAgent
 from ..tools.agrolink_tools import get_agrolink_tools
 
 logger = logging.getLogger(__name__)
+
+# ── Palavras-chave que indicam operação agrícola ─────────────────────────────
+# Qualquer mensagem que bata aqui → buscar safras ativas ANTES do LLM responder
+_AG_KEYWORDS = re.compile(
+    r"\b("
+    r"opera[çc][aã]o|colheit[a]?|mane[jg]o|pulveriza[çc][aã]o|aduba[çc][aã]o"
+    r"|corre[çc][aã]o\s+de\s+solo|calagem|gesso|calcário|calcario"
+    r"|desseca[çc][aã]o|plantio|planta[çc][aã]o|irriga[çc][aã]o"
+    r"|capina|ro[çc]ada|cultivo|preparo\s+de\s+solo|ara[çc][aã]o|gradagem"
+    r"|subsolagem|cobertura|herbicida|fungicida|inseticida|defensivo"
+    r"|ordem\s+de\s+servi[çc]o\s+agr[íi]col"
+    r"|registrar.*(talh[aã]o|campo|safra|lavoura)"
+    r"|lan[çc]ar.*(opera[çc][aã]o|atividade|colheit)"
+    r")\b",
+    re.IGNORECASE | re.UNICODE,
+)
+
+
+def _is_agriculture_operation(text: str) -> bool:
+    """Retorna True se a mensagem menciona uma operação agrícola."""
+    return bool(_AG_KEYWORDS.search(text))
+
+
+async def _fetch_safras_ativas(base_url: str, jwt_token: str) -> str:
+    """
+    Busca diretamente as safras ativas via HTTP (sem passar pelo LLM).
+    Retorna string formatada para injetar no contexto.
+    """
+    auth = jwt_token if jwt_token.startswith("Bearer ") else f"Bearer {jwt_token}"
+    try:
+        async with httpx.AsyncClient(
+            base_url=base_url.rstrip("/"),
+            headers={"Authorization": auth},
+            timeout=8.0,
+        ) as client:
+            resp = await client.get(
+                "/agricultura/plantios/",
+                params={"status": "em_andamento,planejado"},
+            )
+            resp.raise_for_status()
+            data = resp.json()
+
+        # Normaliza paginação ou lista direta
+        results = data.get("results", data) if isinstance(data, dict) else data
+        if not results:
+            return "Nenhuma safra ativa encontrada no sistema."
+
+        lines = ["Safras ativas no sistema:"]
+        for i, s in enumerate(results, 1):
+            nome = s.get("nome") or s.get("name") or s.get("cultura") or f"Safra {i}"
+            status = s.get("status", "—")
+            fazenda = s.get("fazenda_nome") or s.get("fazenda") or ""
+            sid = s.get("id") or s.get("uuid") or ""
+            linha = f"  {i}. {nome}"
+            if fazenda:
+                linha += f" | Fazenda: {fazenda}"
+            linha += f" | Status: {status}"
+            if sid:
+                linha += f" | ID: {sid}"
+            lines.append(linha)
+        return "\n".join(lines)
+
+    except Exception as exc:
+        logger.warning("_fetch_safras_ativas falhou: %s", exc)
+        return f"(Não foi possível consultar safras ativas: {exc})"
 
 ISIDORO_SYSTEM_PROMPT = """Você é o Isidoro, assistente agrícola inteligente do sistema Agrolink.
 
@@ -297,6 +364,33 @@ class IsidoroAgent:
             )
             history.append(SystemMessage(content=system_content))
 
+        # ── PRÉ-FETCH OBRIGATÓRIO: detecta operação agrícola e busca safras ──
+        # NÃO depende do LLM chamar a ferramenta — fazemos a chamada em Python
+        # e injetamos o resultado no contexto ANTES de o LLM ver a mensagem.
+        safra_context_injected = False
+        if _is_agriculture_operation(user_message):
+            safras_text = await _fetch_safras_ativas(self.base_url, self.jwt_token)
+            safra_injection = SystemMessage(content=(
+                "═══════════════════════════════════════════════════\n"
+                "DADOS DO SISTEMA — SAFRAS ATIVAS (consultado agora)\n"
+                "═══════════════════════════════════════════════════\n"
+                f"{safras_text}\n"
+                "═══════════════════════════════════════════════════\n"
+                "INSTRUÇÃO MANDATÓRIA: O usuário está iniciando um registro agrícola.\n"
+                "Sua ÚNICA resposta agora é apresentar a lista de safras acima\n"
+                "e perguntar qual delas está vinculada à operação.\n"
+                "NÃO pergunte talhão, data, insumo, cultura ou qualquer outro campo.\n"
+                "NÃO repita a consulta de safras — os dados já estão acima.\n"
+                "Aguarde o usuário escolher a safra antes de avançar.\n"
+                "═══════════════════════════════════════════════════"
+            ))
+            history.append(safra_injection)
+            safra_context_injected = True
+            logger.info(
+                "Isidoro safra pre-fetch: tenant=%s user=%s result_len=%d",
+                tenant_id, user_id, len(safras_text),
+            )
+
         history.append(HumanMessage(content=user_message))
         self._trim_history(history)
 
@@ -316,6 +410,17 @@ class IsidoroAgent:
             # Atualiza histórico com a resposta
             if last_ai:
                 history.append(last_ai)
+
+            # Remove SystemMessage de injeção de safras (instrução temporária)
+            # para não poluir turnos futuros da conversa
+            if safra_context_injected:
+                history[:] = [
+                    m for m in history
+                    if not (
+                        isinstance(m, SystemMessage)
+                        and "DADOS DO SISTEMA — SAFRAS ATIVAS" in (m.content or "")
+                    )
+                ]
 
             # Extrai nomes de tool_calls para logging
             tool_call_names = []
