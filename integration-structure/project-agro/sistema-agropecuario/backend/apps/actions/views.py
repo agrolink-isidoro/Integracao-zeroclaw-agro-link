@@ -88,7 +88,7 @@ class ActionViewSet(TenantQuerySetMixin, viewsets.ModelViewSet):
 
     @action(detail=True, methods=["post"], url_path="approve")
     def approve(self, request, pk=None):
-        """Aprova uma action pendente. Status: pending_approval → approved."""
+        """Aprova e executa uma action pendente. Status: pending_approval → approved → executed."""
         obj = self.get_object()
         try:
             obj.approve(request.user)
@@ -96,6 +96,16 @@ class ActionViewSet(TenantQuerySetMixin, viewsets.ModelViewSet):
             return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
 
         logger.info("Action %s aprovada por %s", obj.id, request.user)
+
+        # Executa imediatamente após aprovação
+        try:
+            from .executors import execute_action
+            execute_action(obj)
+        except Exception as exc:  # execute_action já chama mark_failed internamente
+            logger.error("execute_action falhou silenciosamente: action=%s erro=%s", obj.id, exc)
+
+        # Re-fetch para garantir status atualizado (executed ou failed)
+        obj.refresh_from_db()
         return Response(ActionSerializer(obj, context={"request": request}).data)
 
     @action(detail=True, methods=["post"], url_path="reject")
@@ -135,14 +145,24 @@ class ActionViewSet(TenantQuerySetMixin, viewsets.ModelViewSet):
 
         aprovadas = 0
         erros = []
+        approved_objects = []
 
         with transaction.atomic():
             for obj in qs.select_for_update():
                 try:
                     obj.approve(request.user)
+                    approved_objects.append(obj)
                     aprovadas += 1
                 except Exception as exc:
                     erros.append({"id": str(obj.id), "erro": str(exc)})
+
+        # Executa ações após o commit do atomic (fora do lock)
+        from .executors import execute_action
+        for obj in approved_objects:
+            try:
+                execute_action(obj)
+            except Exception as exc:
+                logger.error("bulk_approve execute falhou: action=%s erro=%s", obj.id, exc)
 
         logger.info(
             "Bulk approve: %d aprovadas, %d erros — por %s",
