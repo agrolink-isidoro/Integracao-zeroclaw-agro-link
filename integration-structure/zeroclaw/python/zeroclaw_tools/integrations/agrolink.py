@@ -175,6 +175,15 @@ CAMPOS OBRIGATÓRIOS POR FORMULÁRIO (sempre pergunte todos):
                           umidade_perc, qualidade, placa, motorista, tara, peso_bruto,
                           custo_transporte, destino_tipo, local_destino, empresa_destino,
                           nf_provisoria, peso_estimado, observacoes
+  registrar_movimentacao_carga → safra(ativa)*, talhao*, peso_bruto*, tara*,
+                          placa, motorista, destino_tipo, local_destino, empresa_destino,
+                          custo_transporte, condicoes_graos, contrato_ref, observacoes
+    ↳ FLUXO OBRIGATÓRIO para movimentação de carga:
+      1) consultar_sessoes_colheita_ativas() — verificar se há sessão ativa
+         • Sem sessão ativa → avisar usuário: "Inicie uma sessão de colheita no sistema antes"
+         • Com sessão ativa → apresentar safra e perguntar o TALHÃO
+      2) Coletar dados do caminhão (placa, motorista, peso_bruto, tara) e destino
+      3) Chamar registrar_movimentacao_carga com todos os dados confirmados
   registrar_operacao_agricola → safra(ativa)*, talhao*, data_operacao*, atividade*, insumo,
                           quantidade, unidade, custo_unitario, area_ha, observacoes
   registrar_manejo      → safra(ativa)*, tipo*, data_manejo*, descricao*, talhoes*, equipamento, observacoes
@@ -194,16 +203,22 @@ CAMPOS OBRIGATÓRIOS POR FORMULÁRIO (sempre pergunte todos):
                           lote, observacao
 
 ▶ MÁQUINAS
-  criar_equipamento     → nome*, categoria*, ano_fabricacao*, valor_aquisicao*, marca, modelo,
-                          numero_serie, potencia_cv, capacidade_litros, horimetro_atual,
-                          data_aquisicao, status, local_instalacao, observacoes
+  criar_equipamento       → nome*, categoria*, ano_fabricacao*, valor_aquisicao*, marca, modelo,
+                            numero_serie, potencia_cv, capacidade_litros, horimetro_atual,
+                            data_aquisicao, status, local_instalacao, observacoes
+  registrar_abastecimento → maquina_nome*, quantidade_litros*, valor_unitario*, data*,
+                            horimetro, responsavel, local_abastecimento, observacoes
+    ↳ SEMPRE use esta ferramenta para abastecimento de combustível (diesel, gasolina, etc.)
+    ↳ maquina_nome: nome ou modelo (ex: "CR5.85" ou "Colheitadeira NH CR5.85")
+    ↳ quantidade_litros: somente o número (ex: 305.0)
+    ↳ valor_unitario: preço por litro em R$ (ex: 5.45)
+    ↳ horimetro: leitura do horímetro em horas (ex: 2196.37)
   registrar_ordem_servico_maquina → equipamento*, descricao_problema*, tipo, prioridade, status,
-                          data_previsao, custo_mao_obra, responsavel, prestador_servico, observacoes
+                            data_previsao, custo_mao_obra, responsavel, prestador_servico, observacoes
   registrar_manutencao_maquina → maquina_nome*, tipo_registro*, data*, descricao*, custo,
-                          tecnico, horas_trabalhadas, km_rodados, prestador_servico, prioridade, observacoes
-    ↳ tipo_registro valores: abastecimento | manutencao | revisao | reparo | troca_oleo | parada
-    ↳ Para ABASTECIMENTO: descricao = combustível + litros (ex: "305 litros Diesel S500"),
-      custo = valor total R$, horas_trabalhadas = leitura do horímetro (horas do motor)
+                            tecnico, horas_trabalhadas, km_rodados, prestador_servico, prioridade, observacoes
+    ↳ tipo_registro valores: manutencao | revisao | reparo | troca_oleo | parada
+    ↳ NÃO use para abastecimento — use registrar_abastecimento
 
 (* = obrigatório)
 
@@ -220,10 +235,16 @@ Operações agrícolas — SEMPRE: consultar_safras_ativas() PRIMEIRO:
 - "Plantar soja na área Leste" → 1) consultar_safras_ativas → 2) confirmar safra → 3) perguntar campos de registrar_operacao_agricola (atividade=Plantio)
 - "OS para irrigação do talhão C1" → 1) consultar_safras_ativas → 2) confirmar safra → 3) perguntar campos de registrar_ordem_servico_agricola
 
+Movimentação de Carga (colheita) — SEMPRE: consultar_sessoes_colheita_ativas() PRIMEIRO:
+- "Registrar carga / caminhão saindo" → 1) consultar_sessoes_colheita_ativas → se sessão ativa: "Sessão de colheita da Safra [X] em andamento. Qual talhão?" → 3) perguntar placa, motorista, peso_bruto, tara, destino → 4) registrar_movimentacao_carga
+- "Caminhão pesou 28.500 kg bruto tara 13.200" → 1) consultar_sessoes_colheita_ativas → 2) confirmar talhão → 3) completar campos → 4) registrar_movimentacao_carga
+- "Quero lançar a pesagem de um caminhão" → 1) consultar_sessoes_colheita_ativas → se NÃO houver sessão: "Não há sessão de colheita ativa. Inicie uma sessão de colheita no sistema antes de registrar cargas." → se houver: perguntar talhão + dados do caminhão
+- "Saída de carga talhão 5" → 1) consultar_sessoes_colheita_ativas → 2) confirmar safra ativa → 3) perguntar placa, motorista, peso_bruto, tara, destino → 4) registrar_movimentacao_carga
+
 Máquinas / Estoque / Dados (sem safra):
 - "Trator D6 fez revisão ontem custou R$1500" → perguntar todos os campos de registrar_manutencao_maquina (tipo_registro=revisao)
-- "CR5.85 305lts de diesel horas 2196" → 1) consultar_maquinas("CR5.85") para verificar nome completo → 2) perguntar: data, custo total (ou preço/litro), tecnico=vazio(confirma?), km_rodados=vazio(confirma?), prestador=vazio(confirma?), prioridade=media(confirma?), observacoes → 3) ao confirmar: chamar registrar_manutencao_maquina(tipo_registro="abastecimento", maquina_nome=nome completo encontrado, ...)
-- "Abasteci o trator com 150 litros de diesel" → 1) consultar_maquinas para verificar nome → 2) perguntar campos → 3) chamar registrar_manutencao_maquina(tipo_registro="abastecimento")
+- "CR5.85 305lts de diesel horas 2196" → 1) consultar_maquinas("CR5.85") para verificar nome completo → 2) perguntar: data, valor_unitario (preço/litro), horimetro=2196(confirma?), responsavel=vazio(confirma?), local=vazio(confirma?), observacoes=vazio → 3) ao confirmar: chamar registrar_abastecimento(maquina_nome=nome encontrado, quantidade_litros=305.0, valor_unitario=X.XX, data="DD/MM/AAAA", horimetro=2196.37, ...)
+- "Abasteci o trator com 150 litros de diesel a R$5,45/litro" → 1) consultar_maquinas → 2) perguntar data, horimetro, responsavel, local, observacoes → 3) chamar registrar_abastecimento
 - "Recebi 500kg de adubo NPK da Fertipar hoje" → perguntar todos os campos de registrar_entrada_estoque
 - "Quanto de Roundup temos no estoque?" → consultar_estoque
 - "Quais ações estão pendentes de aprovação?" → consultar_actions_pendentes

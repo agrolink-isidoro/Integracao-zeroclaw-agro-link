@@ -410,6 +410,71 @@ def get_agrolink_tools(base_url: str, jwt_token: str) -> list:
         )
 
     @tool
+    def registrar_movimentacao_carga(
+        safra: str,
+        talhao: str,
+        peso_bruto: float,
+        tara: float,
+        placa: str = "",
+        motorista: str = "",
+        destino_tipo: str = "armazenagem_interna",
+        local_destino: str = "",
+        empresa_destino: str = "",
+        custo_transporte: float = 0.0,
+        condicoes_graos: str = "",
+        contrato_ref: str = "",
+        observacoes: str = "",
+    ) -> str:
+        """
+        Registra uma movimentação de carga (caminhão carregado) durante a colheita.
+
+        FLUXO OBRIGATÓRIO antes de chamar esta ferramenta:
+          1. Chame consultar_sessoes_colheita_ativas() para verificar se há sessão ativa.
+             - Se NÃO houver sessão ativa: informe ao usuário que ele deve iniciar uma
+               sessão de colheita manualmente no sistema antes de registrar cargas.
+             - Se houver sessão ativa: apresente a safra e pergunte ao usuário qual talhão.
+          2. Pergunte o talhão onde a carga será realizada.
+          3. Colete os dados do caminhão (placa, motorista, peso_bruto, tara) e destino.
+          4. Chame esta ferramenta com todos os dados confirmados.
+
+        Args:
+            safra: Nome ou identificação da safra ATIVA (ex: "Soja", "Safra Soja") — obrigatório
+            talhao: Nome ou código do talhão onde a carga será realizada — obrigatório
+            peso_bruto: Peso bruto do caminhão carregado em kg — obrigatório
+            tara: Tara (peso do caminhão vazio) em kg — obrigatório
+            placa: Placa do veículo (ex: ABC1D23)
+            motorista: Nome do motorista
+            destino_tipo: Destino da carga: 'armazenagem_interna' (padrão),
+                          'armazenagem_externa', 'venda_direta'
+            local_destino: Nome do local de armazenamento interno (se destino_tipo='armazenagem_interna')
+            empresa_destino: Nome da empresa destino (se destino_tipo='armazenagem_externa' ou 'venda_direta')
+            custo_transporte: Custo do frete em reais
+            condicoes_graos: Condições dos grãos (ex: Boa, Avariado, Úmido)
+            contrato_ref: Número de nota fiscal provisória ou referência de contrato
+            observacoes: Observações adicionais
+        """
+        return _post_action(
+            base_url, jwt_token,
+            module="agricultura",
+            action_type="movimentacao_carga",
+            draft_data={
+                "safra": safra,
+                "talhao": talhao,
+                "peso_bruto": peso_bruto,
+                "tara": tara,
+                "placa": placa,
+                "motorista": motorista,
+                "destino_tipo": destino_tipo,
+                "local_destino": local_destino,
+                "empresa_destino": empresa_destino,
+                "custo_transporte": custo_transporte,
+                "condicoes_graos": condicoes_graos,
+                "contrato_ref": contrato_ref,
+                "observacoes": observacoes,
+            },
+        )
+
+    @tool
     def registrar_operacao_agricola(
         safra: str,
         talhao: str,
@@ -826,6 +891,49 @@ def get_agrolink_tools(base_url: str, jwt_token: str) -> list:
         )
 
     @tool
+    def registrar_abastecimento(
+        maquina_nome: str,
+        quantidade_litros: float,
+        valor_unitario: float,
+        data: str,
+        horimetro: float = 0.0,
+        responsavel: str = "",
+        local_abastecimento: str = "",
+        observacoes: str = "",
+    ) -> str:
+        """
+        Registra um abastecimento de combustível em um equipamento/máquina agrícola.
+        Use esta ferramenta SEMPRE que o usuário mencionar abastecimento, combustível,
+        diesel, gasolina, litros, etc. em contexto de máquinas.
+        Sempre pergunte TODOS os campos ao usuário antes de chamar esta ferramenta.
+
+        Args:
+            maquina_nome: Nome ou modelo da máquina (ex: CR5.85, Colheitadeira NH CR5.85) — obrigatório
+            quantidade_litros: Quantidade de combustível em litros (ex: 305.0) — obrigatório
+            valor_unitario: Preço por litro em reais (ex: 5.45) — obrigatório
+            data: Data do abastecimento no formato DD/MM/AAAA — obrigatório
+            horimetro: Leitura do horímetro (horas do motor) no momento do abastecimento (ex: 2196.37)
+            responsavel: Nome do responsável pelo abastecimento
+            local_abastecimento: Local onde foi realizado o abastecimento (ex: Fazenda, Posto XYZ)
+            observacoes: Observações adicionais (tipo de combustível, nota fiscal, etc.)
+        """
+        return _post_action(
+            base_url, jwt_token,
+            module="maquinas",
+            action_type="abastecimento",
+            draft_data={
+                "maquina_nome": maquina_nome,
+                "quantidade_litros": quantidade_litros,
+                "valor_unitario": valor_unitario,
+                "data": data,
+                "horimetro": horimetro,
+                "responsavel": responsavel,
+                "local_abastecimento": local_abastecimento,
+                "observacoes": observacoes,
+            },
+        )
+
+    @tool
     def registrar_ordem_servico_maquina(
         equipamento: str,
         descricao_problema: str,
@@ -1023,6 +1131,22 @@ def get_agrolink_tools(base_url: str, jwt_token: str) -> list:
             params["search"] = fazenda
         return _get(base_url, jwt_token, "/agricultura/plantios/", params)
 
+    @tool
+    def consultar_sessoes_colheita_ativas(fazenda: str = "") -> str:
+        """
+        Lista as sessões de colheita ATIVAS (status 'em_andamento') no sistema.
+        Use esta ferramenta ANTES de registrar uma movimentação de carga para verificar
+        se há uma sessão de colheita em andamento. Se não houver sessão ativa, informe
+        ao usuário que ele deve iniciar uma sessão de colheita manualmente no sistema.
+
+        Args:
+            fazenda: Filtrar pelo nome da fazenda. Deixar vazio para todas as fazendas.
+        """
+        params = {"status": "em_andamento"}
+        if fazenda:
+            params["search"] = fazenda
+        return _get(base_url, jwt_token, "/agricultura/harvest-sessions/", params)
+
     return [
         # Fazendas
         criar_proprietario,
@@ -1033,6 +1157,7 @@ def get_agrolink_tools(base_url: str, jwt_token: str) -> list:
         # Agricultura
         criar_safra,
         registrar_colheita,
+        registrar_movimentacao_carga,
         registrar_operacao_agricola,
         registrar_manejo,
         registrar_ordem_servico_agricola,
@@ -1043,6 +1168,7 @@ def get_agrolink_tools(base_url: str, jwt_token: str) -> list:
         registrar_movimentacao_estoque,
         # Máquinas
         criar_equipamento,
+        registrar_abastecimento,
         registrar_ordem_servico_maquina,
         registrar_manutencao_maquina,
         # Consultas
@@ -1052,4 +1178,5 @@ def get_agrolink_tools(base_url: str, jwt_token: str) -> list:
         consultar_maquinas,
         consultar_safras_ativas,
         consultar_safras,
+        consultar_sessoes_colheita_ativas,
     ]
