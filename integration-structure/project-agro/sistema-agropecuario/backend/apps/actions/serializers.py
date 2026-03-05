@@ -52,7 +52,8 @@ class ActionCreateSerializer(serializers.ModelSerializer):
 
     class Meta:
         model  = Action
-        fields = ["module", "action_type", "draft_data", "validation", "meta", "upload"]
+        fields = ["id", "module", "action_type", "status", "draft_data", "validation", "meta", "upload"]
+        read_only_fields = ["id", "status"]
 
     def validate_module(self, value):
         from .models import ActionModule
