@@ -222,6 +222,46 @@ class IsidoroResponse:
     error: Optional[str] = None
 
 
+def _extract_retry_delay(exc: Exception) -> Optional[float]:
+    """Extrai o retryDelay (em segundos) de um erro 429 do Google Gemini, ou None."""
+    try:
+        msg = str(exc)
+        import re
+        # Formato: 'retryDelay': '40s'  ou  "retryDelay": "40.87s"
+        m = re.search(r"retryDelay['\"]?\s*:\s*['\"]([0-9.]+)s", msg)
+        if m:
+            return float(m.group(1))
+        # Formato: 'Please retry in 40.87s'
+        m = re.search(r"retry in ([0-9.]+)s", msg, re.IGNORECASE)
+        if m:
+            return float(m.group(1))
+    except Exception:
+        pass
+    return None
+
+
+def _friendly_error_message(exc: Exception) -> str:
+    """Retorna mensagem amigável ao usuário baseada no tipo de erro."""
+    msg = str(exc)
+    if "429" in msg or "RESOURCE_EXHAUSTED" in msg or "quota" in msg.lower():
+        delay = _extract_retry_delay(exc)
+        if delay and delay <= 90:
+            secs = int(delay) + 5
+            return (
+                f"⏳ O assistente está temporariamente sobrecarregado. "
+                f"Aguarde uns {secs} segundos e envie sua mensagem novamente."
+            )
+        return (
+            "⚠️ Limite de uso da IA atingido por hoje. "
+            "Por favor, tente novamente mais tarde ou amanhã."
+        )
+    if "401" in msg or "403" in msg or "UNAUTHENTICATED" in msg:
+        return "🔒 Sessão expirada. Por favor, recarregue a página e faça login novamente."
+    if "timeout" in msg.lower() or "timed out" in msg.lower():
+        return "⏱️ A IA demorou mais que o esperado. Por favor, tente novamente."
+    return "Encontrei um problema técnico. Por favor, tente novamente."
+
+
 class IsidoroAgent:
     """
     Agente Isidoro — wraps ZeroclawAgent com contexto agrícola e ferramentas Agrolink.
@@ -394,56 +434,74 @@ class IsidoroAgent:
         history.append(HumanMessage(content=user_message))
         self._trim_history(history)
 
-        try:
-            result = await self._agent.ainvoke({"messages": history})
-            messages = result.get("messages", [])
-
-            # Encontra a última AIMessage
-            ai_messages = [m for m in messages if isinstance(m, AIMessage)]
-            last_ai = ai_messages[-1] if ai_messages else None
-
-            response_text = (
-                last_ai.content if last_ai and isinstance(last_ai.content, str)
-                else "Desculpe, não foi possível processar sua solicitação."
-            )
-
-            # Atualiza histórico com a resposta
-            if last_ai:
-                history.append(last_ai)
-
-            # Remove SystemMessage de injeção de safras (instrução temporária)
-            # para não poluir turnos futuros da conversa
-            if safra_context_injected:
-                history[:] = [
-                    m for m in history
-                    if not (
-                        isinstance(m, SystemMessage)
-                        and "DADOS DO SISTEMA — SAFRAS ATIVAS" in (m.content or "")
+        # Tenta até 2 vezes: na 1ª tentativa normal; se 429 com retryDelay ≤ 70s, aguarda e tenta mais uma vez.
+        last_exc = None
+        for attempt in range(2):
+            try:
+                result = await self._agent.ainvoke({"messages": history})
+                break  # sucesso
+            except Exception as exc:
+                last_exc = exc
+                retry_delay = _extract_retry_delay(exc)
+                if retry_delay is not None and retry_delay <= 70 and attempt == 0:
+                    logger.warning(
+                        "Isidoro chat: 429 rate-limit na tentativa 1, aguardando %.0fs antes de retry. tenant=%s",
+                        retry_delay, tenant_id,
                     )
-                ]
+                    import asyncio as _asyncio
+                    await _asyncio.sleep(retry_delay)
+                    continue
+                # Não é 429 recuperável ou já é 2ª tentativa
+                logger.exception("Erro no chat do Isidoro: %s", exc)
+                error_text = _friendly_error_message(exc)
+                return IsidoroResponse(text=error_text, error=str(exc))
+        else:
+            # Esgotou tentativas
+            logger.exception("Erro no chat do Isidoro (após retry): %s", last_exc)
+            error_text = _friendly_error_message(last_exc)
+            return IsidoroResponse(text=error_text, error=str(last_exc))
 
-            # Extrai nomes de tool_calls para logging
-            tool_call_names = []
-            for msg in messages:
-                if hasattr(msg, "tool_calls") and msg.tool_calls:
-                    tool_call_names.extend(tc.get("name", "") for tc in msg.tool_calls)
+        messages = result.get("messages", [])
 
-            logger.info(
-                "Isidoro chat: tenant=%s user=%s tools=%s",
-                tenant_id, user_id, tool_call_names,
-            )
+        # Encontra a última AIMessage
+        ai_messages = [m for m in messages if isinstance(m, AIMessage)]
+        last_ai = ai_messages[-1] if ai_messages else None
 
-            return IsidoroResponse(
-                text=response_text,
-                tool_calls=tool_call_names,
-            )
+        response_text = (
+            last_ai.content if last_ai and isinstance(last_ai.content, str)
+            else "Desculpe, não foi possível processar sua solicitação."
+        )
 
-        except Exception as exc:
-            logger.exception("Erro no chat do Isidoro: %s", exc)
-            return IsidoroResponse(
-                text="Encontrei um problema técnico. Por favor, tente novamente.",
-                error=str(exc),
-            )
+        # Atualiza histórico com a resposta
+        if last_ai:
+            history.append(last_ai)
+
+        # Remove SystemMessage de injeção de safras (instrução temporária)
+        # para não poluir turnos futuros da conversa
+        if safra_context_injected:
+            history[:] = [
+                m for m in history
+                if not (
+                    isinstance(m, SystemMessage)
+                    and "DADOS DO SISTEMA — SAFRAS ATIVAS" in (m.content or "")
+                )
+            ]
+
+        # Extrai nomes de tool_calls para logging
+        tool_call_names = []
+        for msg in messages:
+            if hasattr(msg, "tool_calls") and msg.tool_calls:
+                tool_call_names.extend(tc.get("name", "") for tc in msg.tool_calls)
+
+        logger.info(
+            "Isidoro chat: tenant=%s user=%s tools=%s",
+            tenant_id, user_id, tool_call_names,
+        )
+
+        return IsidoroResponse(
+            text=response_text,
+            tool_calls=tool_call_names,
+        )
 
     async def initialize_session(
         self,
@@ -540,6 +598,10 @@ class IsidoroAgent:
                 f"Hoje é {data_fmt}. Estou pronto para ajudar com operações agrícolas, "
                 f"estoque, máquinas e muito mais. Como posso ajudar hoje?"
             )
+            # Se for erro de quota, avisa o usuário; caso contrário usa saudação genérica
+            if "429" in str(exc) or "RESOURCE_EXHAUSTED" in str(exc) or "quota" in str(exc).lower():
+                error_note = _friendly_error_message(exc)
+                fallback = fallback + f"\n\n_{error_note}_"
             history.append(AIMessage(content=fallback))
             return IsidoroResponse(text=fallback, error=str(exc))
 
