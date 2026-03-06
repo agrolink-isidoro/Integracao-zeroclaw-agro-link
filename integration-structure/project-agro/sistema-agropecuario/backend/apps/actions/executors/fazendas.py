@@ -51,8 +51,17 @@ def _parse_decimal(value, default: str = "0") -> Decimal:
 # ─── Criar Proprietário ──────────────────────────────────────────────────────
 
 def execute_criar_proprietario(action) -> None:
-    """Cria um Proprietario a partir do draft_data."""
+    """
+    Cria um Proprietario a partir do draft_data.
+
+    Usa ProprietarioSerializer para validar CPF/CNPJ (dígitos verificadores)
+    antes de gravar, evitando documentos inválidos no cadastro.
+    O campo `tenant` é injetado manualmente porque não faz parte do serializer
+    (é uma preocupação de infraestrutura, não de negócio).
+    """
     from apps.fazendas.models import Proprietario
+    from apps.fazendas.serializers import ProprietarioSerializer
+    from ._base import validate_via_serializer
 
     data = action.draft_data
     tenant = action.tenant
@@ -65,26 +74,35 @@ def execute_criar_proprietario(action) -> None:
     if not cpf_cnpj:
         raise ValueError("CPF/CNPJ do proprietário é obrigatório.")
 
-    with transaction.atomic():
-        # Verificar duplicata
-        existing = Proprietario.objects.filter(cpf_cnpj=cpf_cnpj).first()
-        if existing:
-            action.mark_executed({
-                "proprietario_id": existing.pk,
-                "nome": existing.nome,
-                "mensagem": "Proprietário já existente com esse CPF/CNPJ.",
-                "ja_existia": True,
-            })
-            return
+    # Verificar duplicata antes de qualquer validação cara
+    existing = Proprietario.objects.filter(cpf_cnpj=cpf_cnpj).first()
+    if existing:
+        action.mark_executed({
+            "proprietario_id": existing.pk,
+            "nome": existing.nome,
+            "mensagem": "Proprietário já existente com esse CPF/CNPJ.",
+            "ja_existia": True,
+        })
+        return
 
-        prop = Proprietario(
-            tenant=tenant,
-            nome=nome,
-            cpf_cnpj=cpf_cnpj,
-            telefone=data.get("telefone", ""),
-            email=data.get("email", ""),
-            endereco=data.get("endereco", ""),
-        )
+    # Valida CPF/CNPJ via ProprietarioSerializer (dígitos verificadores,
+    # tamanho, etc.) — levanta ValueError se inválido.
+    s = validate_via_serializer(
+        ProprietarioSerializer,
+        {
+            "nome": nome,
+            "cpf_cnpj": cpf_cnpj,
+            "telefone": data.get("telefone", ""),
+            "email": data.get("email", ""),
+            "endereco": data.get("endereco", ""),
+        },
+        user=None,
+        tenant=tenant,
+    )
+
+    # ProprietarioSerializer.Meta não inclui `tenant` — injetamos na criação.
+    with transaction.atomic():
+        prop = Proprietario(tenant=tenant, **s.validated_data)
         prop.save()
 
     action.mark_executed({

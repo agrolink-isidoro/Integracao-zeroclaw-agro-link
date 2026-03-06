@@ -104,101 +104,117 @@ def _extract_litros_from_descricao(descricao: str) -> Optional[Decimal]:
 # ─── Abastecimento ────────────────────────────────────────────────────────────
 
 def execute_abastecimento(action) -> None:
-    """Cria um Abastecimento a partir do draft_data da Action."""
-    from apps.maquinas.models import Abastecimento
+    """
+    Cria um Abastecimento a partir do draft_data da Action.
+
+    Usa AbastecimentoSerializer internamente para garantir que toda a validação
+    e lógica de negócio (cálculo de valor_total, sinal de saída de estoque)
+    passe pelo mesmo caminho que o formulário do módulo Máquinas.
+    """
+    from apps.maquinas.serializers import AbastecimentoSerializer
+    from ._base import save_via_serializer
 
     data = action.draft_data
     tenant = action.tenant
     criado_por = action.criado_por
 
-    with transaction.atomic():
-        equipamento = _resolve_equipamento(tenant, data.get("maquina_nome", ""))
+    # ── Resolver equipamento (nome → instância) ──────────────────────────────
+    equipamento = _resolve_equipamento(tenant, data.get("maquina_nome", ""))
 
-        # ── Quantidade em litros ─────────────────────────────────────────────
-        # Suporta campo explícito (novo tool) ou extração da descricao (tool antigo)
-        quantidade_litros = _parse_decimal(data.get("quantidade_litros"), "0")
-        if quantidade_litros == Decimal("0"):
-            quantidade_litros = _extract_litros_from_descricao(data.get("descricao", ""))
-        if not quantidade_litros or quantidade_litros <= Decimal("0"):
-            raise ValueError(
-                "Não foi possível determinar a quantidade de litros. "
-                "Informe 'quantidade_litros' no draft_data."
-            )
-
-        # ── Valor unitário ───────────────────────────────────────────────────
-        valor_unitario = _parse_decimal(data.get("valor_unitario"), "0")
-        if valor_unitario == Decimal("0"):
-            custo_total = _parse_decimal(data.get("custo"), "0")
-            if custo_total > Decimal("0") and quantidade_litros > Decimal("0"):
-                valor_unitario = (custo_total / quantidade_litros).quantize(Decimal("0.001"))
-
-        if valor_unitario <= Decimal("0"):
-            raise ValueError(
-                "Não foi possível determinar o valor unitário. "
-                "Informe 'valor_unitario' ou 'custo' (total) no draft_data."
-            )
-
-        # ── Outros campos ────────────────────────────────────────────────────
-        data_abastecimento = _parse_date(data.get("data", ""))
-        horimetro = _parse_decimal(data.get("horimetro") or data.get("horas_trabalhadas"), "0")
-        horimetro_km = horimetro if horimetro > Decimal("0") else None
-
-        # ── Produto do estoque (diesel / combustível) ──────────────────────
-        # A resolução permite 3 estratégias em cascata:
-        #  1. produto_estoque_id / produto_id  → busca por PK
-        #  2. produto_combustivel / produto_nome / produto → busca por nome
-        #  3. fallback: primeiro produto de categoria='combustivel' do tenant
-        from apps.estoque.models import Produto as ProdutoEstoque
-        produto_combustivel = None
-        _produto_id = data.get("produto_estoque_id") or data.get("produto_id")
-        if _produto_id:
-            produto_combustivel = ProdutoEstoque.objects.filter(
-                tenant=tenant, pk=_produto_id
-            ).first()
-        if not produto_combustivel:
-            _produto_nome = (
-                data.get("produto_combustivel")
-                or data.get("produto_combustivel_nome")
-                or data.get("produto_nome")
-                or data.get("produto")
-                or data.get("combustivel")
-            )
-            if _produto_nome:
-                produto_combustivel = (
-                    ProdutoEstoque.objects.filter(
-                        tenant=tenant, nome__iexact=_produto_nome
-                    ).first()
-                    or ProdutoEstoque.objects.filter(
-                        tenant=tenant, nome__icontains=_produto_nome
-                    ).first()
-                )
-        if not produto_combustivel:
-            # Fallback: busca o primeiro produto de categoria combustível
-            produto_combustivel = ProdutoEstoque.objects.filter(
-                tenant=tenant, categoria="combustivel"
-            ).first()
-        if not produto_combustivel:
-            logger.warning(
-                "execute_abastecimento: produto_estoque não encontrado para "
-                "abastecimento (tenant=%s). Saída de estoque não será gerada.",
-                getattr(tenant, "pk", tenant),
-            )
-
-        ab = Abastecimento(
-            tenant=tenant,
-            equipamento=equipamento,
-            data_abastecimento=data_abastecimento,
-            quantidade_litros=quantidade_litros,
-            valor_unitario=valor_unitario,
-            valor_total=(quantidade_litros * valor_unitario).quantize(Decimal("0.01")),
-            horimetro_km=horimetro_km,
-            local_abastecimento=data.get("local_abastecimento") or data.get("local", ""),
-            responsavel=data.get("responsavel") or data.get("tecnico", ""),
-            observacoes=data.get("observacoes", ""),
-            produto_estoque=produto_combustivel,
-            criado_por=criado_por,
+    # ── Quantidade em litros ─────────────────────────────────────────────────
+    # Suporta campo explícito (novo tool) ou extração da descricao (tool antigo)
+    quantidade_litros = _parse_decimal(data.get("quantidade_litros"), "0")
+    if quantidade_litros == Decimal("0"):
+        quantidade_litros = _extract_litros_from_descricao(data.get("descricao", ""))
+    if not quantidade_litros or quantidade_litros <= Decimal("0"):
+        raise ValueError(
+            "Não foi possível determinar a quantidade de litros. "
+            "Informe 'quantidade_litros' no draft_data."
         )
-        ab.save()
+
+    # ── Valor unitário ───────────────────────────────────────────────────────
+    valor_unitario = _parse_decimal(data.get("valor_unitario"), "0")
+    if valor_unitario == Decimal("0"):
+        custo_total = _parse_decimal(data.get("custo"), "0")
+        if custo_total > Decimal("0") and quantidade_litros > Decimal("0"):
+            valor_unitario = (custo_total / quantidade_litros).quantize(Decimal("0.001"))
+    if valor_unitario <= Decimal("0"):
+        raise ValueError(
+            "Não foi possível determinar o valor unitário. "
+            "Informe 'valor_unitario' ou 'custo' (total) no draft_data."
+        )
+
+    # ── Produto do estoque (diesel / combustível) ─────────────────────────────
+    # 3 estratégias em cascata:
+    #  1. produto_estoque_id / produto_id  → busca por PK
+    #  2. produto_combustivel / produto_nome / produto → busca por nome
+    #  3. fallback: primeiro produto de categoria='combustivel' do tenant
+    from apps.estoque.models import Produto as ProdutoEstoque
+    produto_combustivel = None
+    _produto_id = data.get("produto_estoque_id") or data.get("produto_id")
+    if _produto_id:
+        produto_combustivel = ProdutoEstoque.objects.filter(
+            tenant=tenant, pk=_produto_id
+        ).first()
+    if not produto_combustivel:
+        _produto_nome = (
+            data.get("produto_combustivel")
+            or data.get("produto_combustivel_nome")
+            or data.get("produto_nome")
+            or data.get("produto")
+            or data.get("combustivel")
+        )
+        if _produto_nome:
+            produto_combustivel = (
+                ProdutoEstoque.objects.filter(
+                    tenant=tenant, nome__iexact=_produto_nome
+                ).first()
+                or ProdutoEstoque.objects.filter(
+                    tenant=tenant, nome__icontains=_produto_nome
+                ).first()
+            )
+    if not produto_combustivel:
+        produto_combustivel = ProdutoEstoque.objects.filter(
+            tenant=tenant, categoria="combustivel"
+        ).first()
+    if not produto_combustivel:
+        logger.warning(
+            "execute_abastecimento: produto_estoque não encontrado "
+            "(tenant=%s). Saída de estoque não será gerada.",
+            getattr(tenant, "pk", tenant),
+        )
+
+    # ── Outros campos ────────────────────────────────────────────────────────
+    data_abastecimento = _parse_date(data.get("data", ""))
+    horimetro = _parse_decimal(data.get("horimetro") or data.get("horas_trabalhadas"), "0")
+
+    # ── Montar payload para o serializer (nome de campos conforme o modelo) ──
+    serializer_data: dict = {
+        "tenant": tenant.pk,
+        "equipamento": equipamento.pk,
+        "data_abastecimento": (
+            data_abastecimento.strftime("%Y-%m-%d") if data_abastecimento else None
+        ),
+        "quantidade_litros": str(quantidade_litros),
+        "valor_unitario": str(valor_unitario),
+        "horimetro_km": str(horimetro) if horimetro > Decimal("0") else None,
+        "local_abastecimento": data.get("local_abastecimento") or data.get("local", ""),
+        "responsavel": data.get("responsavel") or data.get("tecnico", ""),
+        "observacoes": data.get("observacoes", ""),
+    }
+    if produto_combustivel:
+        serializer_data["produto_estoque"] = produto_combustivel.pk
+    if criado_por:
+        serializer_data["criado_por"] = criado_por.pk
+
+    # AbastecimentoSerializer.create() wraps in transaction.atomic() and
+    # computes valor_total; the post_save signal then creates the stock saída.
+    ab = save_via_serializer(
+        AbastecimentoSerializer,
+        serializer_data,
+        user=criado_por,
+        tenant=tenant,
+    )
 
     action.mark_executed({
         "abastecimento_id": ab.pk,
@@ -216,8 +232,19 @@ def execute_abastecimento(action) -> None:
 # ─── Ordem de Serviço (manutenção / OS direta) ────────────────────────────────
 
 def execute_ordem_servico(action) -> None:
-    """Cria uma OrdemServico a partir do draft_data."""
-    from apps.maquinas.models import OrdemServico
+    """
+    Cria uma OrdemServico a partir do draft_data.
+
+    Usa OrdemServicoSerializer internamente.  O create() desse serializer:
+      • Gera número de OS único (via Model.save() com uuid suffix)
+      • Valida e resolve insumos (produto_id / codigo / nome)
+      • Cria movimentações de reserva de estoque (tipo='reserva') por insumo
+      • Marca insumos_reservados=True
+    Isso garante que a mesma lógica de negócio usada pelo frontend seja
+    executada ao aprovar uma Action de IA.
+    """
+    from apps.maquinas.serializers import OrdemServicoSerializer
+    from ._base import save_via_serializer
 
     data = action.draft_data
     tenant = action.tenant
@@ -226,97 +253,117 @@ def execute_ordem_servico(action) -> None:
     # Suporta draft_data de registrar_manutencao_maquina (maquina_nome) e
     # registrar_ordem_servico_maquina (equipamento)
     nome_eq = data.get("maquina_nome") or data.get("equipamento", "")
-    with transaction.atomic():
-        equipamento = _resolve_equipamento(tenant, nome_eq)
+    equipamento = _resolve_equipamento(tenant, nome_eq)
 
-        # ── Tipo de OS ───────────────────────────────────────────────────────
-        tipo_registro = (data.get("tipo_registro") or data.get("tipo") or "corretiva").lower()
-        tipo_map = {
-            "manutencao":  "corretiva",
-            "revisao":     "preventiva",
-            "reparo":      "corretiva",
-            "troca_oleo":  "preventiva",
-            "preventiva":  "preventiva",
-            "corretiva":   "corretiva",
-            "emergencial": "emergencial",
-            "melhoria":    "melhoria",
-        }
-        tipo = tipo_map.get(tipo_registro, "corretiva")
+    # ── Tipo de OS ───────────────────────────────────────────────────────────
+    tipo_registro = (data.get("tipo_registro") or data.get("tipo") or "corretiva").lower()
+    tipo_map = {
+        "manutencao":  "corretiva",
+        "revisao":     "preventiva",
+        "reparo":      "corretiva",
+        "troca_oleo":  "preventiva",
+        "preventiva":  "preventiva",
+        "corretiva":   "corretiva",
+        "emergencial": "emergencial",
+        "melhoria":    "melhoria",
+    }
+    tipo = tipo_map.get(tipo_registro, "corretiva")
 
-        prioridade_map = {
-            "baixa": "baixa", "media": "media", "alta": "alta", "critica": "critica",
-        }
-        prioridade = prioridade_map.get(
-            (data.get("prioridade") or "media").lower(), "media"
+    prioridade_map = {
+        "baixa": "baixa", "media": "media", "alta": "alta", "critica": "critica",
+    }
+    prioridade = prioridade_map.get(
+        (data.get("prioridade") or "media").lower(), "media"
+    )
+
+    descricao = (
+        data.get("descricao_problema")
+        or data.get("descricao")
+        or f"Registro de {tipo_registro}"
+    )
+    custo_mao_obra = _parse_decimal(
+        data.get("custo_mao_obra") or data.get("custo"), "0"
+    )
+
+    # ── Data prevista (opcional) ─────────────────────────────────────────────
+    data_previsao_str = data.get("data_previsao") or data.get("data", "")
+    data_previsao = _parse_date(data_previsao_str, fallback_now=False)
+
+    # ── Status e data de conclusão ───────────────────────────────────────────
+    status_os = (data.get("status") or "aberta").lower()
+    status_map = {
+        "concluida": "concluida", "concluído": "concluida",
+        "finalizada": "concluida", "finalizado": "concluida",
+        "aberta": "aberta", "em_andamento": "em_andamento",
+        "pendente": "aberta", "cancelada": "cancelada",
+    }
+    status_os = status_map.get(status_os, "aberta")
+    data_conclusao_os = None
+    if status_os == "concluida":
+        dt_conc = _parse_date(
+            data.get("data_conclusao") or data.get("data", ""),
+            fallback_now=True,
         )
+        data_conclusao_os = dt_conc
 
-        descricao = (
-            data.get("descricao_problema")
-            or data.get("descricao")
-            or f"Registro de {tipo_registro}"
-        )
-
-        custo_mao_obra = _parse_decimal(
-            data.get("custo_mao_obra") or data.get("custo"), "0"
-        )
-
-        # Data prevista (opcional)
-        data_previsao_str = data.get("data_previsao") or data.get("data", "")
-        data_previsao = _parse_date(data_previsao_str, fallback_now=False)
-        data_previsao_date = data_previsao.date() if data_previsao else None
-
-        # Status e data de conclusão
-        status_os = (data.get("status") or "aberta").lower()
-        status_map = {
-            "concluida": "concluida", "concluído": "concluida",
-            "finalizada": "concluida", "finalizado": "concluida",
-            "aberta": "aberta", "em_andamento": "em_andamento",
-            "pendente": "aberta", "cancelada": "cancelada",
-        }
-        status_os = status_map.get(status_os, "aberta")
-        data_conclusao_os = None
-        if status_os in ("concluida", "finalizada"):
-            data_conclusao_str = data.get("data_conclusao") or data.get("data", "")
-            dt_conc = _parse_date(data_conclusao_str, fallback_now=True)
-            data_conclusao_os = dt_conc
-
-        # Insumos (lista de dicts com produto_id/codigo/nome + quantidade)
-        insumos_raw = data.get("insumos", [])
-        if isinstance(insumos_raw, str):
-            import json as _json
-            try:
-                insumos_raw = _json.loads(insumos_raw)
-            except Exception:
-                insumos_raw = []
-        if not isinstance(insumos_raw, list):
+    # ── Insumos (lista normalizada aceita pelo OrdemServicoSerializer) ───────
+    # Cada item: {produto_id|codigo|nome, quantidade, valor_unitario (opcional)}
+    insumos_raw = data.get("insumos", [])
+    if isinstance(insumos_raw, str):
+        import json as _json
+        try:
+            insumos_raw = _json.loads(insumos_raw)
+        except Exception:
             insumos_raw = []
+    if not isinstance(insumos_raw, list):
+        insumos_raw = []
 
-        os = OrdemServico(
+    # ── Montar payload para o serializer ────────────────────────────────────
+    serializer_data: dict = {
+        "tenant": tenant.pk,
+        "equipamento": equipamento.pk,
+        "tipo": tipo,
+        "prioridade": prioridade,
+        "status": status_os,
+        "descricao_problema": descricao,
+        "custo_mao_obra": str(custo_mao_obra),
+        "data_previsao": (
+            data_previsao.date().isoformat() if data_previsao else None
+        ),
+        "data_conclusao": (
+            data_conclusao_os.isoformat() if data_conclusao_os else None
+        ),
+        "insumos": insumos_raw,
+        "observacoes": data.get("observacoes", ""),
+    }
+    if criado_por:
+        serializer_data["responsavel_abertura"] = criado_por.pk
+        if status_os == "concluida":
+            serializer_data["responsavel_execucao"] = criado_por.pk
+
+    # OrdemServicoSerializer.create() handles:
+    #  • numero_os generation (via Model.save uuid suffix)
+    #  • insumos validation/resolution via validate_insumos()
+    #  • stock reservation movements (create_movimentacao tipo='reserva')
+    #  • insumos_reservados = True
+    with transaction.atomic():
+        os_obj = save_via_serializer(
+            OrdemServicoSerializer,
+            serializer_data,
+            user=criado_por,
             tenant=tenant,
-            equipamento=equipamento,
-            tipo=tipo,
-            prioridade=prioridade,
-            status=status_os,
-            descricao_problema=descricao,
-            custo_mao_obra=custo_mao_obra,
-            data_previsao=data_previsao_date,
-            data_conclusao=data_conclusao_os,
-            insumos=insumos_raw,
-            responsavel_abertura=criado_por,
-            responsavel_execucao=criado_por if status_os == "concluida" else None,
-            observacoes=data.get("observacoes", ""),
         )
-        os.save()  # numero_os is auto-generated in save()
 
     action.mark_executed({
-        "ordem_servico_id": os.pk,
-        "numero_os": os.numero_os,
+        "ordem_servico_id": os_obj.pk,
+        "numero_os": os_obj.numero_os,
         "equipamento": equipamento.nome,
         "tipo": tipo,
+        "insumos_reservados": os_obj.insumos_reservados,
     })
     logger.info(
-        "execute_ordem_servico OK: action=%s os=%s equipamento=%s",
-        action.id, os.numero_os, equipamento.nome,
+        "execute_ordem_servico OK: action=%s os=%s equipamento=%s insumos_reservados=%s",
+        action.id, os_obj.numero_os, equipamento.nome, os_obj.insumos_reservados,
     )
 
 
