@@ -79,10 +79,30 @@ export function ActionsProvider({ children }: { children: React.ReactNode }) {
   const [pendingActions, setPendingActions] = useState<Action[]>([]);
   const [isLoadingActions, setIsLoadingActions] = useState(false);
 
-  // Chat state
-  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  // Chat state — persiste no localStorage para sobreviver ao fechamento da janela
+  const CHAT_STORAGE_KEY = `isidoro_chat_${typeof window !== 'undefined' ? (window.location.hostname) : 'local'}`;
+  const MAX_STORED_MSGS = 150;
+
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>(() => {
+    try {
+      const stored = localStorage.getItem(CHAT_STORAGE_KEY);
+      return stored ? (JSON.parse(stored) as ChatMessage[]) : [];
+    } catch {
+      return [];
+    }
+  });
   const [isChatConnected, setIsChatConnected] = useState(false);
   const [isChatTyping, setIsChatTyping] = useState(false);
+
+  // Persiste mensagens no localStorage sempre que mudam
+  useEffect(() => {
+    try {
+      const toStore = chatMessages.slice(-MAX_STORED_MSGS);
+      localStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(toStore));
+    } catch {
+      // quota excedida ou contexto sem storage — ignora silenciosamente
+    }
+  }, [chatMessages, CHAT_STORAGE_KEY]);
 
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -238,7 +258,8 @@ export function ActionsProvider({ children }: { children: React.ReactNode }) {
 
   const clearChat = useCallback(() => {
     setChatMessages([]);
-  }, []);
+    try { localStorage.removeItem(CHAT_STORAGE_KEY); } catch { /* noop */ }
+  }, [CHAT_STORAGE_KEY]);
 
   const uploadChatFile = useCallback(async (
     file: File,

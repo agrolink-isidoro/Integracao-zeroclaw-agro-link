@@ -143,6 +143,47 @@ def execute_abastecimento(action) -> None:
         horimetro = _parse_decimal(data.get("horimetro") or data.get("horas_trabalhadas"), "0")
         horimetro_km = horimetro if horimetro > Decimal("0") else None
 
+        # ── Produto do estoque (diesel / combustível) ──────────────────────
+        # A resolução permite 3 estratégias em cascata:
+        #  1. produto_estoque_id / produto_id  → busca por PK
+        #  2. produto_combustivel / produto_nome / produto → busca por nome
+        #  3. fallback: primeiro produto de categoria='combustivel' do tenant
+        from apps.estoque.models import Produto as ProdutoEstoque
+        produto_combustivel = None
+        _produto_id = data.get("produto_estoque_id") or data.get("produto_id")
+        if _produto_id:
+            produto_combustivel = ProdutoEstoque.objects.filter(
+                tenant=tenant, pk=_produto_id
+            ).first()
+        if not produto_combustivel:
+            _produto_nome = (
+                data.get("produto_combustivel")
+                or data.get("produto_combustivel_nome")
+                or data.get("produto_nome")
+                or data.get("produto")
+                or data.get("combustivel")
+            )
+            if _produto_nome:
+                produto_combustivel = (
+                    ProdutoEstoque.objects.filter(
+                        tenant=tenant, nome__iexact=_produto_nome
+                    ).first()
+                    or ProdutoEstoque.objects.filter(
+                        tenant=tenant, nome__icontains=_produto_nome
+                    ).first()
+                )
+        if not produto_combustivel:
+            # Fallback: busca o primeiro produto de categoria combustível
+            produto_combustivel = ProdutoEstoque.objects.filter(
+                tenant=tenant, categoria="combustivel"
+            ).first()
+        if not produto_combustivel:
+            logger.warning(
+                "execute_abastecimento: produto_estoque não encontrado para "
+                "abastecimento (tenant=%s). Saída de estoque não será gerada.",
+                getattr(tenant, "pk", tenant),
+            )
+
         ab = Abastecimento(
             tenant=tenant,
             equipamento=equipamento,
@@ -154,6 +195,7 @@ def execute_abastecimento(action) -> None:
             local_abastecimento=data.get("local_abastecimento") or data.get("local", ""),
             responsavel=data.get("responsavel") or data.get("tecnico", ""),
             observacoes=data.get("observacoes", ""),
+            produto_estoque=produto_combustivel,
             criado_por=criado_por,
         )
         ab.save()
@@ -223,16 +265,45 @@ def execute_ordem_servico(action) -> None:
         data_previsao = _parse_date(data_previsao_str, fallback_now=False)
         data_previsao_date = data_previsao.date() if data_previsao else None
 
+        # Status e data de conclusão
+        status_os = (data.get("status") or "aberta").lower()
+        status_map = {
+            "concluida": "concluida", "concluído": "concluida",
+            "finalizada": "concluida", "finalizado": "concluida",
+            "aberta": "aberta", "em_andamento": "em_andamento",
+            "pendente": "aberta", "cancelada": "cancelada",
+        }
+        status_os = status_map.get(status_os, "aberta")
+        data_conclusao_os = None
+        if status_os in ("concluida", "finalizada"):
+            data_conclusao_str = data.get("data_conclusao") or data.get("data", "")
+            dt_conc = _parse_date(data_conclusao_str, fallback_now=True)
+            data_conclusao_os = dt_conc
+
+        # Insumos (lista de dicts com produto_id/codigo/nome + quantidade)
+        insumos_raw = data.get("insumos", [])
+        if isinstance(insumos_raw, str):
+            import json as _json
+            try:
+                insumos_raw = _json.loads(insumos_raw)
+            except Exception:
+                insumos_raw = []
+        if not isinstance(insumos_raw, list):
+            insumos_raw = []
+
         os = OrdemServico(
             tenant=tenant,
             equipamento=equipamento,
             tipo=tipo,
             prioridade=prioridade,
-            status=data.get("status", "concluida"),
+            status=status_os,
             descricao_problema=descricao,
             custo_mao_obra=custo_mao_obra,
             data_previsao=data_previsao_date,
+            data_conclusao=data_conclusao_os,
+            insumos=insumos_raw,
             responsavel_abertura=criado_por,
+            responsavel_execucao=criado_por if status_os == "concluida" else None,
             observacoes=data.get("observacoes", ""),
         )
         os.save()  # numero_os is auto-generated in save()

@@ -37,6 +37,21 @@ COLUMN_MAP = {
     "mecanico": "tecnico", "mecânico": "tecnico",
     "observacoes": "observacoes", "observações": "observacoes",
     "obs": "observacoes", "notas": "observacoes",
+    # Campos específicos de abastecimento
+    "litros": "quantidade_litros", "quantidade_litros": "quantidade_litros",
+    "volume": "quantidade_litros", "qtd_litros": "quantidade_litros",
+    "preco_litro": "valor_unitario", "valor_unitario": "valor_unitario",
+    "preco_unitario": "valor_unitario", "custo_unitario": "valor_unitario",
+    "produto": "produto_combustivel_nome",
+    "combustivel": "produto_combustivel_nome",
+    "produto_combustivel": "produto_combustivel_nome",
+    "combustivel_tipo": "produto_combustivel_nome",
+    "local_abastecimento": "local_abastecimento", "local": "local_abastecimento",
+    # Campos específicos de manutenção
+    "tipo_manutencao": "tipo_registro", "tipo_reparo": "tipo_registro",
+    "prioridade": "prioridade",
+    "custo_mao_obra": "custo_mao_obra",
+    "status": "status",
 }
 
 TIPO_ACTION_MAP = {
@@ -91,21 +106,31 @@ def _inferir_tipo_action(tipo_raw: str) -> str:
 
 def _row_to_draft(row: dict) -> dict:
     tipo_raw = row.get("tipo_registro") or "manutencao"
-    return {
-        "action_type": _inferir_tipo_action(tipo_raw),
-        "draft_data": {
-            "maquina_nome": row.get("maquina_nome") or "",
-            "maquina_id": row.get("maquina_id") or "",
-            "tipo_registro": tipo_raw,
-            "data": _parse_data(row.get("data")) or "",
-            "descricao": row.get("descricao") or "",
-            "horas_trabalhadas": _parse_float(row.get("horas_trabalhadas")),
-            "km_rodados": _parse_float(row.get("km_rodados")),
-            "custo": _parse_float(row.get("custo")),
-            "tecnico": row.get("tecnico") or "",
-            "observacoes": row.get("observacoes") or "",
-        },
+    action_type = _inferir_tipo_action(tipo_raw)
+    draft: dict = {
+        "maquina_nome": row.get("maquina_nome") or "",
+        "maquina_id": row.get("maquina_id") or "",
+        "tipo_registro": tipo_raw,
+        "data": _parse_data(row.get("data")) or "",
+        "descricao": row.get("descricao") or "",
+        "horas_trabalhadas": _parse_float(row.get("horas_trabalhadas")),
+        "km_rodados": _parse_float(row.get("km_rodados")),
+        "custo": _parse_float(row.get("custo")),
+        "tecnico": row.get("tecnico") or "",
+        "observacoes": row.get("observacoes") or "",
     }
+    if action_type == "abastecimento":
+        # Campos extras específicos de abastecimento
+        draft["quantidade_litros"] = _parse_float(row.get("quantidade_litros"))
+        draft["valor_unitario"] = _parse_float(row.get("valor_unitario"))
+        draft["produto_combustivel_nome"] = row.get("produto_combustivel_nome") or ""
+        draft["local_abastecimento"] = row.get("local_abastecimento") or ""
+    elif action_type == "manutencao_maquina":
+        # Campos extras específicos de manutenção
+        draft["prioridade"] = row.get("prioridade") or "media"
+        draft["custo_mao_obra"] = _parse_float(row.get("custo_mao_obra"))
+        draft["status"] = row.get("status") or "aberta"
+    return {"action_type": action_type, "draft_data": draft}
 
 
 # ── xlsx ─────────────────────────────────────────────────────────────────────

@@ -566,7 +566,8 @@ class OrdemServico(TenantModel):
         # Gera número da OS se não existir
         if not self.numero_os:
             from datetime import datetime
-            self.numero_os = f"OS{datetime.now().strftime('%Y%m%d%H%M%S')}"
+            import uuid as _uuid
+            self.numero_os = f"OS{datetime.now().strftime('%Y%m%d%H%M%S')}{_uuid.uuid4().hex[:4].upper()}"
 
         super().save(*args, **kwargs)
 

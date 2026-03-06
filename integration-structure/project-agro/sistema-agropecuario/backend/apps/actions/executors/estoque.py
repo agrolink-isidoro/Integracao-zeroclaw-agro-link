@@ -46,16 +46,23 @@ def _parse_date(value: str):
     return datetime.now()
 
 
-def _resolve_produto(tenant, nome: str):
+def _resolve_produto(tenant, nome: str, codigo: str = ""):
     from apps.estoque.models import Produto
-    if not nome:
-        raise ValueError("nome_produto não informado.")
     q = Produto.objects.filter(tenant=tenant)
+    # 1. busca por código exato
+    if codigo:
+        p = q.filter(codigo__iexact=codigo).first()
+        if p:
+            return p
+    if not nome:
+        raise ValueError("nome_produto não informado e código não encontrado.")
+    # 2. busca por nome exato
     p = q.filter(nome__iexact=nome).first()
     if not p:
+        # 3. busca por nome parcial
         p = q.filter(nome__icontains=nome).first()
     if not p:
-        raise ValueError(f"Produto não encontrado: '{nome}'")
+        raise ValueError(f"Produto não encontrado: nome='{nome}' codigo='{codigo}'")
     return p
 
 
@@ -70,7 +77,8 @@ def execute_entrada_estoque(action) -> None:
 
     with transaction.atomic():
         nome_produto = data.get("nome_produto") or data.get("produto", "")
-        produto = _resolve_produto(tenant, nome_produto)
+        codigo_produto = data.get("codigo_produto") or data.get("codigo", "")
+        produto = _resolve_produto(tenant, nome_produto, codigo_produto)
 
         quantidade = _parse_decimal(data.get("quantidade"), "0")
         if quantidade <= Decimal("0"):
@@ -108,7 +116,8 @@ def execute_saida_estoque(action) -> None:
 
     with transaction.atomic():
         nome_produto = data.get("nome_produto") or data.get("produto", "")
-        produto = _resolve_produto(tenant, nome_produto)
+        codigo_produto = data.get("codigo_produto") or data.get("codigo", "")
+        produto = _resolve_produto(tenant, nome_produto, codigo_produto)
 
         quantidade = _parse_decimal(data.get("quantidade"), "0")
         if quantidade <= Decimal("0"):
@@ -226,7 +235,8 @@ def execute_ajuste_estoque(action) -> None:
 
     with transaction.atomic():
         nome_produto = data.get("nome_produto") or data.get("produto", "")
-        produto = _resolve_produto(tenant, nome_produto)
+        codigo_produto = data.get("codigo_produto") or data.get("codigo", "")
+        produto = _resolve_produto(tenant, nome_produto, codigo_produto)
 
         quantidade = _parse_decimal(data.get("quantidade"), "0")
         if quantidade == Decimal("0"):
@@ -268,7 +278,8 @@ def execute_movimentacao_interna(action) -> None:
 
     with transaction.atomic():
         nome_produto = data.get("nome_produto") or data.get("produto", "")
-        produto = _resolve_produto(tenant, nome_produto)
+        codigo_produto = data.get("codigo_produto") or data.get("codigo", "")
+        produto = _resolve_produto(tenant, nome_produto, codigo_produto)
 
         quantidade = _parse_decimal(data.get("quantidade"), "0")
         if quantidade <= Decimal("0"):
