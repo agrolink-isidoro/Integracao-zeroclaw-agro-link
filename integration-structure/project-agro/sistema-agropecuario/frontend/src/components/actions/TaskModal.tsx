@@ -7,6 +7,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { DRAFT_FIELD_CONFIG, getFieldLabel } from './draftFieldConfig';
 import { useDraftOptions } from './useDraftOptions';
 import type { SelectOption } from './useDraftOptions';
+import DynamicSearchSelect from './DynamicSearchSelect';
 
 interface TaskModalProps {
   action: Action | null;
@@ -62,6 +63,12 @@ const TaskModal: React.FC<TaskModalProps> = ({ action, onClose, onApprove, onRej
     return optionsMap[source] ?? [];
   };
 
+  /** Resolve config dinâmica para um campo */
+  const getDynamicConfig = (actionType: string, fieldKey: string) => {
+    const config = DRAFT_FIELD_CONFIG[actionType];
+    return config?.[fieldKey]?.dynamic ?? null;
+  };
+
   const renderDraftFields = () => {
     const entries = Object.entries(editedDraft);
     if (entries.length === 0) return <p className="text-muted small">Sem dados de rascunho.</p>;
@@ -71,6 +78,7 @@ const TaskModal: React.FC<TaskModalProps> = ({ action, onClose, onApprove, onRej
         {entries.map(([key, value]) => {
           const label = getFieldLabel(action.action_type, key);
           const selectOptions = getSelectOptions(action.action_type, key);
+          const dynamicConfig = getDynamicConfig(action.action_type, key);
 
           return (
             <div key={key} className="col-md-6">
@@ -78,8 +86,16 @@ const TaskModal: React.FC<TaskModalProps> = ({ action, onClose, onApprove, onRej
                 {label}
               </label>
               {isPending ? (
-                selectOptions !== null ? (
-                  // ── Select dropdown ──────────────────────────────────
+                dynamicConfig !== null ? (
+                  // ── Busca dinâmica (autocomplete) ───────────────────
+                  <DynamicSearchSelect
+                    config={dynamicConfig}
+                    value={String(value ?? '')}
+                    onChange={(v) => handleFieldChange(key, v)}
+                    placeholder={`Buscar ${label.toLowerCase()}…`}
+                  />
+                ) : selectOptions !== null ? (
+                  // ── Select dropdown estático ────────────────────────
                   <select
                     className="form-select form-select-sm"
                     value={String(value ?? '')}

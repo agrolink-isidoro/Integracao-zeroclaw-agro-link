@@ -46,10 +46,26 @@ export interface SelectFieldDef {
   valueField?: string;
 }
 
+/** Configuração de campo com busca dinâmica (autocomplete via API) */
+export interface DynamicFieldDef {
+  /** Endpoint relativo da API (ex: '/estoque/produtos/') */
+  endpoint: string;
+  /** Parâmetro de busca (ex: 'search') */
+  searchParam: string;
+  /** Campo da resposta a usar como label */
+  displayField: string;
+  /** Campo da resposta a usar como value */
+  valueField: string;
+  /** Número máximo de resultados */
+  pageSize?: number;
+}
+
 export interface FieldDef {
   label: string;
-  /** Se true, renderiza como select dropdown */
+  /** Se definido, renderiza como select dropdown estático */
   select?: SelectFieldDef;
+  /** Se definido, renderiza como campo de busca dinâmica (autocomplete) */
+  dynamic?: DynamicFieldDef;
   /** Se true, campo oculto (não exibir) */
   hidden?: boolean;
 }
@@ -221,7 +237,7 @@ export const DRAFT_FIELD_CONFIG: Record<string, Record<string, FieldDef>> = {
   entrada_estoque: {
     nome_produto: {
       label: 'Produto',
-      select: { label: 'Produto', source: 'produtos', displayField: 'nome', valueField: 'nome' },
+      dynamic: { endpoint: '/estoque/produtos/', searchParam: 'search', displayField: 'nome', valueField: 'nome', pageSize: 15 },
     },
     codigo_produto: { label: 'Código do Produto' },
     quantidade: { label: 'Quantidade' },
@@ -242,7 +258,7 @@ export const DRAFT_FIELD_CONFIG: Record<string, Record<string, FieldDef>> = {
   saida_estoque: {
     nome_produto: {
       label: 'Produto',
-      select: { label: 'Produto', source: 'produtos', displayField: 'nome', valueField: 'nome' },
+      dynamic: { endpoint: '/estoque/produtos/', searchParam: 'search', displayField: 'nome', valueField: 'nome', pageSize: 15 },
     },
     codigo_produto: { label: 'Código do Produto' },
     quantidade: { label: 'Quantidade' },
@@ -261,7 +277,7 @@ export const DRAFT_FIELD_CONFIG: Record<string, Record<string, FieldDef>> = {
   ajuste_estoque: {
     nome_produto: {
       label: 'Produto',
-      select: { label: 'Produto', source: 'produtos', displayField: 'nome', valueField: 'nome' },
+      dynamic: { endpoint: '/estoque/produtos/', searchParam: 'search', displayField: 'nome', valueField: 'nome', pageSize: 15 },
     },
     codigo_produto: { label: 'Código do Produto' },
     quantidade: { label: 'Quantidade' },
@@ -308,7 +324,7 @@ export const DRAFT_FIELD_CONFIG: Record<string, Record<string, FieldDef>> = {
   movimentacao_interna: {
     produto: {
       label: 'Produto',
-      select: { label: 'Produto', source: 'produtos', displayField: 'nome', valueField: 'nome' },
+      dynamic: { endpoint: '/estoque/produtos/', searchParam: 'search', displayField: 'nome', valueField: 'nome', pageSize: 15 },
     },
     quantidade: { label: 'Quantidade' },
     localizacao_origem: { label: 'Origem' },
