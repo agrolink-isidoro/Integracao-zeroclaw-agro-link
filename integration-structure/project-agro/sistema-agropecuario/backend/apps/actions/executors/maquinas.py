@@ -14,6 +14,7 @@ import logging
 import re
 from datetime import datetime
 from decimal import Decimal, InvalidOperation
+from difflib import SequenceMatcher
 from typing import Optional
 
 from django.db import transaction
@@ -84,6 +85,64 @@ def _resolve_equipamento(tenant, maquina_nome: str):
         eq = qs.filter(q).first()
     if eq:
         return eq
+
+    # Tentativa 4: qualquer token bate em nome OU marca OU modelo (OR)
+    if tokens:
+        q_any = Q()
+        for t in tokens:
+            q_any |= (
+                Q(nome__icontains=t)
+                | Q(marca__icontains=t)
+                | Q(modelo__icontains=t)
+            )
+        candidatos = list(qs.filter(q_any))
+        if len(candidatos) == 1:
+            return candidatos[0]
+        if len(candidatos) > 1:
+            # Desempate por fuzzy score
+            input_lower = maquina_nome.lower()
+            best_eq, best_score = None, 0.0
+            for c in candidatos:
+                full = f"{c.nome} {c.marca} {c.modelo}".lower()
+                score = SequenceMatcher(None, input_lower, full).ratio()
+                if score > best_score:
+                    best_score, best_eq = score, c
+            if best_eq:
+                return best_eq
+
+    # Tentativa 5: fuzzy matching com difflib em TODOS os equipamentos
+    input_lower = maquina_nome.lower()
+    input_tokens = input_lower.split()
+    best_eq, best_score = None, 0.0
+    for eq_item in qs.only("id", "nome", "marca", "modelo"):
+        candidatos_txt = [
+            eq_item.nome.lower(),
+            eq_item.marca.lower() if eq_item.marca else "",
+            eq_item.modelo.lower() if eq_item.modelo else "",
+            f"{eq_item.marca} {eq_item.modelo}".lower(),
+            f"{eq_item.nome} {eq_item.marca} {eq_item.modelo}".lower(),
+        ]
+        for cand in candidatos_txt:
+            if not cand.strip():
+                continue
+            score = SequenceMatcher(None, input_lower, cand).ratio()
+            if score > best_score:
+                best_score, best_eq = score, eq_item
+        # Token-level matching
+        for tok in input_tokens:
+            for cand in candidatos_txt:
+                if not cand.strip():
+                    continue
+                score = SequenceMatcher(None, tok, cand).ratio()
+                if score > best_score:
+                    best_score, best_eq = score, eq_item
+
+    if best_score >= 0.45 and best_eq is not None:
+        logger.info(
+            "_resolve_equipamento fuzzy match: '%s' → '%s' (score=%.2f)",
+            maquina_nome, best_eq.nome, best_score,
+        )
+        return best_eq
 
     # Listar equipamentos disponíveis para ajudar o usuário
     equipamentos_disponiveis = list(qs.values_list('nome', flat=True)[:5])

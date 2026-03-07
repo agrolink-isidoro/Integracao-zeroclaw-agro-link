@@ -135,7 +135,7 @@ export function useRBAC() {
       return [
         'dashboard', 'fazendas', 'agricultura', 'pecuaria', 'estoque',
         'maquinas', 'financeiro', 'administrativo', 'fiscal', 'comercial',
-        'user_management',
+        'user_management', 'actions',
       ];
     }
     const modules: RBACModule[] = ['dashboard']; // Dashboard always visible

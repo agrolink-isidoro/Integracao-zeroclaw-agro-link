@@ -133,7 +133,7 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
                         all_modules = [
                             'dashboard', 'fazendas', 'agricultura', 'pecuaria',
                             'estoque', 'maquinas', 'financeiro', 'administrativo',
-                            'fiscal', 'comercial', 'user_management',
+                            'fiscal', 'comercial', 'user_management', 'actions',
                         ]
                         user_data['permissions'] = {
                             m: {'can_view': True, 'can_edit': True, 'can_respond': True}

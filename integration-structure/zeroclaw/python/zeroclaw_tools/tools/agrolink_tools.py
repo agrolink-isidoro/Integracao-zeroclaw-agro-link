@@ -42,6 +42,7 @@ from __future__ import annotations
 
 import json
 import logging
+from difflib import SequenceMatcher
 
 import httpx
 from langchain_core.tools import tool
@@ -103,6 +104,104 @@ def _post_action(
         return json.dumps({"sucesso": False, "erro": exc.response.text})
     except Exception as exc:
         return json.dumps({"sucesso": False, "erro": str(exc)})
+
+
+def _fuzzy_resolve_maquina(
+    base_url: str,
+    jwt_token: str,
+    tenant_id: str,
+    nome_usuario: str,
+    threshold: float = 0.40,
+) -> tuple[str | None, list[str]]:
+    """
+    Busca fuzzy do nome de máquina/equipamento informado pelo usuário
+    contra os equipamentos cadastrados na API.
+
+    Retorna (nome_correto, lista_disponiveis).
+    Se não encontrar match acima do threshold, retorna (None, lista_disponiveis).
+    """
+    if not nome_usuario or not nome_usuario.strip():
+        return None, []
+
+    try:
+        with _client(base_url, jwt_token, tenant_id) as c:
+            resp = c.get("/maquinas/equipamentos/")
+            resp.raise_for_status()
+            payload = resp.json()
+    except Exception:
+        # Se falhar a consulta, retorna sem resolver — o executor tentará depois
+        return nome_usuario, []
+
+    equipamentos = payload.get("results", payload) if isinstance(payload, dict) else payload
+    if not equipamentos:
+        return None, []
+
+    input_lower = nome_usuario.strip().lower()
+    input_tokens = input_lower.split()
+    nomes_disponiveis: list[str] = []
+    best_score = 0.0
+    best_nome: str | None = None
+
+    for eq in equipamentos:
+        nome = (eq.get("nome") or "").strip()
+        marca = (eq.get("marca") or "").strip()
+        modelo = (eq.get("modelo") or "").strip()
+        if not nome:
+            continue
+        nomes_disponiveis.append(nome)
+
+        # --- match exato (case-insensitive) → retorno imediato ----------------
+        if input_lower == nome.lower():
+            return nome, nomes_disponiveis
+
+        # --- candidatos para comparação ---------------------------------------
+        candidatos = [
+            nome.lower(),
+            modelo.lower(),
+            marca.lower(),
+            f"{marca} {modelo}".lower(),
+            f"{nome} {marca} {modelo}".lower(),
+        ]
+
+        # 1) SequenceMatcher do input inteiro contra cada candidato
+        for cand in candidatos:
+            ratio = SequenceMatcher(None, input_lower, cand).ratio()
+            if ratio > best_score:
+                best_score = ratio
+                best_nome = nome
+
+        # 2) SequenceMatcher de cada token do input contra cada candidato
+        #    (captura abreviações como "Puma" ⊂ "PUMA 200")
+        for token in input_tokens:
+            for cand in candidatos:
+                ratio = SequenceMatcher(None, token, cand).ratio()
+                if ratio > best_score:
+                    best_score = ratio
+                    best_nome = nome
+
+        # 3) icontains: se algum token significativo do input aparece no nome completo
+        full_text = f"{nome} {marca} {modelo}".lower()
+        matching_tokens = sum(1 for t in input_tokens if t in full_text)
+        if input_tokens and matching_tokens > 0:
+            token_ratio = matching_tokens / len(input_tokens)
+            # Bonus: se pelo menos metade dos tokens bateu, considera forte
+            combined = max(best_score, 0.35 + token_ratio * 0.35)
+            if combined > best_score:
+                best_score = combined
+                best_nome = nome
+
+    if best_score >= threshold and best_nome:
+        logger.info(
+            "_fuzzy_resolve_maquina: '%s' → '%s' (score=%.2f)",
+            nome_usuario, best_nome, best_score,
+        )
+        return best_nome, nomes_disponiveis
+
+    logger.warning(
+        "_fuzzy_resolve_maquina: '%s' não encontrado (best_score=%.2f, best='%s')",
+        nome_usuario, best_score, best_nome,
+    )
+    return None, nomes_disponiveis
 
 
 def _get(base_url: str, jwt_token: str, tenant_id: str, path: str, params: dict | None = None) -> str:
@@ -923,6 +1022,9 @@ def get_agrolink_tools(base_url: str, jwt_token: str, tenant_id: str = "") -> li
         diesel, gasolina, litros, etc. em contexto de máquinas.
         Pergunte apenas os campos obrigatórios (maquina_nome, quantidade_litros,
         valor_unitario, data). Campos opcionais podem ser omitidos.
+        O nome da máquina é resolvido automaticamente por fuzzy matching contra o
+        cadastro — use o nome que o usuário informar; abreviações e nomes parciais
+        são aceitos (ex: "Puma", "CR5", "colheitadeira").
         Quando o usuário confirmar, CHAME esta ferramenta IMEDIATAMENTE.
 
         Args:
@@ -935,6 +1037,23 @@ def get_agrolink_tools(base_url: str, jwt_token: str, tenant_id: str = "") -> li
             local_abastecimento: Local do abastecimento (ex: Fazenda, Posto XYZ) — opcional
             observacoes: Observações adicionais — opcional
         """
+        # ── Fuzzy-match do nome da máquina contra o cadastro ────────────────
+        nome_resolvido, disponiveis = _fuzzy_resolve_maquina(
+            base_url, jwt_token, tenant_id, maquina_nome,
+        )
+        if nome_resolvido is None:
+            dica = ""
+            if disponiveis:
+                dica = f" Equipamentos cadastrados: {', '.join(disponiveis[:8])}"
+            return json.dumps({
+                "sucesso": False,
+                "erro": (
+                    f"Equipamento '{maquina_nome}' não encontrado no cadastro."
+                    f"{dica}. Confirme o nome correto com o usuário."
+                ),
+            })
+        maquina_nome = nome_resolvido
+
         return _post_action(
             base_url, jwt_token, tenant_id,
             module="maquinas",
@@ -980,6 +1099,23 @@ def get_agrolink_tools(base_url: str, jwt_token: str, tenant_id: str = "") -> li
             prestador_servico: Nome da empresa ou prestador externo (se terceirizado)
             observacoes: Observações adicionais (peças necessárias, erros encontrados, etc.)
         """
+        # ── Fuzzy-match do nome da máquina contra o cadastro ────────────────
+        nome_resolvido, disponiveis = _fuzzy_resolve_maquina(
+            base_url, jwt_token, tenant_id, equipamento,
+        )
+        if nome_resolvido is None:
+            dica = ""
+            if disponiveis:
+                dica = f" Equipamentos cadastrados: {', '.join(disponiveis[:8])}"
+            return json.dumps({
+                "sucesso": False,
+                "erro": (
+                    f"Equipamento '{equipamento}' não encontrado no cadastro."
+                    f"{dica}. Confirme o nome correto com o usuário."
+                ),
+            })
+        equipamento = nome_resolvido
+
         return _post_action(
             base_url, jwt_token, tenant_id,
             module="maquinas",
@@ -1030,6 +1166,23 @@ def get_agrolink_tools(base_url: str, jwt_token: str, tenant_id: str = "") -> li
             prioridade: Prioridade: 'baixa', 'media' (padrão), 'alta', 'critica'
             observacoes: Observações adicionais
         """
+        # ── Fuzzy-match do nome da máquina contra o cadastro ────────────────
+        nome_resolvido, disponiveis = _fuzzy_resolve_maquina(
+            base_url, jwt_token, tenant_id, maquina_nome,
+        )
+        if nome_resolvido is None:
+            dica = ""
+            if disponiveis:
+                dica = f" Equipamentos cadastrados: {', '.join(disponiveis[:8])}"
+            return json.dumps({
+                "sucesso": False,
+                "erro": (
+                    f"Equipamento '{maquina_nome}' não encontrado no cadastro."
+                    f"{dica}. Confirme o nome correto com o usuário."
+                ),
+            })
+        maquina_nome = nome_resolvido
+
         action_type_map = {
             "manutencao": "manutencao_maquina",
             "revisao": "manutencao_maquina",

@@ -4,6 +4,9 @@ import { MODULE_LABELS, updateActionDraft } from '../../services/actions';
 import ActionStatusBadge from './ActionStatusBadge';
 import { ACTION_TYPE_LABELS } from './ActionCard';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { DRAFT_FIELD_CONFIG, getFieldLabel } from './draftFieldConfig';
+import { useDraftOptions } from './useDraftOptions';
+import type { SelectOption } from './useDraftOptions';
 
 interface TaskModalProps {
   action: Action | null;
@@ -16,6 +19,9 @@ const TaskModal: React.FC<TaskModalProps> = ({ action, onClose, onApprove, onRej
   const queryClient = useQueryClient();
   const [editedDraft, setEditedDraft] = useState<Record<string, unknown>>({});
   const [draftEdited, setDraftEdited] = useState(false);
+
+  // Carrega opções de dropdown para o action_type atual
+  const { optionsMap, isLoading: optionsLoading } = useDraftOptions(action?.action_type);
 
   useEffect(() => {
     if (action) {
@@ -41,31 +47,77 @@ const TaskModal: React.FC<TaskModalProps> = ({ action, onClose, onApprove, onRej
     setDraftEdited(true);
   };
 
+  /** Resolve as opções para um campo select */
+  const getSelectOptions = (actionType: string, fieldKey: string): SelectOption[] | null => {
+    const config = DRAFT_FIELD_CONFIG[actionType];
+    const fieldDef = config?.[fieldKey];
+    if (!fieldDef?.select) return null;
+
+    const { source, options: staticOptions } = fieldDef.select;
+
+    if (source === 'static' && staticOptions) {
+      return staticOptions.map((o) => ({ value: o.value, label: o.label }));
+    }
+
+    return optionsMap[source] ?? [];
+  };
+
   const renderDraftFields = () => {
     const entries = Object.entries(editedDraft);
     if (entries.length === 0) return <p className="text-muted small">Sem dados de rascunho.</p>;
 
     return (
       <div className="row g-2">
-        {entries.map(([key, value]) => (
-          <div key={key} className="col-md-6">
-            <label className="form-label small text-muted text-capitalize mb-1">
-              {key.replace(/_/g, ' ')}
-            </label>
-            {isPending ? (
-              <input
-                type="text"
-                className="form-control form-control-sm"
-                value={String(value ?? '')}
-                onChange={(e) => handleFieldChange(key, e.target.value)}
-              />
-            ) : (
-              <p className="form-control-plaintext form-control-sm py-0 small">
-                {String(value ?? '—')}
-              </p>
-            )}
-          </div>
-        ))}
+        {entries.map(([key, value]) => {
+          const label = getFieldLabel(action.action_type, key);
+          const selectOptions = getSelectOptions(action.action_type, key);
+
+          return (
+            <div key={key} className="col-md-6">
+              <label className="form-label small text-muted mb-1">
+                {label}
+              </label>
+              {isPending ? (
+                selectOptions !== null ? (
+                  // ── Select dropdown ──────────────────────────────────
+                  <select
+                    className="form-select form-select-sm"
+                    value={String(value ?? '')}
+                    onChange={(e) => handleFieldChange(key, e.target.value)}
+                    disabled={optionsLoading}
+                  >
+                    <option value="">
+                      {optionsLoading ? 'Carregando...' : '— Selecione —'}
+                    </option>
+                    {selectOptions.map((opt) => (
+                      <option key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </option>
+                    ))}
+                    {/* Se o valor atual não está nas opções, manter como opção extra */}
+                    {value && !selectOptions.some((o) => o.value === String(value)) && (
+                      <option value={String(value)}>
+                        {String(value)} (valor atual)
+                      </option>
+                    )}
+                  </select>
+                ) : (
+                  // ── Input text padrão ───────────────────────────────
+                  <input
+                    type="text"
+                    className="form-control form-control-sm"
+                    value={String(value ?? '')}
+                    onChange={(e) => handleFieldChange(key, e.target.value)}
+                  />
+                )
+              ) : (
+                <p className="form-control-plaintext form-control-sm py-0 small">
+                  {String(value ?? '—')}
+                </p>
+              )}
+            </div>
+          );
+        })}
       </div>
     );
   };
