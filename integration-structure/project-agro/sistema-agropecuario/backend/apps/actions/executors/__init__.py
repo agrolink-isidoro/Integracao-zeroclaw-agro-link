@@ -8,14 +8,68 @@ from __future__ import annotations
 
 import logging
 from typing import Optional
+import json
+from asgiref.sync import async_to_sync
 
 logger = logging.getLogger(__name__)
+
+
+def _notify_user_action_failed(action, error_message: str) -> None:
+    """
+    Notifica o usuário via WebSocket que a ação falhou.
+    Envia uma mensagem ao chat informando sobre o erro.
+    """
+    try:
+        from channels.layers import get_channel_layer
+        from django.contrib.auth import get_user_model
+        
+        User = get_user_model()
+        user = action.aprovado_por or action.criado_por
+        if not user:
+            logger.warning("Action %s não tem usuário para notificar", action.id)
+            return
+        
+        tenant_id = str(action.tenant.id) if action.tenant else "global"
+        user_id = str(user.id)
+        group_name = f"chat_{tenant_id}_{user_id}"
+        
+        channel_layer = get_channel_layer()
+        if channel_layer is None:
+            logger.debug("Channel layer não disponível para notificar usuário")
+            return
+        
+        # Prepara mensagem de erro formatada
+        action_type_display = dict(action._meta.get_field('action_type').choices).get(
+            action.action_type, action.action_type
+        )
+        
+        error_msg = (
+            f"❌ **Erro ao executar ação**: {action_type_display}\n\n"
+            f"**Detalhes do erro:**\n{error_message}"
+        )
+        
+        message_event = {
+            "type": "chat_message",
+            "data": {
+                "type": "error",
+                "message": error_msg,
+                "action_id": str(action.id),
+                "timestamp": action.executado_em.isoformat() if action.executado_em else None,
+            }
+        }
+        
+        async_to_sync(channel_layer.group_send)(group_name, message_event)
+        logger.info("Notificação de erro enviada ao usuário %s da ação %s", user_id, action.id)
+        
+    except Exception as exc:
+        logger.exception("Erro ao notificar usuário sobre falha de ação: %s", exc)
 
 
 def execute_action(action) -> None:
     """
     Despacha a execução de um Action aprovado para o executor correto.
     Chama action.mark_executed() ou action.mark_failed() ao final.
+    Se falhar, notifica o usuário via WebSocket.
     """
     action_type = action.action_type
 
@@ -51,15 +105,26 @@ def execute_action(action) -> None:
 
     fn = executor_map.get(action_type)
     if fn is None:
-        logger.warning("execute_action: tipo '%s' sem executor implementado. action=%s", action_type, action.id)
-        action.mark_failed(f"Executor não implementado para action_type='{action_type}'.")
+        error_msg = f"Executor não implementado para action_type='{action_type}'."
+        logger.warning("execute_action: action=%s erro=%s", action.id, error_msg)
+        action.mark_failed(error_msg)
+        _notify_user_action_failed(action, error_msg)
         return
 
     try:
         fn(action)
+    except ValueError as exc:
+        # ValueError são erros de validação / recursos não encontrados
+        error_msg = str(exc)
+        logger.warning("execute_action validation error: action=%s tipo=%s erro=%s", action.id, action_type, error_msg)
+        action.mark_failed(error_msg)
+        _notify_user_action_failed(action, error_msg)
     except Exception as exc:
-        logger.exception("execute_action falhou: action=%s tipo=%s erro=%s", action.id, action_type, exc)
-        action.mark_failed(str(exc))
+        # Outros erros inesperados
+        error_msg = f"{exc.__class__.__name__}: {str(exc)}"
+        logger.exception("execute_action falhou: action=%s tipo=%s", action.id, action_type)
+        action.mark_failed(error_msg)
+        _notify_user_action_failed(action, error_msg)
 
 
 # ─── FAZENDAS ─────────────────────────────────────────────────────────────────

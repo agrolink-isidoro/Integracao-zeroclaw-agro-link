@@ -107,6 +107,8 @@ export function ActionsProvider({ children }: { children: React.ReactNode }) {
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const destroyedRef = useRef(false);
+  const reconnectAttemptRef = useRef(0);
+  const MAX_RECONNECT_ATTEMPTS = 10;
 
   // ── Carregar actions pendentes ────────────────────────────────────────────
 
@@ -180,6 +182,7 @@ export function ActionsProvider({ children }: { children: React.ReactNode }) {
 
     ws.onopen = () => {
       setIsChatConnected(true);
+      reconnectAttemptRef.current = 0; // reset backoff on success
       console.log('[Chat] WebSocket conectado');
     };
 
@@ -195,10 +198,19 @@ export function ActionsProvider({ children }: { children: React.ReactNode }) {
     ws.onclose = (e) => {
       setIsChatConnected(false);
       setIsChatTyping(false);
-      console.warn('[Chat] WebSocket fechado — code:', e.code);
-      // Reconectar após 3s (exceto se foi fechado intencionalmente ou componente desmontado)
+      // Reconectar com backoff exponencial (exceto fechamento intencional ou componente desmontado)
       if (e.code !== 1000 && !destroyedRef.current && getStoredTokens()?.access) {
-        reconnectTimeout.current = setTimeout(connectWebSocket, 3000);
+        if (reconnectAttemptRef.current >= MAX_RECONNECT_ATTEMPTS) {
+          console.warn(`[Chat] WebSocket fechado (code: ${e.code}) — máximo de tentativas atingido`);
+          return;
+        }
+        const attempt = reconnectAttemptRef.current++;
+        // Backoff: 2s, 4s, 8s, 16s, 30s (max), com jitter ±25%
+        const baseDelay = Math.min(2000 * Math.pow(2, attempt), 30000);
+        const jitter = baseDelay * 0.25 * (Math.random() * 2 - 1);
+        const delay = Math.round(baseDelay + jitter);
+        console.warn(`[Chat] WebSocket fechado (code: ${e.code}) — reconectando em ${(delay / 1000).toFixed(1)}s (tentativa ${attempt + 1}/${MAX_RECONNECT_ATTEMPTS})`);
+        reconnectTimeout.current = setTimeout(connectWebSocket, delay);
       }
     };
 
@@ -323,6 +335,7 @@ export function ActionsProvider({ children }: { children: React.ReactNode }) {
     // Small delay prevents React StrictMode's double-invoke from closing a
     // CONNECTING WebSocket (which would cause an abnormal 1006 close error).
     destroyedRef.current = false;
+    reconnectAttemptRef.current = 0;
     const timer = setTimeout(() => {
       if (!destroyedRef.current) connectWebSocket();
     }, 50);

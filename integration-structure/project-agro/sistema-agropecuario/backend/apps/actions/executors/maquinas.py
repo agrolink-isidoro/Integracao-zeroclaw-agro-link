@@ -59,7 +59,10 @@ def _resolve_equipamento(tenant, maquina_nome: str):
     from apps.maquinas.models import Equipamento
 
     if not maquina_nome:
-        raise ValueError("maquina_nome não informado.")
+        raise ValueError(
+            "Equipamento não identificado: nome não informado. "
+            "Por favor, informe o nome do equipamento/máquina corretamente."
+        )
 
     qs = Equipamento.objects.filter(tenant=tenant)
     # Tentativa 1: match exato
@@ -82,7 +85,16 @@ def _resolve_equipamento(tenant, maquina_nome: str):
     if eq:
         return eq
 
-    raise ValueError(f"Equipamento não encontrado para nome='{maquina_nome}'.")
+    # Listar equipamentos disponíveis para ajudar o usuário
+    equipamentos_disponiveis = list(qs.values_list('nome', flat=True)[:5])
+    dica = ""
+    if equipamentos_disponiveis:
+        dica = f" Equipamentos disponíveis: {', '.join(equipamentos_disponiveis)}"
+    
+    raise ValueError(
+        f"Equipamento/máquina '{maquina_nome}' não encontrado no sistema. "
+        f"Verifique o nome ou cadastre o equipamento no módulo Máquinas.{dica}"
+    )
 
 
 def _extract_litros_from_descricao(descricao: str) -> Optional[Decimal]:

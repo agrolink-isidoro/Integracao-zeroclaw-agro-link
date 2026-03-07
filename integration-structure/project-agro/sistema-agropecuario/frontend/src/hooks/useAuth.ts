@@ -244,7 +244,7 @@ export default function useAuth() {
 
   const register = useCallback(async (username: string, email: string, password: string) => {
     try {
-      const resp = await api.post('/auth/register/', { username, email, password })
+      const resp = await api.post('/core/auth/register/', { username, email, password })
       const { access, refresh, user: userData } = resp.data
       setTokensAndHeader({ access, refresh })
       setStoredUser(userData || null)

@@ -36,7 +36,9 @@ import logging
 import os
 import re
 from dataclasses import dataclass, field
+from datetime import date, datetime, timezone, timedelta
 from typing import Optional
+from zoneinfo import ZoneInfo
 
 import httpx
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
@@ -45,6 +47,25 @@ from ..agent import ZeroclawAgent
 from ..tools.agrolink_tools import get_agrolink_tools
 
 logger = logging.getLogger(__name__)
+
+# Timezone Brasil (São Paulo / Brasília)
+_TZ_BRASILIA = ZoneInfo("America/Sao_Paulo")
+
+
+def _now_brasilia() -> datetime:
+    """Retorna datetime.now() no fuso horário de Brasília."""
+    return datetime.now(_TZ_BRASILIA)
+
+
+def _saudacao_por_horario() -> str:
+    """Retorna 'Bom dia', 'Boa tarde' ou 'Boa noite' baseado no horário de Brasília."""
+    hora = _now_brasilia().hour
+    if hora < 12:
+        return "Bom dia"
+    elif hora < 18:
+        return "Boa tarde"
+    else:
+        return "Boa noite"
 
 # ── Palavras-chave que indicam operação agrícola ─────────────────────────────
 # Qualquer mensagem que bata aqui → buscar safras ativas ANTES do LLM responder
@@ -68,16 +89,50 @@ def _is_agriculture_operation(text: str) -> bool:
     return bool(_AG_KEYWORDS.search(text))
 
 
-async def _fetch_safras_ativas(base_url: str, jwt_token: str) -> str:
+# ── Mapeamento de contexto → nome da ferramenta ───────────────────────────────
+_TOOL_CONTEXT_MAP = [
+    (re.compile(r"abastec|combust[ií]vel|diesel|gasolina|litros?\s+de", re.I), "registrar_abastecimento"),
+    (re.compile(r"ordem\s+de\s+servi[çc]o.*(m[aá]quina|equipamento|manuten)", re.I), "registrar_ordem_servico_maquina"),
+    (re.compile(r"manuten[çc][aã]o|revis[aã]o|reparo|troca.*(oleo|óleo)", re.I), "registrar_manutencao_maquina"),
+    (re.compile(r"equipamento|m[aá]quina.*cad|criar.*equipamento", re.I), "criar_equipamento"),
+    (re.compile(r"colheit[a]|colher", re.I), "registrar_colheita"),
+    (re.compile(r"opera[çc][aã]o\s+agr[ií]col|pulveriza|aduba[çc]|calagem|desseca|plantio", re.I), "registrar_operacao_agricola"),
+    (re.compile(r"manejo", re.I), "registrar_manejo"),
+    (re.compile(r"entrada.*estoque|receb.*(produto|estoque)|chegou.*estoque", re.I), "registrar_entrada_estoque"),
+    (re.compile(r"sa[ií]da.*estoque|retirar.*estoque|consumo.*estoque", re.I), "registrar_saida_estoque"),
+    (re.compile(r"produto.*estoque|cadastr.*produto|criar.*produto", re.I), "criar_produto_estoque"),
+    (re.compile(r"safra|criar.*safra|nova.*safra", re.I), "criar_safra"),
+    (re.compile(r"propriet[aá]rio|dono.*fazenda", re.I), "criar_proprietario"),
+    (re.compile(r"fazenda.*cad|criar.*fazenda|nova.*fazenda", re.I), "criar_fazenda"),
+    (re.compile(r"[aá]rea.*cad|criar.*[aá]rea|nova.*[aá]rea", re.I), "criar_area"),
+    (re.compile(r"talh[aã]o|criar.*talh", re.I), "criar_talhao"),
+    (re.compile(r"arrendamento|arrendar", re.I), "registrar_arrendamento"),
+    (re.compile(r"movimenta[çc][aã]o.*carga|caminh[aã]o.*peso|pesagem", re.I), "registrar_movimentacao_carga"),
+    (re.compile(r"ordem\s+de\s+servi[çc]o.*agr[ií]col", re.I), "registrar_ordem_servico_agricola"),
+]
+
+
+def _detect_tool_from_context(conversation_text: str) -> str:
+    """Detecta qual ferramenta deve ser chamada com base no texto da conversa."""
+    for pattern, tool_name in _TOOL_CONTEXT_MAP:
+        if pattern.search(conversation_text):
+            return tool_name
+    return ""
+
+
+async def _fetch_safras_ativas(base_url: str, jwt_token: str, tenant_id: str = "") -> str:
     """
     Busca diretamente as safras ativas via HTTP (sem passar pelo LLM).
     Retorna string formatada para injetar no contexto.
     """
     auth = jwt_token if jwt_token.startswith("Bearer ") else f"Bearer {jwt_token}"
     try:
+        headers = {"Authorization": auth}
+        if tenant_id:
+            headers["X-Tenant-ID"] = tenant_id
         async with httpx.AsyncClient(
             base_url=base_url.rstrip("/"),
-            headers={"Authorization": auth},
+            headers=headers,
             timeout=8.0,
         ) as client:
             resp = await client.get(
@@ -133,15 +188,17 @@ Você ajuda produtores rurais a registrar operações do cotidiano da fazenda:
 
 REGRAS FUNDAMENTAIS:
 1. Você NUNCA grava dados diretamente. Toda ação cria um "draft" para aprovação humana.
-2. COLETE TODOS OS CAMPOS do formulário antes de chamar qualquer ferramenta.
-   - Antes de chamar a ferramenta, pergunte TODOS os campos, obrigatórios E opcionais.
-   - Para cada campo opcional, ofereça o valor padrão e pergunte se o usuário confirma
-     ou quer alterar. Exemplo: "Unidade: 'sc' (sacas). Confirma ou quer alterar?"
-   - NÃO chame a ferramenta com campos vazios/padrão sem antes confirmar com o usuário.
-   - ⚠️ AÇÃO OBRIGATÓRIA: Quando o usuário confirmar os dados com "sim", "confirmado",
-     "correto", "pode criar", "ok", "vai", "tudo certo", "cria", "registra" ou qualquer
-     expressão de confirmação — chame a ferramenta IMEDIATAMENTE. Não repita o resumo,
-     não faça mais perguntas, não peça confirmação adicional. CHAME A FERRAMENTA AGORA.
+2. COLETA DE DADOS:
+   - Pergunte apenas os campos OBRIGATÓRIOS (marcados com *) antes de chamar a ferramenta.
+   - Campos opcionais: após coletar os obrigatórios, pergunte UMA VEZ de forma agrupada:
+     "Deseja informar também [lista dos opcionais]? Se não, posso registrar agora."
+   - Se o usuário disser "não" ou ignorar os opcionais, chame a ferramenta com os dados que tem.
+   - ⚠️ PRIORIDADE MÁXIMA — CONFIRMAÇÃO:
+     Quando o usuário confirmar com "sim", "confirmado", "correto", "pode criar", "ok",
+     "vai", "tudo certo", "cria", "registra", "pode", "feito", "manda" ou qualquer
+     expressão de confirmação — chame a ferramenta IMEDIATAMENTE com os dados coletados.
+     Não repita o resumo. Não faça mais perguntas. Não peça confirmação adicional.
+     CHAME A FERRAMENTA AGORA. Use valores padrão para campos opcionais não informados.
 3. ══════════════════════════════════════════════════════
    REGRA ABSOLUTA — SAFRA ATIVA (SEM EXCEÇÕES):
    ══════════════════════════════════════════════════════
@@ -243,8 +300,8 @@ Movimentação de Carga (colheita) — SEMPRE: consultar_sessoes_colheita_ativas
 
 Máquinas / Estoque / Dados (sem safra):
 - "Trator D6 fez revisão ontem custou R$1500" → perguntar todos os campos de registrar_manutencao_maquina (tipo_registro=revisao)
-- "CR5.85 305lts de diesel horas 2196" → 1) consultar_maquinas("CR5.85") para verificar nome completo → 2) perguntar: data, valor_unitario (preço/litro), horimetro=2196(confirma?), responsavel=vazio(confirma?), local=vazio(confirma?), observacoes=vazio → 3) ao confirmar: chamar registrar_abastecimento(maquina_nome=nome encontrado, quantidade_litros=305.0, valor_unitario=X.XX, data="DD/MM/AAAA", horimetro=2196.37, ...)
-- "Abasteci o trator com 150 litros de diesel a R$5,45/litro" → 1) consultar_maquinas → 2) perguntar data, horimetro, responsavel, local, observacoes → 3) chamar registrar_abastecimento
+- "CR5.85 305lts de diesel horas 2196" → 1) consultar_maquinas("CR5.85") para verificar nome completo → 2) perguntar: data e valor_unitario (campos obrigatórios restantes) → 3) resumir dados e perguntar se quer adicionar opcionais (responsavel, local, observacoes) ou registrar direto → 4) ao confirmar: CHAMAR registrar_abastecimento() IMEDIATAMENTE
+- "Abasteci o trator com 150 litros de diesel a R$5,45/litro" → 1) consultar_maquinas → 2) perguntar data (obrigatório) → 3) resumir e ao confirmar CHAMAR registrar_abastecimento()
 - "Recebi 500kg de adubo NPK da Fertipar hoje" → perguntar todos os campos de registrar_entrada_estoque
 - "Quanto de Roundup temos no estoque?" → consultar_estoque
 - "Quais ações estão pendentes de aprovação?" → consultar_actions_pendentes
@@ -319,6 +376,7 @@ class IsidoroAgent:
         api_key: Chave da API do LLM (fallback: env API_KEY)
         llm_base_url: URL base do LLM (fallback: GLM default)
         max_history: Máximo de mensagens no histórico por sessão
+        tenant_id: UUID do tenant para isolamento de dados (IMPORTANTE para multi-tenancy)
     """
 
     def __init__(
@@ -330,13 +388,20 @@ class IsidoroAgent:
         llm_base_url: Optional[str] = None,
         temperature: float = 0.3,
         max_history: int = 20,
+        tenant_id: str = "",
     ):
         self.base_url = base_url
         self.jwt_token = jwt_token
         self.model = model
         self.max_history = max_history
+        self.tenant_id = tenant_id
+        
+        logger.info(
+            "IsidoroAgent.__init__: tenant_id=%s base_url=%s",
+            tenant_id, base_url
+        )
 
-        tools = get_agrolink_tools(base_url=base_url, jwt_token=jwt_token)
+        tools = get_agrolink_tools(base_url=base_url, jwt_token=jwt_token, tenant_id=tenant_id)
 
         self._agent = ZeroclawAgent(
             tools=tools,
@@ -451,7 +516,7 @@ class IsidoroAgent:
         # e injetamos o resultado no contexto ANTES de o LLM ver a mensagem.
         safra_context_injected = False
         if _is_agriculture_operation(user_message):
-            safras_text = await _fetch_safras_ativas(self.base_url, self.jwt_token)
+            safras_text = await _fetch_safras_ativas(self.base_url, self.jwt_token, self.tenant_id)
             safra_injection = SystemMessage(content=(
                 "═══════════════════════════════════════════════════\n"
                 "DADOS DO SISTEMA — SAFRAS ATIVAS (consultado agora)\n"
@@ -480,7 +545,9 @@ class IsidoroAgent:
             r'^(sim|s|ok|yes|é|e|isso|confirmo|confirmado|correto|certo|pode|'
             r'pode\s+criar|cria|vai|faz|tudo\s+certo|registra|perfeito|'
             r'ótimo|otimo|exato|está\s+certo|tá|ta|vamos|vamo|aceito|'
-            r'manda|manda\s+ver|fecha|bora|bom|feito|pode\s+ser|tudo\s+ok)'
+            r'manda|manda\s+ver|fecha|bora|bom|feito|pode\s+ser|tudo\s+ok|'
+            r'n[aã]o\s*,?\s*(s[oó]\s+isso|mais\s+nada|precisa)|sem\s+mais|'
+            r'(pode\s+)?registrar?\s*(agora)?|s[oó]\s+isso|nada\s+mais)'
             r'\s*[!\.,]?\s*$',
             re.IGNORECASE | re.UNICODE,
         )
@@ -489,20 +556,31 @@ class IsidoroAgent:
         if (_CONFIRM_RE.match(user_message.strip())
                 and prev_ai_in_history
                 and len(prev_ai_in_history[-1].content or "") > 80):
+            # Detecta qual ferramenta deve ser chamada baseado no contexto da conversa
+            prev_content = prev_ai_in_history[-1].content or ""
+            all_content = " ".join((m.content or "") for m in history if hasattr(m, "content"))
+            tool_hint = _detect_tool_from_context(all_content)
+            tool_instruction = (
+                f"Chame a ferramenta '{tool_hint}' AGORA com os dados coletados."
+                if tool_hint else
+                "Chame a ferramenta de registro AGORA com os dados coletados."
+            )
             history.append(SystemMessage(content=(
                 "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
                 "AÇÃO OBRIGATÓRIA — EXECUTE AGORA:\n"
-                "O usuário acabou de CONFIRMAR os dados resumidos acima.\n"
-                "Você DEVE chamar a ferramenta de registro imediatamente.\n"
-                "Use os dados que você mesmo listou na mensagem anterior.\n"
+                "O usuário acabou de CONFIRMAR os dados.\n"
+                f"{tool_instruction}\n"
+                "Use os dados que você coletou na conversa.\n"
+                "Para campos opcionais não informados, use valores padrão.\n"
                 "NÃO responda com texto. NÃO repita o resumo.\n"
-                "NÃO peça mais confirmações. CHAME A FERRAMENTA AGORA.\n"
+                "NÃO peça mais informações. NÃO peça confirmação adicional.\n"
+                "CHAME A FERRAMENTA AGORA.\n"
                 "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
             )))
             confirmation_injected = True
             logger.info(
-                "Isidoro: confirmation detected, forcing tool call. tenant=%s user=%s msg=%r",
-                tenant_id, user_id, user_message,
+                "Isidoro: confirmation detected, forcing tool call (%s). tenant=%s user=%s msg=%r",
+                tool_hint or "generic", tenant_id, user_id, user_message,
             )
 
         history.append(HumanMessage(content=user_message))
@@ -594,6 +672,7 @@ class IsidoroAgent:
         tenant_id: str,
         user_id: str,
         tenant_nome: str = "Sua Fazenda",
+        user_nome: str = "",
     ) -> IsidoroResponse:
         """
         Gera o briefing de boas-vindas ao conectar.
@@ -605,14 +684,16 @@ class IsidoroAgent:
 
         Se a sessão já existe (reconexão), retorna uma saudação simples.
         """
-        from datetime import date, datetime
+        from datetime import date
 
         history = self._get_history(tenant_id, user_id)
 
         # Reconexão: sessão já tem histórico — saudação simples
         if history:
-            hora = datetime.now().hour
-            saudacao = "Bom dia" if hora < 12 else "Boa tarde" if hora < 18 else "Boa noite"
+            saudacao = _saudacao_por_horario()
+            nome_display = user_nome.split()[0] if user_nome else ""
+            if nome_display:
+                return IsidoroResponse(text=f"{saudacao}, {nome_display}! Estou de volta. Como posso ajudar?")
             return IsidoroResponse(text=f"{saudacao}! Estou de volta. Como posso ajudar?")
 
         # Nova sessão: injeta SystemMessage
@@ -622,9 +703,12 @@ class IsidoroAgent:
         )
         history.append(SystemMessage(content=system_content))
 
-        hora = datetime.now().hour
-        saudacao = "Bom dia" if hora < 12 else "Boa tarde" if hora < 18 else "Boa noite"
+        saudacao = _saudacao_por_horario()
         data_fmt = date.today().strftime("%d/%m/%Y")
+
+        # Nome do usuário para personalizar a saudação
+        nome_display = user_nome.split()[0] if user_nome else ""
+        cumprimento_usuario = f" para {nome_display}" if nome_display else ""
 
         # Mensagem interna de trigger — NÃO fica no histórico permanente
         trigger = HumanMessage(content=(
@@ -632,14 +716,15 @@ class IsidoroAgent:
             f"Hoje é {data_fmt}. Execute nesta ordem:\n"
             f"1. Chame consultar_safras_ativas() para listar safras em andamento/planejadas\n"
             f"2. Chame consultar_actions_pendentes() para ver ações aguardando aprovação\n"
-            f"3. Chame consultar_estoque() para uma visão geral do estoque\n"
+            f"3. Chame consultar_estoque() para ver os itens em estoque\n"
             f"4. Chame consultar_maquinas() para ver os equipamentos cadastrados\n"
-            f"Com base nos dados coletados, gere uma mensagem de {saudacao} para a fazenda {tenant_nome}.\n"
+            f"Com base nos dados coletados, gere uma mensagem de {saudacao}{cumprimento_usuario} para a fazenda {tenant_nome}.\n"
             f"A mensagem deve incluir:\n"
-            f"  - Saudação com a data de hoje\n"
+            f"  - Saudação: '{saudacao}{', ' + nome_display if nome_display else ''}!' seguida da data de hoje\n"
             f"  - Safras ativas: nome, cultura e status de cada uma\n"
             f"  - Pendências: quantidade e módulos das ações aguardando aprovação\n"
-            f"  - Estoque: destaques (itens com estoque baixo ou recentes)\n"
+            f"  - Estoque: NÃO liste todos os produtos. Mostre SOMENTE itens com estoque BAIXO (quantidade <= estoque_minimo) ou NEGATIVO.\n"
+            f"    Se nenhum item estiver baixo ou crítico, diga 'Estoque: ✅ Todos os itens estão dentro dos níveis normais.'\n"
             f"  - Máquinas: quantidade de equipamentos e se há alguma OS aberta\n"
             f"  - Finalize perguntando em que pode ajudar hoje\n"
             f"Seja conciso, amigável e objetivo. Use bullet points. NÃO peça nada ao usuário."
@@ -657,7 +742,8 @@ class IsidoroAgent:
                 last_ai.content
                 if last_ai and isinstance(last_ai.content, str)
                 else (
-                    f"{saudacao}! Sou o Isidoro, seu assistente agrícola da fazenda {tenant_nome}.\n"
+                    f"{saudacao}{', ' + nome_display if nome_display else ''}! "
+                    f"Sou o Isidoro, seu assistente agrícola da fazenda {tenant_nome}.\n"
                     f"Hoje é {data_fmt}. Como posso ajudar?"
                 )
             )
@@ -679,8 +765,9 @@ class IsidoroAgent:
 
         except Exception as exc:
             logger.exception("Erro ao gerar briefing inicial: %s", exc)
+            nome_cumprimento = f", {nome_display}" if nome_display else ""
             fallback = (
-                f"{saudacao}! Sou o Isidoro, seu assistente agrícola da fazenda {tenant_nome}.\n"
+                f"{saudacao}{nome_cumprimento}! Sou o Isidoro, seu assistente agrícola da fazenda {tenant_nome}.\n"
                 f"Hoje é {data_fmt}. Estou pronto para ajudar com operações agrícolas, "
                 f"estoque, máquinas e muito mais. Como posso ajudar hoje?"
             )

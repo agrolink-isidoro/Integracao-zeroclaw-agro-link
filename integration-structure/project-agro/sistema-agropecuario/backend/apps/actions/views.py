@@ -170,7 +170,8 @@ class ActionViewSet(TenantQuerySetMixin, viewsets.ModelViewSet):
         )
         return Response({"aprovadas": aprovadas, "erros": erros})
 
-    @action(detail=False, methods=["get"], url_path="pendentes")
+    @action(detail=False, methods=["get"], url_path="pendentes",
+           permission_classes=[permissions.IsAuthenticated])
     def pendentes(self, request):
         """Atalho: lista apenas actions com status=pending_approval."""
         qs = self.get_queryset().filter(status=ActionStatus.PENDING_APPROVAL)

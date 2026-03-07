@@ -58,6 +58,8 @@ class Command(BaseCommand):
                 "is_superuser": False,
                 "is_active": True,
                 "cargo": "Agente IA (ZeroClaw/Isidoro)",
+                # tenant=None → serviço global, tenant vem do header X-Tenant-ID
+                "tenant": None,
             },
         )
 
@@ -85,6 +87,19 @@ class Command(BaseCommand):
         if not user.is_staff:
             user.is_staff = True
             update_fields.append("is_staff")
+        # ── IMPORTANTE: isidoro_agent NÃO pode ter tenant fixo ──
+        # O tenant deve vir EXCLUSIVAMENTE do header X-Tenant-ID por request.
+        # Se tiver tenant no banco, o TenantMiddleware (step 2) retorna esse
+        # tenant SEMPRE, ignorando o header — quebrando isolamento multi-tenant.
+        if user.tenant_id is not None:
+            user.tenant = None
+            if "tenant_id" not in update_fields:
+                update_fields.append("tenant_id")
+            self.stdout.write(
+                self.style.WARNING(
+                    "  → Removido tenant fixo do isidoro_agent (deve ser None)."
+                )
+            )
         # Sincroniza sempre a senha com ISIDORO_AGENT_PASSWORD
         user.set_password(agent_password)
         update_fields.append("password")

@@ -42,7 +42,7 @@ const Register: React.FC = () => {
     setIsLoading(true);
     setError('');
     try {
-      const resp = await api.post('/auth/register/', {
+      const resp = await api.post('/core/auth/register/', {
         username: data.username,
         email: data.email,
         password: data.password,

@@ -22,6 +22,7 @@ MODULE_CHOICES = [
     ('fiscal', 'Fiscal'),
     ('comercial', 'Comercial'),
     ('user_management', 'Gestão de Usuários'),
+    ('actions', 'Isidoro IA'),
 ]
 
 

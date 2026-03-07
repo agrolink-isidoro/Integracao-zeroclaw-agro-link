@@ -55,14 +55,26 @@ def _resolve_produto(tenant, nome: str, codigo: str = ""):
         if p:
             return p
     if not nome:
-        raise ValueError("nome_produto não informado e código não encontrado.")
+        raise ValueError(
+            "Produto não identificado: nome ou código não informado. "
+            "Por favor, verifique se o produto foi cadastrado no módulo Estoque "
+            "ou informe o nome/código correto do produto."
+        )
     # 2. busca por nome exato
     p = q.filter(nome__iexact=nome).first()
     if not p:
         # 3. busca por nome parcial
         p = q.filter(nome__icontains=nome).first()
     if not p:
-        raise ValueError(f"Produto não encontrado: nome='{nome}' codigo='{codigo}'")
+        # Listar produtos disponíveis para ajudar o usuário
+        produtos_disponiveis = list(q.values_list('nome', flat=True)[:5])
+        dica = ""
+        if produtos_disponiveis:
+            dica = f" Produtos disponíveis: {', '.join(produtos_disponiveis)}"
+        raise ValueError(
+            f"Produto '{nome}' não encontrado no sistema. "
+            f"Verifique o nome do produto ou cadastre-o no módulo Estoque.{dica}"
+        )
     return p
 
 

@@ -231,6 +231,11 @@ class IsidoroChatConsumer(AsyncWebsocketConsumer):
         self.tenant_id = str(self.tenant.id) if self.tenant else "global"
         self.user_id = str(user.id)
         self.group_name = f"chat_{self.tenant_id}_{self.user_id}"
+        
+        logger.info(
+            "WebSocket chat connect: user=%s (%s) tenant_id=%s tenant_obj=%s",
+            self.user_id, getattr(user, 'username', '?'), self.tenant_id, self.tenant
+        )
 
         # Entra no grupo de channels (para broadcast de eventos)
         await self.channel_layer.group_add(self.group_name, self.channel_name)
@@ -239,6 +244,13 @@ class IsidoroChatConsumer(AsyncWebsocketConsumer):
         # Inicia o agente Isidoro (com fallback se API key ausente)
         try:
             self.isidoro = self._get_isidoro_agent()
+            # IMPORTANTE: limpar histórico anterior para evitar vazamento entre usuários
+            if self.isidoro:
+                self.isidoro.clear_history(self.tenant_id, self.user_id)
+                logger.info(
+                    "Cleared Isidoro history for new session: "
+                    "tenant_id=%s user_id=%s", self.tenant_id, self.user_id
+                )
         except (ValueError, Exception) as exc:
             logger.error("Falha ao inicializar Isidoro agent: %s", exc)
             self.isidoro = None
@@ -256,10 +268,17 @@ class IsidoroChatConsumer(AsyncWebsocketConsumer):
         await self._send_typing(True)
         try:
             tenant_nome = getattr(self.tenant, "nome", "Sua Fazenda")
+            # Puxa o nome do usuário logado para personalizar a saudação
+            user_nome = (
+                self.user.get_full_name()
+                or self.user.first_name
+                or getattr(self.user, 'username', '')
+            )
             greeting = await self.isidoro.initialize_session(
                 tenant_id=self.tenant_id,
                 user_id=self.user_id,
                 tenant_nome=tenant_nome,
+                user_nome=user_nome,
             )
             await self._send_typing(False)
             await self._send_message(text=greeting.text, sender="isidoro")
@@ -398,13 +417,22 @@ class IsidoroChatConsumer(AsyncWebsocketConsumer):
 
     @database_sync_to_async
     def _get_upload(self, upload_id: str):
-        """Busca o UploadedFile no banco de dados."""
+        """Busca o UploadedFile no banco de dados, verificando isolamento de tenant."""
         if not upload_id:
             return None
         try:
             from apps.actions.models import UploadedFile
-            return UploadedFile.objects.get(id=upload_id)
-        except Exception:
+            # IMPORTANTE: filtrar por tenant para evitar acesso cruzado entre usuários de tenants diferentes
+            qs = UploadedFile.objects.filter(id=upload_id)
+            if self.tenant:
+                qs = qs.filter(tenant=self.tenant)
+            return qs.get()
+        except Exception as exc:
+            logger.warning(
+                "UploadedFile não encontrado ou acesso negado: "
+                "upload_id=%s tenant=%s error=%s",
+                upload_id, self.tenant_id, exc
+            )
             return None
 
     # ─────────────────────────────────────────────────────────────────────────
@@ -437,6 +465,7 @@ class IsidoroChatConsumer(AsyncWebsocketConsumer):
             model=getattr(settings, "ISIDORO_LLM_MODEL", "glm-5"),
             api_key=getattr(settings, "ISIDORO_API_KEY", None),
             llm_base_url=getattr(settings, "ISIDORO_LLM_BASE_URL", None),
+            tenant_id=self.tenant_id,  # IMPORTANTE: passar tenant_id para isolar dados
         )
 
     def _get_isidoro_jwt(self) -> str:

@@ -60,11 +60,20 @@ def resumo_view(request):
 
     today = date.today()
     month_start = today.replace(day=1)
-    tf = _tf(request)
+    tenant = _get_tenant(request)
+    
+    # Build filter kwargs for TenantModel objects
+    tf = {"tenant": tenant} if tenant is not None else {}
+    
+    # For Talhao (non-TenantModel), filter via area__fazenda__tenant
+    talhao_filter = {"area__fazenda__tenant": tenant} if tenant is not None else {}
+    
+    # For Area (non-TenantModel), filter via fazenda__tenant
+    area_filter = {"fazenda__tenant": tenant} if tenant is not None else {}
 
     # Áreas cultivadas (sum of talhao.area_size)
     total_hectares = (
-        Talhao.objects.filter(**tf).aggregate(total=Coalesce(Sum("area_size"), Decimal("0")))["total"]
+        Talhao.objects.filter(**talhao_filter).aggregate(total=Coalesce(Sum("area_size"), Decimal("0")))["total"]
     )
 
     # Receita mensal (entradas deste mês)
@@ -95,7 +104,7 @@ def resumo_view(request):
 
     # Fazendas e áreas
     total_fazendas = Fazenda.objects.filter(**tf).count()
-    total_areas = Area.objects.filter(**tf).count()
+    total_areas = Area.objects.filter(**area_filter).count()
 
     # Vencimentos próximos (7 dias)
     vencimentos_proximos = Vencimento.objects.filter(

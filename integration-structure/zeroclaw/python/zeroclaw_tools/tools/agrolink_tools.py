@@ -50,17 +50,23 @@ logger = logging.getLogger(__name__)
 
 # ── Client singleton por chamada ─────────────────────────────────────────────
 
-def _client(base_url: str, jwt_token: str) -> httpx.Client:
+def _client(base_url: str, jwt_token: str, tenant_id: str = "") -> httpx.Client:
     """Cria um client HTTP autenticado para a API Agrolink."""
+    headers = {
+        "Authorization": jwt_token
+        if jwt_token.startswith("Bearer ")
+        else f"Bearer {jwt_token}",
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+    }
+    if tenant_id:
+        headers["X-Tenant-ID"] = tenant_id
+        logger.debug(f"_client: Adding X-Tenant-ID={tenant_id}")
+    else:
+        logger.warning("_client: tenant_id is empty!")
     return httpx.Client(
         base_url=base_url.rstrip("/"),
-        headers={
-            "Authorization": jwt_token
-            if jwt_token.startswith("Bearer ")
-            else f"Bearer {jwt_token}",
-            "Content-Type": "application/json",
-            "Accept": "application/json",
-        },
+        headers=headers,
         timeout=30.0,
     )
 
@@ -68,6 +74,7 @@ def _client(base_url: str, jwt_token: str) -> httpx.Client:
 def _post_action(
     base_url: str,
     jwt_token: str,
+    tenant_id: str,
     module: str,
     action_type: str,
     draft_data: dict,
@@ -82,7 +89,7 @@ def _post_action(
         "meta": meta or {"origem": "isidoro", "canal": "whatsapp"},
     }
     try:
-        with _client(base_url, jwt_token) as c:
+        with _client(base_url, jwt_token, tenant_id) as c:
             resp = c.post("/actions/", json=payload)
             resp.raise_for_status()
             data = resp.json()
@@ -98,10 +105,10 @@ def _post_action(
         return json.dumps({"sucesso": False, "erro": str(exc)})
 
 
-def _get(base_url: str, jwt_token: str, path: str, params: dict | None = None) -> str:
+def _get(base_url: str, jwt_token: str, tenant_id: str, path: str, params: dict | None = None) -> str:
     """Realiza GET na API Agrolink."""
     try:
-        with _client(base_url, jwt_token) as c:
+        with _client(base_url, jwt_token, tenant_id) as c:
             resp = c.get(path, params=params or {})
             resp.raise_for_status()
             return resp.text
@@ -113,13 +120,14 @@ def _get(base_url: str, jwt_token: str, path: str, params: dict | None = None) -
 
 # ── Factory de tools com closures ─────────────────────────────────────────────
 
-def get_agrolink_tools(base_url: str, jwt_token: str) -> list:
+def get_agrolink_tools(base_url: str, jwt_token: str, tenant_id: str = "") -> list:
     """
-    Retorna lista de LangChain tools configuradas com base_url e jwt.
+    Retorna lista de LangChain tools configuradas com base_url, jwt_token e tenant_id.
 
     Args:
         base_url: URL base da API Agrolink (ex: "http://backend:8000/api")
         jwt_token: Token JWT do Isidoro (ex: "Bearer eyJ...")
+        tenant_id: UUID do tenant para isolamento de dados (IMPORTANTÍSSIMO para multi-tenancy)
 
     Returns:
         Lista de BaseTool prontos para uso no ZeroclawAgent
@@ -139,7 +147,7 @@ def get_agrolink_tools(base_url: str, jwt_token: str) -> list:
     ) -> str:
         """
         Cadastra um novo proprietário rural no sistema.
-        Sempre pergunte TODOS os campos ao usuário antes de chamar esta ferramenta.
+        Pergunte os campos obrigatórios antes de chamar. Campos opcionais podem ser omitidos. Ao confirmar, CHAME a ferramenta IMEDIATAMENTE.
 
         Args:
             nome: Nome completo do proprietário (obrigatório)
@@ -149,7 +157,7 @@ def get_agrolink_tools(base_url: str, jwt_token: str) -> list:
             endereco: Endereço completo (logradouro, cidade, estado)
         """
         return _post_action(
-            base_url, jwt_token,
+            base_url, jwt_token, tenant_id,
             module="fazendas",
             action_type="criar_proprietario",
             draft_data={
@@ -169,7 +177,7 @@ def get_agrolink_tools(base_url: str, jwt_token: str) -> list:
     ) -> str:
         """
         Cadastra uma nova fazenda vinculada a um proprietário.
-        Sempre pergunte TODOS os campos ao usuário antes de chamar esta ferramenta.
+        Pergunte os campos obrigatórios antes de chamar. Campos opcionais podem ser omitidos. Ao confirmar, CHAME a ferramenta IMEDIATAMENTE.
 
         Args:
             name: Nome da fazenda (ex: Fazenda Santa Maria) — obrigatório
@@ -177,7 +185,7 @@ def get_agrolink_tools(base_url: str, jwt_token: str) -> list:
             proprietario: Nome ou CPF/CNPJ do proprietário — obrigatório
         """
         return _post_action(
-            base_url, jwt_token,
+            base_url, jwt_token, tenant_id,
             module="fazendas",
             action_type="criar_fazenda",
             draft_data={
@@ -198,7 +206,7 @@ def get_agrolink_tools(base_url: str, jwt_token: str) -> list:
     ) -> str:
         """
         Cria uma área (seção/gleba) dentro de uma fazenda.
-        Sempre pergunte TODOS os campos ao usuário antes de chamar esta ferramenta.
+        Pergunte os campos obrigatórios antes de chamar. Campos opcionais podem ser omitidos. Ao confirmar, CHAME a ferramenta IMEDIATAMENTE.
 
         Args:
             name: Nome da área (ex: Gleba Norte, Sede) — obrigatório
@@ -209,7 +217,7 @@ def get_agrolink_tools(base_url: str, jwt_token: str) -> list:
             observacoes: Observações adicionais
         """
         return _post_action(
-            base_url, jwt_token,
+            base_url, jwt_token, tenant_id,
             module="fazendas",
             action_type="criar_area",
             draft_data={
@@ -234,7 +242,7 @@ def get_agrolink_tools(base_url: str, jwt_token: str) -> list:
     ) -> str:
         """
         Cria um novo talhão (unidade de trabalho agrícola) dentro de uma área/fazenda.
-        Sempre pergunte TODOS os campos ao usuário antes de chamar esta ferramenta.
+        Pergunte os campos obrigatórios antes de chamar. Campos opcionais podem ser omitidos. Ao confirmar, CHAME a ferramenta IMEDIATAMENTE.
 
         Args:
             nome: Nome ou código do talhão (ex: Talhão A1, Gleba Norte) — obrigatório
@@ -246,7 +254,7 @@ def get_agrolink_tools(base_url: str, jwt_token: str) -> list:
             observacoes: Observações adicionais
         """
         return _post_action(
-            base_url, jwt_token,
+            base_url, jwt_token, tenant_id,
             module="fazendas",
             action_type="criar_talhao",
             draft_data={
@@ -272,7 +280,7 @@ def get_agrolink_tools(base_url: str, jwt_token: str) -> list:
     ) -> str:
         """
         Registra um contrato de arrendamento de áreas rurais.
-        Sempre pergunte TODOS os campos ao usuário antes de chamar esta ferramenta.
+        Pergunte os campos obrigatórios antes de chamar. Campos opcionais podem ser omitidos. Ao confirmar, CHAME a ferramenta IMEDIATAMENTE.
 
         Args:
             arrendador: Nome/CPF do proprietário que CEDE a terra — obrigatório
@@ -284,7 +292,7 @@ def get_agrolink_tools(base_url: str, jwt_token: str) -> list:
             end_date: Data de fim do arrendamento (DD/MM/AAAA) — deixar vazio se indeterminado
         """
         return _post_action(
-            base_url, jwt_token,
+            base_url, jwt_token, tenant_id,
             module="fazendas",
             action_type="registrar_arrendamento",
             draft_data={
@@ -314,7 +322,7 @@ def get_agrolink_tools(base_url: str, jwt_token: str) -> list:
     ) -> str:
         """
         Cria uma nova safra (plantio) vinculando fazenda, cultura e talhões.
-        Sempre pergunte TODOS os campos ao usuário antes de chamar esta ferramenta.
+        Pergunte os campos obrigatórios antes de chamar. Campos opcionais podem ser omitidos. Ao confirmar, CHAME a ferramenta IMEDIATAMENTE.
 
         Args:
             fazenda: Nome da fazenda — obrigatório
@@ -326,7 +334,7 @@ def get_agrolink_tools(base_url: str, jwt_token: str) -> list:
             observacoes: Observações adicionais
         """
         return _post_action(
-            base_url, jwt_token,
+            base_url, jwt_token, tenant_id,
             module="agricultura",
             action_type="criar_safra",
             draft_data={
@@ -366,7 +374,7 @@ def get_agrolink_tools(base_url: str, jwt_token: str) -> list:
         Registra colheita de um talhão com informações de transporte e destino.
         ANTES de chamar esta ferramenta: use consultar_safras_ativas para listar as safras
         em andamento e confirmar com o usuário qual safra deve ser usada.
-        Sempre pergunte TODOS os campos ao usuário antes de chamar esta ferramenta.
+        Pergunte os campos obrigatórios antes de chamar. Campos opcionais podem ser omitidos. Ao confirmar, CHAME a ferramenta IMEDIATAMENTE.
 
         Args:
             safra: Nome ou identificação da safra ATIVA — obrigatório.
@@ -391,7 +399,7 @@ def get_agrolink_tools(base_url: str, jwt_token: str) -> list:
             observacoes: Observações adicionais
         """
         return _post_action(
-            base_url, jwt_token,
+            base_url, jwt_token, tenant_id,
             module="agricultura",
             action_type="colheita",
             draft_data={
@@ -462,7 +470,7 @@ def get_agrolink_tools(base_url: str, jwt_token: str) -> list:
             observacoes: Observações adicionais
         """
         return _post_action(
-            base_url, jwt_token,
+            base_url, jwt_token, tenant_id,
             module="agricultura",
             action_type="movimentacao_carga",
             draft_data={
@@ -499,7 +507,7 @@ def get_agrolink_tools(base_url: str, jwt_token: str) -> list:
         Registra uma operação agrícola: pulverização, adubação, plantio, dessecação, etc.
         ANTES de chamar esta ferramenta: use consultar_safras_ativas para listar as safras
         em andamento e confirmar com o usuário qual safra deve ser usada.
-        Sempre pergunte TODOS os campos ao usuário antes de chamar esta ferramenta.
+        Pergunte os campos obrigatórios antes de chamar. Campos opcionais podem ser omitidos. Ao confirmar, CHAME a ferramenta IMEDIATAMENTE.
 
         Args:
             safra: Nome ou identificação da safra ATIVA — obrigatório.
@@ -515,7 +523,7 @@ def get_agrolink_tools(base_url: str, jwt_token: str) -> list:
             observacoes: Observações adicionais (máquina, operador, condições climáticas, etc.)
         """
         return _post_action(
-            base_url, jwt_token,
+            base_url, jwt_token, tenant_id,
             module="agricultura",
             action_type="operacao_agricola",
             draft_data={
@@ -546,7 +554,7 @@ def get_agrolink_tools(base_url: str, jwt_token: str) -> list:
         Registra uma atividade de manejo agrícola (preparo de solo, irrigação, controle de pragas, etc.).
         ANTES de chamar esta ferramenta: use consultar_safras_ativas para listar as safras
         em andamento e confirmar com o usuário qual safra deve ser usada.
-        Sempre pergunte TODOS os campos ao usuário antes de chamar esta ferramenta.
+        Pergunte os campos obrigatórios antes de chamar. Campos opcionais podem ser omitidos. Ao confirmar, CHAME a ferramenta IMEDIATAMENTE.
 
         Args:
             safra: Nome ou identificação da safra ATIVA — obrigatório.
@@ -566,7 +574,7 @@ def get_agrolink_tools(base_url: str, jwt_token: str) -> list:
             observacoes: Observações adicionais
         """
         return _post_action(
-            base_url, jwt_token,
+            base_url, jwt_token, tenant_id,
             module="agricultura",
             action_type="registrar_manejo",
             draft_data={
@@ -595,7 +603,7 @@ def get_agrolink_tools(base_url: str, jwt_token: str) -> list:
         Cria uma ordem de serviço agrícola (programação de trabalho no campo).
         ANTES de chamar esta ferramenta: use consultar_safras_ativas para listar as safras
         em andamento e confirmar com o usuário qual safra deve ser usada.
-        Sempre pergunte TODOS os campos ao usuário antes de chamar esta ferramenta.
+        Pergunte os campos obrigatórios antes de chamar. Campos opcionais podem ser omitidos. Ao confirmar, CHAME a ferramenta IMEDIATAMENTE.
 
         Args:
             safra: Nome ou identificação da safra ATIVA — obrigatório.
@@ -609,7 +617,7 @@ def get_agrolink_tools(base_url: str, jwt_token: str) -> list:
             observacoes: Observações adicionais
         """
         return _post_action(
-            base_url, jwt_token,
+            base_url, jwt_token, tenant_id,
             module="agricultura",
             action_type="ordem_servico_agricola",
             draft_data={
@@ -650,7 +658,7 @@ def get_agrolink_tools(base_url: str, jwt_token: str) -> list:
     ) -> str:
         """
         Cadastra um novo produto no estoque do sistema.
-        Sempre pergunte TODOS os campos ao usuário antes de chamar esta ferramenta.
+        Pergunte os campos obrigatórios antes de chamar. Campos opcionais podem ser omitidos. Ao confirmar, CHAME a ferramenta IMEDIATAMENTE.
 
         Args:
             nome: Nome completo do produto — obrigatório
@@ -675,7 +683,7 @@ def get_agrolink_tools(base_url: str, jwt_token: str) -> list:
             observacoes: Observações adicionais
         """
         return _post_action(
-            base_url, jwt_token,
+            base_url, jwt_token, tenant_id,
             module="estoque",
             action_type="criar_produto",
             draft_data={
@@ -716,7 +724,7 @@ def get_agrolink_tools(base_url: str, jwt_token: str) -> list:
     ) -> str:
         """
         Registra entrada de produto no estoque (compra, recebimento, devolução, ajuste de entrada).
-        Sempre pergunte TODOS os campos ao usuário antes de chamar esta ferramenta.
+        Pergunte os campos obrigatórios antes de chamar. Campos opcionais podem ser omitidos. Ao confirmar, CHAME a ferramenta IMEDIATAMENTE.
 
         Args:
             nome_produto: Nome do produto — obrigatório
@@ -733,7 +741,7 @@ def get_agrolink_tools(base_url: str, jwt_token: str) -> list:
             observacoes: Observações adicionais
         """
         return _post_action(
-            base_url, jwt_token,
+            base_url, jwt_token, tenant_id,
             module="estoque",
             action_type="entrada_estoque",
             draft_data={
@@ -767,7 +775,7 @@ def get_agrolink_tools(base_url: str, jwt_token: str) -> list:
     ) -> str:
         """
         Registra saída de produto do estoque (uso em campo, venda, transferência, descarte).
-        Sempre pergunte TODOS os campos ao usuário antes de chamar esta ferramenta.
+        Pergunte os campos obrigatórios antes de chamar. Campos opcionais podem ser omitidos. Ao confirmar, CHAME a ferramenta IMEDIATAMENTE.
 
         Args:
             nome_produto: Nome do produto — obrigatório
@@ -782,7 +790,7 @@ def get_agrolink_tools(base_url: str, jwt_token: str) -> list:
             observacoes: Observações adicionais
         """
         return _post_action(
-            base_url, jwt_token,
+            base_url, jwt_token, tenant_id,
             module="estoque",
             action_type="saida_estoque",
             draft_data={
@@ -810,7 +818,7 @@ def get_agrolink_tools(base_url: str, jwt_token: str) -> list:
     ) -> str:
         """
         Registra transferência de produto entre dois locais/localizações dentro do estoque.
-        Sempre pergunte TODOS os campos ao usuário antes de chamar esta ferramenta.
+        Pergunte os campos obrigatórios antes de chamar. Campos opcionais podem ser omitidos. Ao confirmar, CHAME a ferramenta IMEDIATAMENTE.
 
         Args:
             produto: Nome ou código do produto a ser movimentado — obrigatório
@@ -821,7 +829,7 @@ def get_agrolink_tools(base_url: str, jwt_token: str) -> list:
             observacao: Observações sobre a movimentação
         """
         return _post_action(
-            base_url, jwt_token,
+            base_url, jwt_token, tenant_id,
             module="estoque",
             action_type="movimentacao_interna",
             draft_data={
@@ -857,7 +865,7 @@ def get_agrolink_tools(base_url: str, jwt_token: str) -> list:
     ) -> str:
         """
         Cadastra um novo equipamento/máquina agrícola no sistema.
-        Sempre pergunte TODOS os campos ao usuário antes de chamar esta ferramenta.
+        Pergunte os campos obrigatórios antes de chamar. Campos opcionais podem ser omitidos. Ao confirmar, CHAME a ferramenta IMEDIATAMENTE.
 
         Args:
             nome: Nome completo do equipamento (ex: Trator John Deere 7200J) — obrigatório
@@ -877,7 +885,7 @@ def get_agrolink_tools(base_url: str, jwt_token: str) -> list:
             observacoes: Observações adicionais
         """
         return _post_action(
-            base_url, jwt_token,
+            base_url, jwt_token, tenant_id,
             module="maquinas",
             action_type="criar_equipamento",
             draft_data={
@@ -913,20 +921,22 @@ def get_agrolink_tools(base_url: str, jwt_token: str) -> list:
         Registra um abastecimento de combustível em um equipamento/máquina agrícola.
         Use esta ferramenta SEMPRE que o usuário mencionar abastecimento, combustível,
         diesel, gasolina, litros, etc. em contexto de máquinas.
-        Sempre pergunte TODOS os campos ao usuário antes de chamar esta ferramenta.
+        Pergunte apenas os campos obrigatórios (maquina_nome, quantidade_litros,
+        valor_unitario, data). Campos opcionais podem ser omitidos.
+        Quando o usuário confirmar, CHAME esta ferramenta IMEDIATAMENTE.
 
         Args:
             maquina_nome: Nome ou modelo da máquina (ex: CR5.85, Colheitadeira NH CR5.85) — obrigatório
             quantidade_litros: Quantidade de combustível em litros (ex: 305.0) — obrigatório
             valor_unitario: Preço por litro em reais (ex: 5.45) — obrigatório
             data: Data do abastecimento no formato DD/MM/AAAA — obrigatório
-            horimetro: Leitura do horímetro (horas do motor) no momento do abastecimento (ex: 2196.37)
-            responsavel: Nome do responsável pelo abastecimento
-            local_abastecimento: Local onde foi realizado o abastecimento (ex: Fazenda, Posto XYZ)
-            observacoes: Observações adicionais (tipo de combustível, nota fiscal, etc.)
+            horimetro: Leitura do horímetro em horas (ex: 2196.37) — opcional
+            responsavel: Nome do responsável — opcional
+            local_abastecimento: Local do abastecimento (ex: Fazenda, Posto XYZ) — opcional
+            observacoes: Observações adicionais — opcional
         """
         return _post_action(
-            base_url, jwt_token,
+            base_url, jwt_token, tenant_id,
             module="maquinas",
             action_type="abastecimento",
             draft_data={
@@ -956,7 +966,7 @@ def get_agrolink_tools(base_url: str, jwt_token: str) -> list:
     ) -> str:
         """
         Abre uma ordem de serviço de manutenção para um equipamento/máquina agrícola.
-        Sempre pergunte TODOS os campos ao usuário antes de chamar esta ferramenta.
+        Pergunte os campos obrigatórios antes de chamar. Campos opcionais podem ser omitidos. Ao confirmar, CHAME a ferramenta IMEDIATAMENTE.
 
         Args:
             equipamento: Nome do equipamento (ex: Trator John Deere 7200J) — obrigatório
@@ -971,7 +981,7 @@ def get_agrolink_tools(base_url: str, jwt_token: str) -> list:
             observacoes: Observações adicionais (peças necessárias, erros encontrados, etc.)
         """
         return _post_action(
-            base_url, jwt_token,
+            base_url, jwt_token, tenant_id,
             module="maquinas",
             action_type="ordem_servico_maquina",
             draft_data={
@@ -1004,7 +1014,7 @@ def get_agrolink_tools(base_url: str, jwt_token: str) -> list:
     ) -> str:
         """
         Registra manutenção, revisão, reparo, abastecimento ou parada de uma máquina/implemento.
-        Sempre pergunte TODOS os campos ao usuário antes de chamar esta ferramenta.
+        Pergunte os campos obrigatórios antes de chamar. Campos opcionais podem ser omitidos. Ao confirmar, CHAME a ferramenta IMEDIATAMENTE.
 
         Args:
             maquina_nome: Nome da máquina (ex: Trator John Deere 7200J) — obrigatório
@@ -1030,7 +1040,7 @@ def get_agrolink_tools(base_url: str, jwt_token: str) -> list:
         }
         action_type = action_type_map.get(tipo_registro.lower(), "manutencao_maquina")
         return _post_action(
-            base_url, jwt_token,
+            base_url, jwt_token, tenant_id,
             module="maquinas",
             action_type=action_type,
             draft_data={
@@ -1064,7 +1074,7 @@ def get_agrolink_tools(base_url: str, jwt_token: str) -> list:
         params = {"status": "pending_approval"}
         if module:
             params["module"] = module
-        return _get(base_url, jwt_token, "/actions/", params)
+        return _get(base_url, jwt_token, tenant_id, "/actions/", params)
 
     @tool
     def consultar_estoque(produto: str = "") -> str:
@@ -1077,7 +1087,48 @@ def get_agrolink_tools(base_url: str, jwt_token: str) -> list:
         params = {}
         if produto:
             params["search"] = produto
-        return _get(base_url, jwt_token, "/estoque/produtos/", params)
+        return _get(base_url, jwt_token, tenant_id, "/estoque/produtos/", params)
+
+    @tool
+    def consultar_estoque_alertas() -> str:
+        """
+        Lista APENAS produtos com estoque baixo, negativo ou crítico.
+        Use esta ferramenta no briefing diário para alertar sobre itens que precisam de atenção.
+        Retorna apenas itens cuja quantidade atual está abaixo ou igual ao estoque mínimo.
+        """
+        raw = _get(base_url, jwt_token, tenant_id, "/estoque/produtos/", {})
+        try:
+            data = json.loads(raw)
+            results = data.get("results", data) if isinstance(data, dict) else data
+            if not isinstance(results, list):
+                return raw  # fallback: retorna tudo se não conseguir parsear
+
+            alertas = []
+            for p in results:
+                qty = float(p.get("quantidade_estoque", 0) or 0)
+                minimo = float(p.get("estoque_minimo", 0) or 0)
+                nome = p.get("nome", "?")
+                unidade = p.get("unidade", "")
+                # Ignora produtos de teste (E2E) e sem estoque mínimo definido
+                if "e2e" in nome.lower() or "test" in nome.lower():
+                    continue
+                if qty < 0:
+                    alertas.append(f"  ⚠️ {nome}: {qty} {unidade} (NEGATIVO!)")
+                elif minimo > 0 and qty <= minimo:
+                    alertas.append(f"  ⚠️ {nome}: {qty}/{minimo} {unidade} (abaixo do mínimo)")
+                elif qty == 0 and minimo == 0:
+                    # Produto com estoque zerado (pode ser relevante)
+                    continue  # ignora se min também é zero
+
+            if not alertas:
+                return json.dumps({"alertas": [], "mensagem": "Nenhum produto com estoque baixo ou crítico."})
+            return json.dumps({
+                "alertas": alertas,
+                "total_alertas": len(alertas),
+                "mensagem": f"{len(alertas)} produto(s) com estoque baixo ou crítico."
+            })
+        except (json.JSONDecodeError, ValueError):
+            return raw  # fallback
 
     @tool
     def consultar_talhoes(fazenda: str = "") -> str:
@@ -1090,7 +1141,7 @@ def get_agrolink_tools(base_url: str, jwt_token: str) -> list:
         params = {}
         if fazenda:
             params["search"] = fazenda
-        return _get(base_url, jwt_token, "/talhoes/", params)
+        return _get(base_url, jwt_token, tenant_id, "/talhoes/", params)
 
     @tool
     def consultar_maquinas(search: str = "") -> str:
@@ -1103,7 +1154,7 @@ def get_agrolink_tools(base_url: str, jwt_token: str) -> list:
         params = {}
         if search:
             params["search"] = search
-        return _get(base_url, jwt_token, "/maquinas/equipamentos/", params)
+        return _get(base_url, jwt_token, tenant_id, "/maquinas/equipamentos/", params)
 
     @tool
     def consultar_safras_ativas(fazenda: str = "") -> str:
@@ -1119,7 +1170,7 @@ def get_agrolink_tools(base_url: str, jwt_token: str) -> list:
         params = {"status": "em_andamento,planejado"}
         if fazenda:
             params["search"] = fazenda
-        return _get(base_url, jwt_token, "/agricultura/plantios/", params)
+        return _get(base_url, jwt_token, tenant_id, "/agricultura/plantios/", params)
 
     @tool
     def consultar_safras(status: str = "", fazenda: str = "") -> str:
@@ -1137,7 +1188,7 @@ def get_agrolink_tools(base_url: str, jwt_token: str) -> list:
             params["status"] = status
         if fazenda:
             params["search"] = fazenda
-        return _get(base_url, jwt_token, "/agricultura/plantios/", params)
+        return _get(base_url, jwt_token, tenant_id, "/agricultura/plantios/", params)
 
     @tool
     def consultar_sessoes_colheita_ativas(fazenda: str = "") -> str:
@@ -1153,7 +1204,7 @@ def get_agrolink_tools(base_url: str, jwt_token: str) -> list:
         params = {"status": "em_andamento"}
         if fazenda:
             params["search"] = fazenda
-        return _get(base_url, jwt_token, "/agricultura/harvest-sessions/", params)
+        return _get(base_url, jwt_token, tenant_id, "/agricultura/harvest-sessions/", params)
 
     # ── Relatórios / Analytics ────────────────────────────────────────────────
 
@@ -1167,7 +1218,7 @@ def get_agrolink_tools(base_url: str, jwt_token: str) -> list:
         Use quando o usuário pedir: "resumo geral", "como está a fazenda?",
         "me dê um panorama", "dashboard", "visão geral".
         """
-        return _get(base_url, jwt_token, "/dashboard/resumo/")
+        return _get(base_url, jwt_token, tenant_id, "/dashboard/resumo/")
 
     @tool
     def relatorio_financeiro(periodo_dias: int = 30) -> str:
@@ -1186,7 +1237,7 @@ def get_agrolink_tools(base_url: str, jwt_token: str) -> list:
         Args:
             periodo_dias: Período em dias para análise (padrão: 30 dias).
         """
-        return _get(base_url, jwt_token, "/dashboard/financeiro/", {"period": periodo_dias})
+        return _get(base_url, jwt_token, tenant_id, "/dashboard/financeiro/", {"period": periodo_dias})
 
     @tool
     def relatorio_estoque() -> str:
@@ -1201,7 +1252,7 @@ def get_agrolink_tools(base_url: str, jwt_token: str) -> list:
         "produtos em falta", "estoque baixo", "valor do estoque",
         "movimentações de estoque".
         """
-        return _get(base_url, jwt_token, "/dashboard/estoque/")
+        return _get(base_url, jwt_token, tenant_id, "/dashboard/estoque/")
 
     @tool
     def relatorio_agricultura() -> str:
@@ -1217,7 +1268,7 @@ def get_agrolink_tools(base_url: str, jwt_token: str) -> list:
         "total de colheitas", "produção por talhão", "safras ativas",
         "quanto colhemos este ano?", "produtividade".
         """
-        return _get(base_url, jwt_token, "/dashboard/agricultura/")
+        return _get(base_url, jwt_token, tenant_id, "/dashboard/agricultura/")
 
     @tool
     def relatorio_comercial() -> str:
@@ -1232,7 +1283,7 @@ def get_agrolink_tools(base_url: str, jwt_token: str) -> list:
         Use quando o usuário pedir: "relatório comercial", "vendas do mês",
         "compras do mês", "fornecedores", "contratos", "situação comercial".
         """
-        return _get(base_url, jwt_token, "/dashboard/comercial/")
+        return _get(base_url, jwt_token, tenant_id, "/dashboard/comercial/")
 
     @tool
     def relatorio_administrativo() -> str:
@@ -1245,7 +1296,7 @@ def get_agrolink_tools(base_url: str, jwt_token: str) -> list:
         Use quando o usuário pedir: "relatório administrativo", "folha de pagamento",
         "despesas admin", "funcionários", "RH".
         """
-        return _get(base_url, jwt_token, "/dashboard/administrativo/")
+        return _get(base_url, jwt_token, tenant_id, "/dashboard/administrativo/")
 
     @tool
     def relatorio_maquinas() -> str:
@@ -1256,7 +1307,7 @@ def get_agrolink_tools(base_url: str, jwt_token: str) -> list:
         Use quando o usuário pedir: "relatório de máquinas", "como estão as máquinas?",
         "equipamentos", "manutenções pendentes", "status das máquinas".
         """
-        return _get(base_url, jwt_token, "/maquinas/equipamentos/")
+        return _get(base_url, jwt_token, tenant_id, "/maquinas/equipamentos/")
 
     @tool
     def consultar_fazendas() -> str:
@@ -1267,7 +1318,7 @@ def get_agrolink_tools(base_url: str, jwt_token: str) -> list:
         Use quando o usuário pedir: "listar fazendas", "quais fazendas temos?",
         "informações das propriedades".
         """
-        return _get(base_url, jwt_token, "/fazendas/fazendas/")
+        return _get(base_url, jwt_token, tenant_id, "/fazendas/fazendas/")
 
     @tool
     def consultar_proprietarios() -> str:
@@ -1277,7 +1328,7 @@ def get_agrolink_tools(base_url: str, jwt_token: str) -> list:
         Use quando o usuário pedir: "listar proprietários", "quem são os donos?",
         "proprietários cadastrados".
         """
-        return _get(base_url, jwt_token, "/fazendas/proprietarios/")
+        return _get(base_url, jwt_token, tenant_id, "/fazendas/proprietarios/")
 
     @tool
     def consultar_colheitas(ano: int = 0) -> str:
@@ -1293,7 +1344,7 @@ def get_agrolink_tools(base_url: str, jwt_token: str) -> list:
         params = {}
         if ano > 0:
             params["year"] = ano
-        return _get(base_url, jwt_token, "/agricultura/colheitas/", params)
+        return _get(base_url, jwt_token, tenant_id, "/agricultura/colheitas/", params)
 
     @tool
     def consultar_movimentacoes_estoque(tipo: str = "", produto: str = "", dias: int = 30) -> str:
@@ -1315,7 +1366,7 @@ def get_agrolink_tools(base_url: str, jwt_token: str) -> list:
             params["search"] = produto
         if dias:
             params["days"] = dias
-        return _get(base_url, jwt_token, "/estoque/movimentacoes/", params)
+        return _get(base_url, jwt_token, tenant_id, "/estoque/movimentacoes/", params)
 
     @tool
     def consultar_vencimentos(status: str = "pendente", dias: int = 30) -> str:
@@ -1332,7 +1383,7 @@ def get_agrolink_tools(base_url: str, jwt_token: str) -> list:
         params = {"status": status}
         if dias:
             params["days"] = dias
-        return _get(base_url, jwt_token, "/financeiro/vencimentos/", params)
+        return _get(base_url, jwt_token, tenant_id, "/financeiro/vencimentos/", params)
 
     @tool
     def consultar_lancamentos_financeiros(tipo: str = "", dias: int = 30) -> str:
@@ -1351,7 +1402,7 @@ def get_agrolink_tools(base_url: str, jwt_token: str) -> list:
             params["tipo"] = tipo
         if dias:
             params["days"] = dias
-        return _get(base_url, jwt_token, "/financeiro/lancamentos/", params)
+        return _get(base_url, jwt_token, tenant_id, "/financeiro/lancamentos/", params)
 
     return [
         # Fazendas
@@ -1380,6 +1431,7 @@ def get_agrolink_tools(base_url: str, jwt_token: str) -> list:
         # Consultas
         consultar_actions_pendentes,
         consultar_estoque,
+        consultar_estoque_alertas,
         consultar_talhoes,
         consultar_maquinas,
         consultar_safras_ativas,
