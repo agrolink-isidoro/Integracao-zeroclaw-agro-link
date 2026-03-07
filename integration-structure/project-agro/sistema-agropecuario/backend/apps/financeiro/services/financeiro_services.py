@@ -265,14 +265,26 @@ def calcular_rateio_por_area(rateio_custo):
     if not rateio_custo.talhoes.exists():
         return False
 
-    # Calcular área total
-    area_total = sum(talhao.area_size for talhao in rateio_custo.talhoes.all())
+    # Calcular área total (protege contra area_size/area_hectares = None)
+    def _safe_area(talhao):
+        a = talhao.area_size if talhao.area_size is not None else (
+            talhao.area_hectares if getattr(talhao, 'area_hectares', None) is not None else 0
+        )
+        return a or 0
+
+    area_total = sum(_safe_area(t) for t in rateio_custo.talhoes.all())
+    if area_total == 0:
+        # Sem áreas definidas: distribuir igualmente
+        n = rateio_custo.talhoes.count()
+        area_total = n
+        _safe_area = lambda t: 1  # noqa: E731 — cada talhão recebe peso igual
+
     rateio_custo.area_total_hectares = area_total
 
     # Criar ou atualizar rateios por talhão
     rateios_talhao = []
     for talhao in rateio_custo.talhoes.all():
-        proporcao = talhao.area_size / area_total
+        proporcao = _safe_area(talhao) / area_total
         valor_rateado = rateio_custo.valor_total * proporcao
 
         rateio_talhao, created = RateioTalhao.objects.update_or_create(

@@ -245,9 +245,32 @@ def execute_abastecimento(action) -> None:
                 ).first()
             )
     if not produto_combustivel:
-        produto_combustivel = ProdutoEstoque.objects.filter(
-            tenant=tenant, categoria="combustivel"
-        ).first()
+        # Busca por categoria: aceita 'combustivel', 'combustiveis_lubrificantes',
+        # ou qualquer categoria que contenha 'combust'
+        produto_combustivel = (
+            ProdutoEstoque.objects.filter(
+                tenant=tenant, categoria="combustivel"
+            ).first()
+            or ProdutoEstoque.objects.filter(
+                tenant=tenant, categoria="combustiveis_lubrificantes"
+            ).first()
+            or ProdutoEstoque.objects.filter(
+                tenant=tenant, categoria__icontains="combust"
+            ).first()
+        )
+    if not produto_combustivel:
+        # Último fallback: busca por nome contendo 'diesel' ou 'combustivel'
+        produto_combustivel = (
+            ProdutoEstoque.objects.filter(
+                tenant=tenant, nome__icontains="diesel"
+            ).first()
+            or ProdutoEstoque.objects.filter(
+                tenant=tenant, nome__icontains="combustível"
+            ).first()
+            or ProdutoEstoque.objects.filter(
+                tenant=tenant, nome__icontains="combustivel"
+            ).first()
+        )
     if not produto_combustivel:
         logger.warning(
             "execute_abastecimento: produto_estoque não encontrado "
