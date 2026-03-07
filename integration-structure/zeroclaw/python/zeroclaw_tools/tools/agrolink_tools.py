@@ -204,6 +204,39 @@ def _fuzzy_resolve_maquina(
     return None, nomes_disponiveis
 
 
+def _resolve_produto_combustivel(
+    base_url: str,
+    jwt_token: str,
+    tenant_id: str,
+) -> str | None:
+    """
+    Busca o primeiro produto de combustível no estoque do tenant.
+    Retorna o nome do produto ou None se não encontrar.
+    """
+    try:
+        with _client(base_url, jwt_token, tenant_id) as c:
+            resp = c.get("/estoque/produtos/")
+            resp.raise_for_status()
+            payload = resp.json()
+    except Exception:
+        return None
+
+    items = payload.get("results", payload) if isinstance(payload, dict) else payload
+    if not items:
+        return None
+
+    # Prioridade: categoria combustível > nome diesel
+    for item in items:
+        cat = (item.get("categoria") or "").lower()
+        if "combust" in cat:
+            return item.get("nome")
+    for item in items:
+        nome = (item.get("nome") or "").lower()
+        if "diesel" in nome or "gasolina" in nome or "combust" in nome:
+            return item.get("nome")
+    return None
+
+
 def _get(base_url: str, jwt_token: str, tenant_id: str, path: str, params: dict | None = None) -> str:
     """Realiza GET na API Agrolink."""
     try:
@@ -1054,6 +1087,11 @@ def get_agrolink_tools(base_url: str, jwt_token: str, tenant_id: str = "") -> li
             })
         maquina_nome = nome_resolvido
 
+        # ── Resolver produto de combustível no estoque ──────────────────────
+        produto_combustivel = _resolve_produto_combustivel(
+            base_url, jwt_token, tenant_id,
+        )
+
         return _post_action(
             base_url, jwt_token, tenant_id,
             module="maquinas",
@@ -1063,9 +1101,10 @@ def get_agrolink_tools(base_url: str, jwt_token: str, tenant_id: str = "") -> li
                 "quantidade_litros": quantidade_litros,
                 "valor_unitario": valor_unitario,
                 "data": data,
-                "horimetro": horimetro,
+                "horimetro": round(horimetro, 1),
                 "responsavel": responsavel,
                 "local_abastecimento": local_abastecimento,
+                "produto_combustivel": produto_combustivel or "",
                 "observacoes": observacoes,
             },
         )

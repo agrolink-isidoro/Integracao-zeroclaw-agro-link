@@ -281,6 +281,9 @@ def execute_abastecimento(action) -> None:
     # ── Outros campos ────────────────────────────────────────────────────────
     data_abastecimento = _parse_date(data.get("data", ""))
     horimetro = _parse_decimal(data.get("horimetro") or data.get("horas_trabalhadas"), "0")
+    # Truncar para no máximo 1 casa decimal (AbastecimentoSerializer valida max_decimal_places=1)
+    if horimetro:
+        horimetro = horimetro.quantize(Decimal("0.1"))
 
     # ── Montar payload para o serializer (nome de campos conforme o modelo) ──
     serializer_data: dict = {

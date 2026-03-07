@@ -91,6 +91,10 @@ export const DRAFT_FIELD_CONFIG: Record<string, Record<string, FieldDef>> = {
     horimetro: { label: 'Horímetro' },
     responsavel: { label: 'Responsável' },
     local_abastecimento: { label: 'Local do Abastecimento' },
+    produto_combustivel: {
+      label: 'Produto/Combustível',
+      dynamic: { endpoint: '/estoque/produtos/', searchParam: 'search', displayField: 'nome', valueField: 'nome', pageSize: 15 },
+    },
     observacoes: { label: 'Observações' },
   },
 
