@@ -179,40 +179,7 @@ const Dashboard: React.FC = () => {
 
       {/* ─── Main Content: 2 columns ─── */}
       <div className="row">
-        {/* Left column — Modules */}
-        <div className="col-lg-8">
-
-          {/* Quick Access Modules */}
-          <h6 className="text-muted text-uppercase fw-semibold mb-3" style={{ fontSize: '0.75rem', letterSpacing: '0.05em' }}>
-            <i className="bi bi-grid-3x3-gap me-2"></i>Acesso Rápido
-          </h6>
-          <div className="row">
-            {[
-              { title: 'Agricultura', icon: 'bi-tree', color: 'success', path: '/agricultura', desc: 'Plantios e colheitas' },
-              { title: 'Fazendas', icon: 'bi-house-door', color: 'primary', path: '/fazendas', desc: 'Propriedades rurais' },
-              { title: 'Estoque', icon: 'bi-box-seam', color: 'warning', path: '/estoque', desc: 'Insumos e produtos' },
-              { title: 'Máquinas', icon: 'bi-gear', color: 'info', path: '/maquinas', desc: 'Equipamentos e frota' },
-              { title: 'Comercial', icon: 'bi-graph-up', color: 'secondary', path: '/comercial', desc: 'Vendas e contratos' },
-              { title: 'Financeiro', icon: 'bi-cash-stack', color: 'danger', path: '/financeiro', desc: 'Finanças e contas' },
-              { title: 'Administrativo', icon: 'bi-person-badge', color: 'dark', path: '/administrativo', desc: 'RH e administração' },
-              { title: 'Fiscal', icon: 'bi-file-earmark-text', color: 'success', path: '/fiscal', desc: 'Notas e tributos' },
-            ].map((m) => (
-              <div key={m.title} className="col-lg-3 col-md-4 col-6 mb-3">
-                <Link to={m.path} className="text-decoration-none">
-                  <div className={`card border-${m.color} h-100 shadow-sm`} style={{ transition: 'transform 0.15s' }} onMouseEnter={(e) => (e.currentTarget.style.transform = 'translateY(-2px)')} onMouseLeave={(e) => (e.currentTarget.style.transform = '')}>
-                    <div className="card-body text-center py-3">
-                      <i className={`bi ${m.icon} fs-2 text-${m.color} d-block mb-1`}></i>
-                      <h6 className="card-title mb-0" style={{ fontSize: '0.85rem' }}>{m.title}</h6>
-                      <small className="text-muted" style={{ fontSize: '0.7rem' }}>{m.desc}</small>
-                    </div>
-                  </div>
-                </Link>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Right column — AI Pending Tasks */}
+        {/* Left column — AI Pending Tasks */}
         <div className="col-lg-4">
           <div className="card shadow-sm mb-4">
             <div className="card-header bg-dark text-white d-flex align-items-center">
@@ -309,6 +276,39 @@ const Dashboard: React.FC = () => {
                 </Link>
               </div>
             </div>
+          </div>
+        </div>
+
+        {/* Right column — Modules */}
+        <div className="col-lg-8">
+
+          {/* Quick Access Modules */}
+          <h6 className="text-muted text-uppercase fw-semibold mb-3" style={{ fontSize: '0.75rem', letterSpacing: '0.05em' }}>
+            <i className="bi bi-grid-3x3-gap me-2"></i>Acesso Rápido
+          </h6>
+          <div className="row">
+            {[
+              { title: 'Agricultura', icon: 'bi-tree', color: 'success', path: '/agricultura', desc: 'Plantios e colheitas' },
+              { title: 'Fazendas', icon: 'bi-house-door', color: 'primary', path: '/fazendas', desc: 'Propriedades rurais' },
+              { title: 'Estoque', icon: 'bi-box-seam', color: 'warning', path: '/estoque', desc: 'Insumos e produtos' },
+              { title: 'Máquinas', icon: 'bi-gear', color: 'info', path: '/maquinas', desc: 'Equipamentos e frota' },
+              { title: 'Comercial', icon: 'bi-graph-up', color: 'secondary', path: '/comercial', desc: 'Vendas e contratos' },
+              { title: 'Financeiro', icon: 'bi-cash-stack', color: 'danger', path: '/financeiro', desc: 'Finanças e contas' },
+              { title: 'Administrativo', icon: 'bi-person-badge', color: 'dark', path: '/administrativo', desc: 'RH e administração' },
+              { title: 'Fiscal', icon: 'bi-file-earmark-text', color: 'success', path: '/fiscal', desc: 'Notas e tributos' },
+            ].map((m) => (
+              <div key={m.title} className="col-lg-3 col-md-4 col-6 mb-3">
+                <Link to={m.path} className="text-decoration-none">
+                  <div className={`card border-${m.color} h-100 shadow-sm`} style={{ transition: 'transform 0.15s' }} onMouseEnter={(e) => (e.currentTarget.style.transform = 'translateY(-2px)')} onMouseLeave={(e) => (e.currentTarget.style.transform = '')}>
+                    <div className="card-body text-center py-3">
+                      <i className={`bi ${m.icon} fs-2 text-${m.color} d-block mb-1`}></i>
+                      <h6 className="card-title mb-0" style={{ fontSize: '0.85rem' }}>{m.title}</h6>
+                      <small className="text-muted" style={{ fontSize: '0.7rem' }}>{m.desc}</small>
+                    </div>
+                  </div>
+                </Link>
+              </div>
+            ))}
           </div>
         </div>
       </div>
