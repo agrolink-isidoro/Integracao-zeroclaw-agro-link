@@ -1120,6 +1120,8 @@ def get_agrolink_tools(base_url: str, jwt_token: str, tenant_id: str = "") -> li
         custo_mao_obra: float = 0.0,
         responsavel: str = "",
         prestador_servico: str = "",
+        produto_insumo: str = "",
+        quantidade_insumo: float = 1.0,
         observacoes: str = "",
     ) -> str:
         """
@@ -1136,6 +1138,8 @@ def get_agrolink_tools(base_url: str, jwt_token: str, tenant_id: str = "") -> li
             custo_mao_obra: Custo de mão de obra em reais
             responsavel: Nome do responsável pela execução (mecânico interno)
             prestador_servico: Nome da empresa ou prestador externo (se terceirizado)
+            produto_insumo: Nome do produto/insumo do estoque necessário (ex: Óleo Lubrificante, Filtro de Ar). O usuário poderá corrigir na aprovação.
+            quantidade_insumo: Quantidade do insumo a consumir (padrão: 1)
             observacoes: Observações adicionais (peças necessárias, erros encontrados, etc.)
         """
         # ── Fuzzy-match do nome da máquina contra o cadastro ────────────────
@@ -1169,6 +1173,8 @@ def get_agrolink_tools(base_url: str, jwt_token: str, tenant_id: str = "") -> li
                 "custo_mao_obra": custo_mao_obra,
                 "responsavel": responsavel,
                 "prestador_servico": prestador_servico,
+                "produto_insumo": produto_insumo,
+                "quantidade_insumo": quantidade_insumo,
                 "observacoes": observacoes,
             },
         )

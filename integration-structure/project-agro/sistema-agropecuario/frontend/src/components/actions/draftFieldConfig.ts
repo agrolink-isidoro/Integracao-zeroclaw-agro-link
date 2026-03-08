@@ -187,6 +187,17 @@ export const DRAFT_FIELD_CONFIG: Record<string, Record<string, FieldDef>> = {
         ],
       },
     },
+    produto_insumo: {
+      label: 'Produto / Insumo (Estoque)',
+      dynamic: {
+        endpoint: '/estoque/produtos/',
+        searchParam: 'search',
+        displayField: 'nome',
+        valueField: 'nome',
+        pageSize: 15,
+      },
+    },
+    quantidade_insumo: { label: 'Quantidade do Insumo' },
     data_previsao: { label: 'Data Prevista' },
     custo_mao_obra: { label: 'Custo de Mão de Obra (R$)' },
     responsavel: { label: 'Responsável' },

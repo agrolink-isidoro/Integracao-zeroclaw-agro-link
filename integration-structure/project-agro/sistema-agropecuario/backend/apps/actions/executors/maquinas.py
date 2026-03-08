@@ -415,6 +415,26 @@ def execute_ordem_servico(action) -> None:
     if not isinstance(insumos_raw, list):
         insumos_raw = []
 
+    # Se o draft_data inclui produto_insumo (campo de busca dinâmica no
+    # modal de aprovação), monta um item de insumo a partir dele.
+    _produto_insumo = data.get("produto_insumo")
+    if _produto_insumo and isinstance(_produto_insumo, str) and _produto_insumo.strip():
+        _qtd_insumo = data.get("quantidade_insumo")
+        try:
+            _qtd_val = float(_qtd_insumo) if _qtd_insumo else 1
+        except (TypeError, ValueError):
+            _qtd_val = 1
+        # Só adiciona se não existir já um insumo com mesmo nome
+        nomes_existentes = {
+            (i.get("nome") or i.get("produto_nome") or "").lower()
+            for i in insumos_raw if isinstance(i, dict)
+        }
+        if _produto_insumo.strip().lower() not in nomes_existentes:
+            insumos_raw.append({
+                "nome": _produto_insumo.strip(),
+                "quantidade": _qtd_val,
+            })
+
     # ── Montar payload para o serializer ────────────────────────────────────
     serializer_data: dict = {
         "tenant": tenant.pk,
