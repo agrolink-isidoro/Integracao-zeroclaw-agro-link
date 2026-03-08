@@ -105,6 +105,11 @@ def create_movimentacao(*, produto: Produto = None, produto_id: int = None, tipo
             }
             payload.update(extra_fields)
 
+            # Auto-set tenant from product if not explicitly provided
+            if 'tenant' not in payload and 'tenant_id' not in payload:
+                if getattr(produto, 'tenant_id', None):
+                    payload['tenant'] = produto.tenant
+
             movimentacao = MovimentacaoEstoque.objects.create(**payload)
 
             # At this point MovimentacaoEstoque.save() already updated produto.quantidade_estoque and criou statement/auditoria
