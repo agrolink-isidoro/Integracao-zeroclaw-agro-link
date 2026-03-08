@@ -425,6 +425,10 @@ class IsidoroAgent:
         # Histórico: chave = f"{tenant_id}:{user_id}"
         self._histories: dict[str, list] = {}
 
+        # Rastreia se o briefing completo já foi enviado hoje (por sessão)
+        # Chave = session_key, Valor = date string "YYYY-MM-DD"
+        self._briefing_sent: dict[str, str] = {}
+
     def _session_key(self, tenant_id: str, user_id: str) -> str:
         return f"{tenant_id}:{user_id}"
 
@@ -697,6 +701,16 @@ class IsidoroAgent:
         from datetime import date
 
         history = self._get_history(tenant_id, user_id)
+        key = self._session_key(tenant_id, user_id)
+        today_str = date.today().isoformat()
+
+        # Briefing já enviado hoje — saudação simples (sem chamar ferramentas)
+        if self._briefing_sent.get(key) == today_str:
+            saudacao = _saudacao_por_horario()
+            nome_display = user_nome.split()[0] if user_nome else ""
+            if nome_display:
+                return IsidoroResponse(text=f"{saudacao}, {nome_display}! Como posso ajudar?")
+            return IsidoroResponse(text=f"{saudacao}! Como posso ajudar?")
 
         # Reconexão: sessão já tem histórico — saudação simples
         if history:
@@ -771,6 +785,11 @@ class IsidoroAgent:
                 "Isidoro greeting: tenant=%s user=%s tools=%s",
                 tenant_id, user_id, tool_call_names,
             )
+
+            # Marca que o briefing foi enviado hoje — próximas conexões
+            # receberão saudação simples sem chamar ferramentas
+            self._briefing_sent[key] = today_str
+
             return IsidoroResponse(text=greeting_text, tool_calls=tool_call_names)
 
         except Exception as exc:
