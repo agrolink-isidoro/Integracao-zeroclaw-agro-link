@@ -508,6 +508,16 @@ def execute_operacao_agricola(action) -> None:
         data_op = _parse_date(data.get("data_operacao") or data.get("data", ""))
         data_op_date = data_op.date() if hasattr(data_op, "date") else data_op
 
+        # ── Inferir status pela data (futuro=planejada, passado/hoje=concluida) ─
+        from datetime import date as _date
+        status_draft = (data.get("status") or "").strip().lower()
+        if status_draft and status_draft in ("planejada", "em_andamento", "concluida", "cancelada"):
+            status_final = status_draft
+        elif data_op_date and data_op_date > _date.today():
+            status_final = "planejada"
+        else:
+            status_final = "concluida"
+
         # ── Resolve trator (equipamento autopropelido) ────────────────────
         trator_obj = None
         trator_nome = (data.get("trator") or "").strip()
@@ -542,7 +552,7 @@ def execute_operacao_agricola(action) -> None:
             custo_mao_obra=_parse_decimal(data.get("custo_mao_obra"), "0"),
             custo_maquina=_parse_decimal(data.get("custo_maquina"), "0"),
             custo_insumos=_parse_decimal(data.get("custo_insumos"), "0"),
-            status=data.get("status", "concluida").lower(),
+            status=status_final,
             observacoes=data.get("observacoes", ""),
             criado_por=criado_por,
         )
