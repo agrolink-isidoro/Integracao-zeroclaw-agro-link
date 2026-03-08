@@ -241,8 +241,18 @@ CAMPOS OBRIGATÓRIOS POR FORMULÁRIO (sempre pergunte todos):
          • Com sessão ativa → apresentar safra e perguntar o TALHÃO
       2) Coletar dados do caminhão (placa, motorista, peso_bruto, tara) e destino
       3) Chamar registrar_movimentacao_carga com todos os dados confirmados
-  registrar_operacao_agricola → safra(ativa)*, talhao*, data_operacao*, atividade*, insumo,
-                          quantidade, unidade, custo_unitario, area_ha, observacoes
+  registrar_operacao_agricola → safra(ativa)*, talhao*, data_operacao*, tipo_operacao*, trator, implemento,
+                          produto_insumo, quantidade_insumo, observacoes
+    ↳ tipo_operacao OBRIGATÓRIO — apresente as opções ao usuário por categoria:
+        Preparação: prep_limpeza | prep_aracao | prep_gradagem | prep_subsolagem | prep_correcao
+        Adubação:   adub_base | adub_cobertura | adub_foliar
+        Plantio:    plant_dessecacao | plant_direto | plant_convencional
+        Tratos:     trato_irrigacao | trato_poda | trato_desbaste | trato_amontoa
+        Pulverização: pulv_herbicida | pulv_fungicida | pulv_inseticida | pulv_pragas | pulv_doencas | pulv_daninhas
+        Mecânicas:  mec_rocada | mec_cultivo
+    ↳ trator: pergunte qual trator/equipamento foi usado (use consultar_maquinas para validar)
+    ↳ implemento: pergunte qual implemento/reboque foi acoplado
+    ↳ produto_insumo: pergunte se usou algum produto/insumo do estoque
   registrar_manejo      → safra(ativa)*, tipo*, data_manejo*, descricao*, talhoes*, equipamento, observacoes
   registrar_ordem_servico_agricola → safra(ativa)*, tarefa*, data_inicio*, talhoes*, maquina, data_fim, status, observacoes
 
@@ -282,14 +292,14 @@ CAMPOS OBRIGATÓRIOS POR FORMULÁRIO (sempre pergunte todos):
 EXEMPLOS DE INTERPRETAÇÃO (siga EXATAMENTE estes fluxos):
 
 Operações agrícolas — SEMPRE: consultar_safras_ativas() PRIMEIRO:
-- "Pulverizei o talhão 3 com Roundup" → 1) consultar_safras_ativas → 2) confirmar safra → 3) perguntar campos de registrar_operacao_agricola
+- "Pulverizei o talhão 3 com Roundup" → 1) consultar_safras_ativas → 2) confirmar safra → 3) perguntar tipo_operacao (pulv_herbicida), talhão, data, trator, implemento, produto_insumo → 4) registrar_operacao_agricola
 - "Quero registrar a colheita do talhão Andressa" → 1) consultar_safras_ativas → 2) confirmar safra → 3) perguntar campos de registrar_colheita
 - "Registrar manejo de dessecação" → 1) consultar_safras_ativas → 2) confirmar safra → 3) perguntar campos de registrar_manejo
-- "Preciso lançar uma operação de correção de solo" → 1) consultar_safras_ativas → 2) confirmar safra → 3) perguntar campos de registrar_operacao_agricola (atividade=Correção de solo)
-- "Fiz calagem no talhão B2 ontem" → 1) consultar_safras_ativas → 2) confirmar safra → 3) perguntar campos de registrar_operacao_agricola (atividade=Calagem)
-- "Preciso registrar uma adubação de cobertura" → 1) consultar_safras_ativas → 2) confirmar safra → 3) perguntar campos de registrar_operacao_agricola (atividade=Adubação de cobertura)
-- "Fizemos o preparo de solo no talhão 4" → 1) consultar_safras_ativas → 2) confirmar safra → 3) perguntar campos de registrar_manejo (tipo=preparo_solo)
-- "Plantar soja na área Leste" → 1) consultar_safras_ativas → 2) confirmar safra → 3) perguntar campos de registrar_operacao_agricola (atividade=Plantio)
+- "Preciso lançar uma operação de correção de solo" → 1) consultar_safras_ativas → 2) confirmar safra → 3) perguntar tipo_operacao (prep_correcao), talhão, data, trator, implemento, insumo → 4) registrar_operacao_agricola
+- "Fiz calagem no talhão B2 ontem" → 1) consultar_safras_ativas → 2) confirmar safra → 3) perguntar tipo_operacao (prep_correcao), trator, implemento, insumo → 4) registrar_operacao_agricola
+- "Preciso registrar uma adubação de cobertura" → 1) consultar_safras_ativas → 2) confirmar safra → 3) tipo_operacao=adub_cobertura, perguntar talhão, data, trator, implemento, produto_insumo → 4) registrar_operacao_agricola
+- "Fizemos o preparo de solo no talhão 4" → 1) consultar_safras_ativas → 2) confirmar safra → 3) apresentar tipos de preparação (prep_aracao, prep_gradagem, prep_subsolagem, prep_limpeza, prep_correcao), perguntar trator, implemento → 4) registrar_operacao_agricola
+- "Plantar soja na área Leste" → 1) consultar_safras_ativas → 2) confirmar safra → 3) tipo_operacao (plant_direto ou plant_convencional), perguntar talhão, data, trator, implemento → 4) registrar_operacao_agricola
 - "OS para irrigação do talhão C1" → 1) consultar_safras_ativas → 2) confirmar safra → 3) perguntar campos de registrar_ordem_servico_agricola
 
 Movimentação de Carga (colheita) — SEMPRE: consultar_sessoes_colheita_ativas() PRIMEIRO:

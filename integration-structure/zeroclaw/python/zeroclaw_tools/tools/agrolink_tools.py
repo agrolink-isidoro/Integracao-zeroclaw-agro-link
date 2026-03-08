@@ -908,17 +908,23 @@ def get_agrolink_tools(base_url: str, jwt_token: str, tenant_id: str = "") -> li
     ) -> str:
         """
         Cria uma ordem de serviço agrícola (programação de trabalho no campo).
-        ANTES de chamar esta ferramenta: use consultar_safras_ativas para listar as safras
-        em andamento e confirmar com o usuário qual safra deve ser usada.
-        Pergunte os campos obrigatórios antes de chamar. Campos opcionais podem ser omitidos. Ao confirmar, CHAME a ferramenta IMEDIATAMENTE.
+        Use SOMENTE para tarefas de CAMPO (plantio, colheita, irrigação, pulverização,
+        capina, etc.) vinculadas a uma safra e talhões.
+
+        ⚠️  NÃO use para manutenção, reparo, revisão ou troca de peças/óleo de
+            máquinas/equipamentos. Para isso, use registrar_manutencao_maquina.
+
+        ANTES de chamar esta ferramenta: use consultar_safras_ativas para listar
+        as safras e confirmar com o usuário qual safra deve ser usada.
+        Pergunte os campos obrigatórios antes de chamar. Ao confirmar, CHAME imediatamente.
 
         Args:
             safra: Nome ou identificação da safra ATIVA — obrigatório.
-                   Consulte as safras ativas com consultar_safras_ativas antes de perguntar.
-            tarefa: Descrição da tarefa a ser executada — obrigatório
+                   Consulte as safras ativas com consultar_safras_ativas antes.
+            tarefa: Descrição da tarefa de campo a ser executada — obrigatório
             data_inicio: Data/hora de início no formato DD/MM/AAAA HH:MM — obrigatório
-            talhoes: Nomes dos talhões onde ocorrerá a operação, separados por vírgula — obrigatório (mín. 1)
-            maquina: Nome do equipamento/máquina a ser utilizado
+            talhoes: Nomes dos talhões onde ocorrerá a operação, separados por vírgula — obrigatório
+            maquina: Nome do equipamento/máquina a ser utilizado no campo
             data_fim: Data/hora prevista de fim no formato DD/MM/AAAA HH:MM
             status: Status: 'pendente' (padrão), 'em_andamento', 'concluida', 'cancelada'
             observacoes: Observações adicionais
@@ -1369,11 +1375,18 @@ def get_agrolink_tools(base_url: str, jwt_token: str, tenant_id: str = "") -> li
         observacoes: str = "",
     ) -> str:
         """
-        Registra manutenção, revisão, reparo, abastecimento ou parada de uma máquina/implemento.
-        Pergunte os campos obrigatórios antes de chamar. Campos opcionais podem ser omitidos. Ao confirmar, CHAME a ferramenta IMEDIATAMENTE.
+        Registra manutenção, revisão, reparo, troca de óleo/peças, abastecimento
+        ou parada de uma máquina/equipamento.
+        Use para QUALQUER serviço de manutenção, reparo ou revisão em tratores,
+        colheitadeiras, pulverizadores e demais equipamentos (incluindo quando
+        o reparo envolve componentes da safra, como caçamba, plataforma etc.).
+        O registro aparecerá no módulo Máquinas > Manutenção.
+
+        Pergunte os campos obrigatórios antes de chamar. Ao confirmar, CHAME imediatamente.
 
         Args:
-            maquina_nome: Nome da máquina (ex: Trator John Deere 7200J) — obrigatório
+            maquina_nome: Nome da máquina (ex: Colheitadeira NH CR5.85) — obrigatório.
+                          Use consultar_maquinas para verificar nomes disponíveis.
             tipo_registro: Tipo do registro — obrigatório. Valores: manutencao, revisao,
                            reparo, abastecimento, troca_oleo, parada
             data: Data no formato DD/MM/AAAA — obrigatório
