@@ -445,7 +445,8 @@ def execute_operacao_agricola(action) -> None:
     Cria uma Operação agrícola a partir de registrar_operacao_agricola draft_data.
     Usa o modelo Operacao (sistema unificado).
     """
-    from apps.agricultura.models import Operacao
+    from apps.agricultura.models import Operacao, OperacaoProduto
+    from apps.maquinas.models import Equipamento
 
     data = action.draft_data
     tenant = action.tenant
@@ -470,8 +471,13 @@ def execute_operacao_agricola(action) -> None:
         elif plantio and plantio.fazenda:
             fazenda = plantio.fazenda
 
-        # Mapear tipo e categoria
-        tipo_raw = (data.get("tipo_operacao") or data.get("tipo") or "prep_limpeza").lower().strip()
+        # Mapear tipo e categoria — aceita tanto "tipo_operacao" quanto "atividade" (legado)
+        tipo_raw = (
+            data.get("tipo_operacao")
+            or data.get("atividade")
+            or data.get("tipo")
+            or "prep_limpeza"
+        ).lower().strip()
         # Map de nomes amigáveis para keys
         _tipo_map = {
             "aracao": "prep_aracao", "gradagem": "prep_gradagem",
@@ -484,6 +490,8 @@ def execute_operacao_agricola(action) -> None:
             "desbaste": "trato_desbaste", "amontoa": "trato_amontoa",
             "herbicida": "pulv_herbicida", "fungicida": "pulv_fungicida",
             "inseticida": "pulv_inseticida", "pulverizacao": "pulv_herbicida",
+            "pragas": "pulv_pragas", "doencas": "pulv_doencas",
+            "daninhas": "pulv_daninhas",
             "rocada": "mec_rocada", "cultivo_mecanico": "mec_cultivo",
         }
         tipo = _tipo_map.get(tipo_raw, tipo_raw)
@@ -496,8 +504,31 @@ def execute_operacao_agricola(action) -> None:
         prefix = tipo.split("_")[0] if "_" in tipo else tipo[:4]
         categoria = _cat_map.get(prefix, "preparacao")
 
-        data_op = _parse_date(data.get("data", ""))
+        # Parse data — aceita "data_operacao" e "data" (legado)
+        data_op = _parse_date(data.get("data_operacao") or data.get("data", ""))
         data_op_date = data_op.date() if hasattr(data_op, "date") else data_op
+
+        # ── Resolve trator (equipamento autopropelido) ────────────────────
+        trator_obj = None
+        trator_nome = (data.get("trator") or "").strip()
+        if trator_nome:
+            trator_obj = (
+                Equipamento.objects.filter(tenant=tenant, nome__iexact=trator_nome).first()
+                or Equipamento.objects.filter(tenant=tenant, nome__icontains=trator_nome).first()
+            )
+            if not trator_obj:
+                logger.warning("execute_operacao_agricola: trator '%s' não encontrado", trator_nome)
+
+        # ── Resolve implemento (equipamento rebocado) ─────────────────────
+        implemento_obj = None
+        implemento_nome = (data.get("implemento") or "").strip()
+        if implemento_nome:
+            implemento_obj = (
+                Equipamento.objects.filter(tenant=tenant, nome__iexact=implemento_nome).first()
+                or Equipamento.objects.filter(tenant=tenant, nome__icontains=implemento_nome).first()
+            )
+            if not implemento_obj:
+                logger.warning("execute_operacao_agricola: implemento '%s' não encontrado", implemento_nome)
 
         operacao = Operacao(
             tenant=tenant,
@@ -506,6 +537,8 @@ def execute_operacao_agricola(action) -> None:
             plantio=plantio,
             fazenda=fazenda,
             data_operacao=data_op_date,
+            trator=trator_obj,
+            implemento=implemento_obj,
             custo_mao_obra=_parse_decimal(data.get("custo_mao_obra"), "0"),
             custo_maquina=_parse_decimal(data.get("custo_maquina"), "0"),
             custo_insumos=_parse_decimal(data.get("custo_insumos"), "0"),
@@ -528,12 +561,33 @@ def execute_operacao_agricola(action) -> None:
             if talhao:
                 operacao.talhoes.add(talhao)
 
+        # ── Vincular produto/insumo ───────────────────────────────────────
+        produto_nome = (data.get("produto_insumo") or data.get("insumo") or "").strip()
+        quantidade_insumo = data.get("quantidade_insumo") or data.get("quantidade") or 0
+        if produto_nome:
+            from apps.estoque.models import Produto as EstoqueProduto
+            produto_obj = (
+                EstoqueProduto.objects.filter(tenant=tenant, nome__iexact=produto_nome).first()
+                or EstoqueProduto.objects.filter(tenant=tenant, nome__icontains=produto_nome).first()
+            )
+            if produto_obj:
+                OperacaoProduto.objects.create(
+                    operacao=operacao,
+                    produto=produto_obj,
+                    dosagem=_parse_decimal(quantidade_insumo, "0"),
+                    unidade_dosagem=data.get("unidade", ""),
+                )
+            else:
+                logger.warning("execute_operacao_agricola: produto '%s' não encontrado no estoque", produto_nome)
+
     action.mark_executed({
         "operacao_id": operacao.pk,
         "tipo": operacao.tipo,
         "categoria": operacao.categoria,
         "data": str(data_op_date),
         "safra": plantio.nome_safra if plantio else None,
+        "trator": trator_nome or None,
+        "implemento": implemento_nome or None,
     })
     logger.info("execute_operacao_agricola OK: action=%s operacao=%s tipo=%s", action.id, operacao.pk, operacao.tipo)
 

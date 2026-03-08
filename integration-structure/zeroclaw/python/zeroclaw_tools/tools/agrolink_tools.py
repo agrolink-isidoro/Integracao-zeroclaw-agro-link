@@ -204,6 +204,89 @@ def _fuzzy_resolve_maquina(
     return None, nomes_disponiveis
 
 
+def _fuzzy_resolve_talhao(
+    base_url: str,
+    jwt_token: str,
+    tenant_id: str,
+    nome_usuario: str,
+    threshold: float = 0.40,
+) -> tuple[str | None, list[str]]:
+    """
+    Busca fuzzy do nome de talhão informado pelo usuário
+    contra os talhões cadastrados na API.
+
+    Retorna (nome_correto, lista_disponiveis).
+    Se não encontrar match acima do threshold, retorna (None, lista_disponiveis).
+    """
+    if not nome_usuario or not nome_usuario.strip():
+        return None, []
+
+    try:
+        with _client(base_url, jwt_token, tenant_id) as c:
+            resp = c.get("/talhoes/")
+            resp.raise_for_status()
+            payload = resp.json()
+    except Exception:
+        return nome_usuario, []
+
+    talhoes = payload.get("results", payload) if isinstance(payload, dict) else payload
+    if not talhoes:
+        return None, []
+
+    input_lower = nome_usuario.strip().lower()
+    input_tokens = input_lower.split()
+    nomes_disponiveis: list[str] = []
+    best_score = 0.0
+    best_nome: str | None = None
+
+    for t in talhoes:
+        nome = (t.get("name") or t.get("nome") or "").strip()
+        if not nome:
+            continue
+        nomes_disponiveis.append(nome)
+
+        # --- match exato (case-insensitive) → retorno imediato ----------------
+        if input_lower == nome.lower():
+            return nome, nomes_disponiveis
+
+        nome_lower = nome.lower()
+
+        # 1) SequenceMatcher do input inteiro contra o nome
+        ratio = SequenceMatcher(None, input_lower, nome_lower).ratio()
+        if ratio > best_score:
+            best_score = ratio
+            best_nome = nome
+
+        # 2) SequenceMatcher de cada token do input
+        for token in input_tokens:
+            r = SequenceMatcher(None, token, nome_lower).ratio()
+            if r > best_score:
+                best_score = r
+                best_nome = nome
+
+        # 3) icontains: se algum token significativo está no nome
+        matching_tokens = sum(1 for tok in input_tokens if tok in nome_lower)
+        if input_tokens and matching_tokens > 0:
+            token_ratio = matching_tokens / len(input_tokens)
+            combined = max(best_score, 0.35 + token_ratio * 0.35)
+            if combined > best_score:
+                best_score = combined
+                best_nome = nome
+
+    if best_score >= threshold and best_nome:
+        logger.info(
+            "_fuzzy_resolve_talhao: '%s' → '%s' (score=%.2f)",
+            nome_usuario, best_nome, best_score,
+        )
+        return best_nome, nomes_disponiveis
+
+    logger.warning(
+        "_fuzzy_resolve_talhao: '%s' não encontrado (best_score=%.2f, best='%s')",
+        nome_usuario, best_score, best_nome,
+    )
+    return None, nomes_disponiveis
+
+
 def _resolve_produto_combustivel(
     base_url: str,
     jwt_token: str,
@@ -627,49 +710,141 @@ def get_agrolink_tools(base_url: str, jwt_token: str, tenant_id: str = "") -> li
         safra: str,
         talhao: str,
         data_operacao: str,
-        atividade: str,
-        insumo: str = "",
-        quantidade: float = 0.0,
-        unidade: str = "L",
-        custo_unitario: float = 0.0,
-        area_ha: float = 0.0,
+        tipo_operacao: str,
+        trator: str = "",
+        implemento: str = "",
+        produto_insumo: str = "",
+        quantidade_insumo: float = 0.0,
         observacoes: str = "",
     ) -> str:
         """
         Registra uma operação agrícola: pulverização, adubação, plantio, dessecação, etc.
-        ANTES de chamar esta ferramenta: use consultar_safras_ativas para listar as safras
-        em andamento e confirmar com o usuário qual safra deve ser usada.
-        Pergunte os campos obrigatórios antes de chamar. Campos opcionais podem ser omitidos. Ao confirmar, CHAME a ferramenta IMEDIATAMENTE.
+        ANTES de chamar esta ferramenta:
+        1. Use consultar_safras_ativas para listar safras e confirmar com o usuário.
+        2. Use consultar_talhoes para verificar talhões disponíveis.
+        3. Apresente os tipos de operação disponíveis ao usuário.
+        Pergunte os campos obrigatórios antes de chamar. Ao confirmar, CHAME a ferramenta IMEDIATAMENTE.
 
         Args:
             safra: Nome ou identificação da safra ATIVA — obrigatório.
-                   Consulte as safras ativas com consultar_safras_ativas antes de perguntar.
-            talhao: Nome ou código do talhão pertencente à safra — obrigatório
+                   Consulte as safras ativas com consultar_safras_ativas antes.
+            talhao: Nome do talhão pertencente à safra — obrigatório.
+                    Use consultar_talhoes para verificar os nomes corretos.
             data_operacao: Data no formato DD/MM/AAAA — obrigatório
-            atividade: Tipo de operação (ex: Pulverização, Adubação, Plantio, Dessecação) — obrigatório
-            insumo: Nome do insumo/defensivo/fertilizante utilizado
-            quantidade: Quantidade do insumo aplicada
-            unidade: Unidade de medida (L, kg, t, sc, mL, g)
-            custo_unitario: Custo por unidade em reais
-            area_ha: Área tratada em hectares
-            observacoes: Observações adicionais (máquina, operador, condições climáticas, etc.)
+            tipo_operacao: Tipo da operação — obrigatório. DEVE ser um dos valores abaixo.
+                Apresente as opções ao usuário agrupadas por categoria:
+
+                ** Preparação do Solo **
+                - prep_limpeza (Limpeza de Área)
+                - prep_aracao (Aração)
+                - prep_gradagem (Gradagem)
+                - prep_subsolagem (Subsolagem)
+                - prep_correcao (Correção do Solo)
+
+                ** Adubação **
+                - adub_base (Adubação de Base)
+                - adub_cobertura (Adubação de Cobertura)
+                - adub_foliar (Adubação Foliar)
+
+                ** Plantio **
+                - plant_dessecacao (Dessecação)
+                - plant_direto (Plantio Direto)
+                - plant_convencional (Plantio Convencional)
+
+                ** Tratos Culturais **
+                - trato_irrigacao (Irrigação)
+                - trato_poda (Poda)
+                - trato_desbaste (Desbaste)
+                - trato_amontoa (Amontoa)
+
+                ** Pulverização (Fitossanitário) **
+                - pulv_herbicida (Aplicação de Herbicida)
+                - pulv_fungicida (Aplicação de Fungicida)
+                - pulv_inseticida (Aplicação de Inseticida)
+                - pulv_pragas (Controle de Pragas)
+                - pulv_doencas (Controle de Doenças)
+                - pulv_daninhas (Controle de Plantas Daninhas)
+
+                ** Operações Mecânicas **
+                - mec_rocada (Roçada)
+                - mec_cultivo (Cultivo Mecânico)
+
+            trator: Nome do trator/equipamento autopropelido (opcional).
+                    Use consultar_maquinas para verificar nomes disponíveis.
+            implemento: Nome do implemento/reboque (opcional).
+                        Use consultar_maquinas para verificar nomes disponíveis.
+            produto_insumo: Nome do produto/insumo do estoque utilizado (opcional).
+                            Pergunte ao usuário se aplicável à operação.
+            quantidade_insumo: Quantidade do insumo utilizado (opcional).
+            observacoes: Observações adicionais (operador, condições climáticas, etc.)
         """
+        # ── Fuzzy resolve talhão ──────────────────────────────────────────
+        talhao_resolvido = talhao
+        if talhao:
+            nome_match, disponiveis = _fuzzy_resolve_talhao(
+                base_url, jwt_token, tenant_id, talhao,
+            )
+            if nome_match is None and disponiveis:
+                return json.dumps({
+                    "sucesso": False,
+                    "erro": f"Talhão '{talhao}' não encontrado. "
+                            f"Talhões disponíveis: {', '.join(disponiveis)}. "
+                            "Por favor, confirme o nome correto com o usuário.",
+                })
+            elif nome_match:
+                talhao_resolvido = nome_match
+
+        # ── Fuzzy resolve trator ──────────────────────────────────────────
+        trator_resolvido = trator
+        if trator:
+            nome_match, disponiveis = _fuzzy_resolve_maquina(
+                base_url, jwt_token, tenant_id, trator,
+            )
+            if nome_match is None and disponiveis:
+                return json.dumps({
+                    "sucesso": False,
+                    "erro": f"Trator '{trator}' não encontrado. "
+                            f"Equipamentos disponíveis: {', '.join(disponiveis)}. "
+                            "Por favor, confirme o nome correto.",
+                })
+            elif nome_match:
+                trator_resolvido = nome_match
+
+        # ── Fuzzy resolve implemento ──────────────────────────────────────
+        implemento_resolvido = implemento
+        if implemento:
+            nome_match, disponiveis = _fuzzy_resolve_maquina(
+                base_url, jwt_token, tenant_id, implemento,
+            )
+            if nome_match is None and disponiveis:
+                return json.dumps({
+                    "sucesso": False,
+                    "erro": f"Implemento '{implemento}' não encontrado. "
+                            f"Equipamentos disponíveis: {', '.join(disponiveis)}. "
+                            "Por favor, confirme o nome correto.",
+                })
+            elif nome_match:
+                implemento_resolvido = nome_match
+
+        draft = {
+            "safra": safra,
+            "talhao": talhao_resolvido,
+            "data_operacao": data_operacao,
+            "tipo_operacao": tipo_operacao,
+            "trator": trator_resolvido,
+            "implemento": implemento_resolvido,
+            "observacoes": observacoes,
+        }
+
+        if produto_insumo:
+            draft["produto_insumo"] = produto_insumo
+            draft["quantidade_insumo"] = quantidade_insumo
+
         return _post_action(
             base_url, jwt_token, tenant_id,
             module="agricultura",
             action_type="operacao_agricola",
-            draft_data={
-                "safra": safra,
-                "talhao": talhao,
-                "data_operacao": data_operacao,
-                "atividade": atividade,
-                "insumo": insumo,
-                "quantidade": quantidade,
-                "unidade": unidade,
-                "custo_unitario": custo_unitario,
-                "area_ha": area_ha,
-                "observacoes": observacoes,
-            },
+            draft_data=draft,
         )
 
     @tool
