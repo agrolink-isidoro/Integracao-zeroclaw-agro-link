@@ -379,6 +379,9 @@ class IsidoroAgent:
     O histórico de conversa é mantido por tenant/user na memória (em produção,
     usar Redis via django-channels + RedisChannelLayer).
 
+    _briefing_sent é class-level para persistir entre instâncias (cada
+    connect() do consumer cria uma nova instância).
+
     Args:
         base_url: URL base da API Agrolink (ex: "http://backend:8000/api")
         jwt_token: JWT do Isidoro com permissões de criar Actions
@@ -388,6 +391,10 @@ class IsidoroAgent:
         max_history: Máximo de mensagens no histórico por sessão
         tenant_id: UUID do tenant para isolamento de dados (IMPORTANTE para multi-tenancy)
     """
+
+    # Class-level: rastreia se o briefing completo já foi enviado hoje
+    # Chave = session_key (tenant:user), Valor = date string "YYYY-MM-DD"
+    _briefing_sent: dict[str, str] = {}
 
     def __init__(
         self,
@@ -424,10 +431,6 @@ class IsidoroAgent:
 
         # Histórico: chave = f"{tenant_id}:{user_id}"
         self._histories: dict[str, list] = {}
-
-        # Rastreia se o briefing completo já foi enviado hoje (por sessão)
-        # Chave = session_key, Valor = date string "YYYY-MM-DD"
-        self._briefing_sent: dict[str, str] = {}
 
     def _session_key(self, tenant_id: str, user_id: str) -> str:
         return f"{tenant_id}:{user_id}"

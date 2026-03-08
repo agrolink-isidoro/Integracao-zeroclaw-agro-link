@@ -352,6 +352,10 @@ const TypingIndicator: React.FC = () => (
 
 type ChatMode = 'closed' | 'widget' | 'modal';
 
+/** How many recent messages to show initially (older ones behind "load more") */
+const INITIAL_VISIBLE = 20;
+const LOAD_MORE_STEP = 20;
+
 const ChatWidget: React.FC = () => {
   const {
     chatMessages,
@@ -373,6 +377,21 @@ const ChatWidget: React.FC = () => {
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [pdfExporting, setPdfExporting] = useState(false);
+
+  // "Load more" pagination — shows only the N most recent messages
+  const [visibleCount, setVisibleCount] = useState(INITIAL_VISIBLE);
+  const totalMessages = chatMessages.length;
+  const hiddenCount = Math.max(0, totalMessages - visibleCount);
+  const visibleMessages = hiddenCount > 0 ? chatMessages.slice(hiddenCount) : chatMessages;
+
+  // Reset visible count when chat is opened (show recent) or messages cleared
+  useEffect(() => {
+    setVisibleCount(INITIAL_VISIBLE);
+  }, [mode, totalMessages === 0]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleLoadMore = useCallback(() => {
+    setVisibleCount((prev) => prev + LOAD_MORE_STEP);
+  }, []);
 
   // Auto-scroll & focus on open
   useEffect(() => {
@@ -555,7 +574,22 @@ const ChatWidget: React.FC = () => {
             </div>
           </div>
         )}
-        {chatMessages.map((msg) => (
+
+        {/* "Load more" button for older messages */}
+        {hiddenCount > 0 && (
+          <div className="text-center mb-3">
+            <button
+              className="btn btn-sm btn-outline-secondary rounded-pill px-3"
+              onClick={handleLoadMore}
+              style={{ fontSize: '0.72rem' }}
+            >
+              <i className="bi bi-clock-history me-1"></i>
+              Carregar mais ({hiddenCount} mensagens anteriores)
+            </button>
+          </div>
+        )}
+
+        {visibleMessages.map((msg) => (
           <MessageBubble
             key={msg.id}
             msg={msg}
