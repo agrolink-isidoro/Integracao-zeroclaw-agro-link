@@ -466,6 +466,8 @@ class IsidoroChatConsumer(AsyncWebsocketConsumer):
             api_key=getattr(settings, "ISIDORO_API_KEY", None),
             llm_base_url=getattr(settings, "ISIDORO_LLM_BASE_URL", None),
             tenant_id=self.tenant_id,  # IMPORTANTE: passar tenant_id para isolar dados
+            google_cse_api_key=getattr(settings, "GOOGLE_CSE_API_KEY", None),
+            google_cse_cx=getattr(settings, "GOOGLE_CSE_CX", None),
         )
 
     def _get_isidoro_jwt(self) -> str:

@@ -238,62 +238,192 @@ class UploadedFileViewSet(TenantQuerySetMixin, viewsets.ModelViewSet):
         return Response(data)
 
 
-    # ----------------------- Google CSE search helper -----------------------
-    class GoogleSearchSerializer(serializers.Serializer):
-        query = serializers.CharField(max_length=512)
-        max_results = serializers.IntegerField(default=5, min_value=1, max_value=10)
+# ---------------------------------------------------------------------------#
+#  Isidoro — Análise Inteligente via Google CSE + RAG (LLM)                  #
+# ---------------------------------------------------------------------------#
+
+_RAG_SYSTEM_PROMPT = """Você é o Isidoro, assistente agrícola especialista em agronomia e manejo.
+Sua tarefa é analisar produtos fitossanitários, defensivos agrícolas ou insumos e ajudar o
+usuário a tomar a melhor decisão de custo-eficiência, sempre respeitando a recomendação
+técnica do agrônomo responsável.
+
+Ao analisar produtos você deve:
+1. Identificar diferenças técnicas relevantes (princípio ativo, concentração, modo de ação,
+   classe toxicológica, intervalo de segurança, compatibilidade de calda, custo/ha).
+2. Apontar vantagens e desvantagens de cada opção.
+3. Propor uma recomendação intermediária custo-eficiente quando houver substitutos.
+4. Sempre alertar que a decisão final deve ser validada pelo AGRÔNOMO RESPONSÁVEL,
+   pois pode envolver registro do produto, restrições de uso e receituário agronômico.
+5. Incluir citações numeradas no formato [N] para cada informação baseada em fonte.
+6. Responda em Português do Brasil, de forma técnica mas acessível.
+
+Formato da resposta (JSON válido):
+{
+  "resumo": "análise executiva em 2-3 frases",
+  "comparativo": [
+    {
+      "produto": "nome do produto",
+      "pontos_fortes": ["..."],
+      "pontos_fracos": ["..."],
+      "custo_relativo": "alto|médio|baixo",
+      "adequacao": "recomendado|substituto aceitável|não recomendado"
+    }
+  ],
+  "recomendacao": "texto com a recomendação custo-eficiente, citando fontes com [N]",
+  "avisos": ["lista de ressalvas importantes"],
+  "advisory": "⚠️ Esta análise é informativa. Consulte o agrônomo responsável antes de substituir ou alterar qualquer produto recomendado tecnicamente."
+}"""
+
+_RAG_USER_TEMPLATE = """Consulta do usuário: {query}
+
+Contexto adicional:
+- Cultura/safra: {cultura}
+- Produtos em análise: {produtos}
+
+Fontes de referência encontradas na web (use para embasar a análise com citações [N]):
+{snippets}
+
+Responda com o JSON solicitado."""
 
 
-    def _google_cse_search(query: str, max_results: int = 5):
-        """Perform a Google Custom Search (JSON API) query and normalize results.
-
-        Expects `GOOGLE_CSE_API_KEY` and `GOOGLE_CSE_CX` in Django settings or env.
-        """
-        api_key = getattr(settings, 'GOOGLE_CSE_API_KEY', None)
-        cse_cx = getattr(settings, 'GOOGLE_CSE_CX', None)
-        if not api_key or not cse_cx:
-            raise RuntimeError('Google CSE not configured (GOOGLE_CSE_API_KEY / GOOGLE_CSE_CX)')
-
-        url = 'https://www.googleapis.com/customsearch/v1'
-        params = {
-            'key': api_key,
-            'cx': cse_cx,
-            'q': query,
-            'num': max_results,
-        }
-        resp = requests.get(url, params=params, timeout=10)
-        resp.raise_for_status()
-        data = resp.json()
-
-        items = []
-        for it in data.get('items', []):
-            items.append({
-                'title': it.get('title'),
-                'link': it.get('link'),
-                'snippet': it.get('snippet'),
-                'displayLink': it.get('displayLink'),
-                'cachedId': it.get('cacheId'),
-            })
-        return {'query': query, 'results': items}
+class _ProductAnalysisSerializer(serializers.Serializer):
+    query = serializers.CharField(max_length=1024, help_text="Pergunta ou contexto da busca")
+    produtos = serializers.ListField(
+        child=serializers.CharField(max_length=200),
+        required=False, default=list,
+        help_text="Lista de produtos a comparar (nomes/marcas/princípios ativos)",
+    )
+    cultura = serializers.CharField(max_length=200, required=False, default="")
+    max_results = serializers.IntegerField(default=5, min_value=1, max_value=10)
 
 
-    class GoogleSearchAPIView(APIView):
-        """POST /api/actions/isidoro-search/ — run Google CSE and return normalized hits.
+def _run_google_cse(query: str, max_results: int):
+    """Chama Google Custom Search JSON API. Retorna lista de {title, link, snippet}."""
+    api_key = getattr(settings, 'GOOGLE_CSE_API_KEY', '')
+    cse_cx = getattr(settings, 'GOOGLE_CSE_CX', '')
+    if not api_key or not cse_cx:
+        raise RuntimeError(
+            'Google CSE não configurado. Defina GOOGLE_CSE_API_KEY e GOOGLE_CSE_CX no .env'
+        )
+    resp = requests.get(
+        'https://www.googleapis.com/customsearch/v1',
+        params={'key': api_key, 'cx': cse_cx, 'q': query, 'num': max_results},
+        timeout=10,
+    )
+    resp.raise_for_status()
+    return [
+        {'title': it.get('title', ''), 'link': it.get('link', ''), 'snippet': it.get('snippet', '')}
+        for it in resp.json().get('items', [])
+    ]
 
-        Body: { "query": "texto de busca", "max_results": 5 }
-        """
-        permission_classes = [permissions.IsAuthenticated]
 
-        def post(self, request):
-            serializer = GoogleSearchSerializer(data=request.data or {})
-            serializer.is_valid(raise_exception=True)
-            q = serializer.validated_data['query']
-            maxr = serializer.validated_data['max_results']
+def _call_llm_rag(query: str, produtos: list, cultura: str, cse_items: list) -> dict:
+    """Monta o prompt RAG e chama o LLM (Gemini/OpenAI-compat). Retorna dict."""
+    snippets_text = "\n".join(
+        f"[{i+1}] {it['title']}\n    URL: {it['link']}\n    {it['snippet']}"
+        for i, it in enumerate(cse_items)
+    )
+    user_msg = _RAG_USER_TEMPLATE.format(
+        query=query,
+        cultura=cultura or "não informada",
+        produtos=", ".join(produtos) if produtos else "não especificados",
+        snippets=snippets_text or "Nenhuma fonte encontrada — baseie-se no seu conhecimento agrícola.",
+    )
 
-            try:
-                resp = _google_cse_search(q, maxr)
-            except Exception as exc:
-                logger.exception('Google CSE search failed: %s', exc)
-                return Response({'detail': 'search_failed', 'error': str(exc)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    api_key = getattr(settings, 'ISIDORO_API_KEY', '')
+    base_url = getattr(settings, 'ISIDORO_LLM_BASE_URL', 'https://generativelanguage.googleapis.com/v1beta/openai/')
+    model = getattr(settings, 'ISIDORO_LLM_MODEL', 'gemini-2.5-flash')
 
-            return Response(resp)
+    import json as _json
+    resp = requests.post(
+        base_url.rstrip('/') + '/chat/completions',
+        headers={'Authorization': f'Bearer {api_key}', 'Content-Type': 'application/json'},
+        json={
+            'model': model,
+            'temperature': 0.2,
+            'messages': [
+                {'role': 'system', 'content': _RAG_SYSTEM_PROMPT},
+                {'role': 'user', 'content': user_msg},
+            ],
+            'response_format': {'type': 'json_object'},
+        },
+        timeout=45,
+    )
+    resp.raise_for_status()
+    content = resp.json()['choices'][0]['message']['content']
+    try:
+        return _json.loads(content)
+    except Exception:
+        # Fallback: wrap raw string
+        return {'resumo': content, 'comparativo': [], 'recomendacao': content,
+                'avisos': [], 'advisory': _RAG_SYSTEM_PROMPT.split('\n')[-1]}
+
+
+class GoogleSearchAPIView(APIView):
+    """
+    POST /api/actions/isidoro-search/
+
+    Executa busca no Google CSE e alimenta o LLM (Isidoro/Gemini) para produzir
+    análise agronômica custo-eficiente com citações e aviso de agrônomo.
+
+    Body:
+      {
+        "query": "texto livre da dúvida ou produto",
+        "produtos": ["Roundup", "Glifosato 480", "Glifazin"],   // opcional
+        "cultura": "soja",                                       // opcional
+        "max_results": 5
+      }
+
+    Response:
+      {
+        "resumo": "...",
+        "comparativo": [...],
+        "recomendacao": "...",
+        "avisos": [...],
+        "advisory": "⚠️ Consulte o agrônomo...",
+        "citations": [{"id":1, "title":"...", "url":"...", "snippet":"..."}],
+        "search_query": "..."
+      }
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        ser = _ProductAnalysisSerializer(data=request.data or {})
+        ser.is_valid(raise_exception=True)
+        d = ser.validated_data
+
+        query = d['query']
+        produtos = d['produtos']
+        cultura = d['cultura']
+        max_results = d['max_results']
+
+        # Enriquece a query com nomes dos produtos se fornecidos
+        search_query = query
+        if produtos:
+            search_query = f"{query} {' '.join(produtos[:3])} agronomia"
+
+        try:
+            cse_items = _run_google_cse(search_query, max_results)
+        except RuntimeError as exc:
+            return Response({'detail': str(exc)}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+        except Exception as exc:
+            logger.exception('Google CSE error: %s', exc)
+            return Response({'detail': f'Erro na busca: {exc}'}, status=status.HTTP_502_BAD_GATEWAY)
+
+        try:
+            analysis = _call_llm_rag(query, produtos, cultura, cse_items)
+        except Exception as exc:
+            logger.exception('LLM RAG error: %s', exc)
+            return Response({'detail': f'Erro na análise LLM: {exc}'}, status=status.HTTP_502_BAD_GATEWAY)
+
+        citations = [
+            {'id': i + 1, 'title': it['title'], 'url': it['link'], 'snippet': it['snippet']}
+            for i, it in enumerate(cse_items)
+        ]
+
+        logger.info(
+            'isidoro-search: user=%s query=%r produtos=%r citations=%d',
+            request.user, query, produtos, len(citations),
+        )
+
+        return Response({**analysis, 'citations': citations, 'search_query': search_query})

@@ -3,7 +3,7 @@
 from django.urls import path, include
 from rest_framework.routers import SimpleRouter
 
-from .views import ActionViewSet, UploadedFileViewSet
+from .views import ActionViewSet, UploadedFileViewSet, GoogleSearchAPIView
 
 app_name = "actions"
 
@@ -18,6 +18,5 @@ actions_router.register(r"", ActionViewSet, basename="action")
 urlpatterns = [
     path("", include(uploads_router.urls)),
     path("", include(actions_router.urls)),
-    # Isidoro web-search integration (Google CSE)
-    path("isidoro-search/", __import__("apps.actions.views", fromlist=[""]).views.GoogleSearchAPIView.as_view(), name="isidoro-search"),
+    path("isidoro-search/", GoogleSearchAPIView.as_view(), name="isidoro-search"),
 ]

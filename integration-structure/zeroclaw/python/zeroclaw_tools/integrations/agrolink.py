@@ -41,10 +41,58 @@ from typing import Optional
 from zoneinfo import ZoneInfo
 
 import httpx
+import os as _os
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 
 from ..agent import ZeroclawAgent
 from ..tools.agrolink_tools import get_agrolink_tools
+
+# ── Detecção: dúvida sobre produtos fitossanitários / defensivos ─────────────
+_PRODUCT_KEYWORDS = re.compile(
+    r"\b("
+    r"produto|defensivo|herbicida|fungicida|inseticida|acaricida|nematicida"
+    r"|princ[íi]pio\s+ativo|ingrediente\s+ativo|p\.a\.|formulac[aã]o"
+    r"|glifosato|roundup|24-d|atrazina|azoxistrobina|tebuconazol|mancozebe"
+    r"|imidacloprido|lambda.cialotrina|clorpirif[oó]s|betaciflutr|carbendazim"
+    r"|substitut[oa]|similar|gen[eé]rico|equivalente|alternativ[ao]"
+    r"|compara[rç]|comparativo|qual.*melhor|mais.*barato|mais.*eficiente"
+    r"|custo.eficien|custo.benef[íi]cio|relac[aã]o\s+custo"
+    r"|posso\s+usar|pode\s+substituir|troca|trocar|usar\s+no\s+lugar"
+    r"|recomendac[aã]o.*agr[oô]nomo|dose|dosagem|bula|receituário"
+    r")\b",
+    re.IGNORECASE | re.UNICODE,
+)
+
+
+def _is_product_analysis(text: str) -> bool:
+    """Retorna True se a mensagem parece ser sobre análise/comparação de produtos."""
+    return bool(_PRODUCT_KEYWORDS.search(text))
+
+
+async def _fetch_web_snippets(
+    query: str,
+    api_key: str,
+    cse_cx: str,
+    max_results: int = 5,
+) -> list[dict]:
+    """Busca Google CSE e retorna lista de {title, link, snippet}."""
+    if not api_key or not cse_cx:
+        return []
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.get(
+                "https://www.googleapis.com/customsearch/v1",
+                params={"key": api_key, "cx": cse_cx, "q": query, "num": max_results},
+            )
+            resp.raise_for_status()
+            data = resp.json()
+        return [
+            {"title": it.get("title", ""), "link": it.get("link", ""), "snippet": it.get("snippet", "")}
+            for it in data.get("items", [])
+        ]
+    except Exception as exc:
+        logger.warning("_fetch_web_snippets failed: %s", exc)
+        return []
 
 logger = logging.getLogger(__name__)
 
@@ -185,6 +233,18 @@ Você ajuda produtores rurais a registrar operações do cotidiano da fazenda:
 - Agricultura: safras, colheitas, operações agrícolas, manejos, ordens de serviço
 - Estoque: produtos, entradas, saídas, movimentações internas
 - Máquinas: equipamentos, ordens de serviço de manutenção, registros de manutenção
+
+ANÁLISE DE PRODUTOS AGRÍCOLAS (defensivos, insumos, fertilizantes):
+Quando o usuário perguntar sobre produtos, defensivos, herbicidas, fungicidas, inseticidas,
+alternativas, substitutos, comparativos de custo ou eficiência:
+- Analise os produtos com base nas informações disponíveis e nas INFORMAÇÕES DA WEB injetadas no contexto.
+- Apresente um comparativo técnico: princípio ativo, concentração, modo de ação, dose, custo relativo,
+  classe toxicológica, intervalo de segurança, pontos fortes e fracos de cada opção.
+- Sugira a alternativa mais custo-eficiente quando houver substitutos, mas documente as diferenças.
+- Cite as fontes consultadas com [N] ao longo do texto e liste-as ao final: "Fontes: [1] URL …"
+- SEMPRE encerre análises de produtos com este aviso:
+  "⚠️ Recomendação técnica para avaliação. Consulte o agrônomo responsável antes de substituir
+   ou alterar qualquer produto prescrito — pode envolver receituário agronômico e registro do produto."
 
 REGRAS FUNDAMENTAIS:
 1. Você NUNCA grava dados diretamente. Toda ação cria um "draft" para aprovação humana.
@@ -406,13 +466,23 @@ class IsidoroAgent:
         temperature: float = 0.3,
         max_history: int = 20,
         tenant_id: str = "",
+        google_cse_api_key: Optional[str] = None,
+        google_cse_cx: Optional[str] = None,
     ):
         self.base_url = base_url
         self.jwt_token = jwt_token
         self.model = model
         self.max_history = max_history
         self.tenant_id = tenant_id
-        
+        self._cse_api_key = (
+            google_cse_api_key
+            or _os.environ.get("GOOGLE_CSE_API_KEY", "")
+        )
+        self._cse_cx = (
+            google_cse_cx
+            or _os.environ.get("GOOGLE_CSE_CX", "")
+        )
+
         logger.info(
             "IsidoroAgent.__init__: tenant_id=%s base_url=%s",
             tenant_id, base_url
@@ -528,7 +598,42 @@ class IsidoroAgent:
             )
             history.append(SystemMessage(content=system_content))
 
-        # ── PRÉ-FETCH OBRIGATÓRIO: detecta operação agrícola e busca safras ──
+        # ── PRÉ-FETCH 1: detecta análise de produtos → busca Google CSE ────────
+        web_context_injected = False
+        if _is_product_analysis(user_message) and (self._cse_api_key and self._cse_cx):
+            search_query = f"{user_message.strip()} produto agrícola defensivo agronomia"
+            snippets = await _fetch_web_snippets(
+                search_query, self._cse_api_key, self._cse_cx, max_results=6
+            )
+            if snippets:
+                snippets_text = "\n".join(
+                    f"[{i+1}] {s['title']}\n    URL: {s['link']}\n    {s['snippet']}"
+                    for i, s in enumerate(snippets)
+                )
+                web_injection = SystemMessage(content=(
+                    "═══════════════════════════════════════════════════\n"
+                    "INFORMAÇÕES DA WEB — PESQUISA GOOGLE (consultado agora)\n"
+                    "═══════════════════════════════════════════════════\n"
+                    f"{snippets_text}\n"
+                    "═══════════════════════════════════════════════════\n"
+                    "INSTRUÇÃO: O usuário está perguntando sobre produtos agrícolas.\n"
+                    "Use as fontes acima para embasar sua resposta.\n"
+                    "Ao citar uma informação, referencie a fonte com [N] (ex: [1], [2]).\n"
+                    "Ao final das citações, inclua a lista: Fontes: [1] URL, [2] URL, etc.\n"
+                    "SEMPRE encerre com o aviso: \n"
+                    "'⚠️ Recomendação técnica para avaliação. Consulte o agrônomo responsável "
+                    "antes de substituir ou alterar qualquer produto prescrito — pode envolver "
+                    "receituário agronômico e registro do produto.'\n"
+                    "═══════════════════════════════════════════════════"
+                ))
+                history.append(web_injection)
+                web_context_injected = True
+                logger.info(
+                    "Isidoro web-search injected: tenant=%s user=%s sources=%d",
+                    tenant_id, user_id, len(snippets),
+                )
+
+        # ── PRÉ-FETCH 2: detecta operação agrícola e busca safras ──────────────
         # NÃO depende do LLM chamar a ferramenta — fazemos a chamada em Python
         # e injetamos o resultado no contexto ANTES de o LLM ver a mensagem.
         safra_context_injected = False
@@ -659,6 +764,8 @@ class IsidoroAgent:
             _remove_markers.append("DADOS DO SISTEMA — SAFRAS ATIVAS")
         if confirmation_injected:
             _remove_markers.append("AÇÃO OBRIGATÓRIA — EXECUTE AGORA")
+        if web_context_injected:
+            _remove_markers.append("INFORMAÇÕES DA WEB — PESQUISA GOOGLE")
         if _remove_markers:
             history[:] = [
                 m for m in history

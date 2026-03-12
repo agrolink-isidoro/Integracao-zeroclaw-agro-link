@@ -78,6 +78,9 @@ ASGI_APPLICATION = "sistema_agropecuario.asgi.application"
 
 # Configurações do Isidoro (ZeroClaw Agent)
 AGROLINK_API_URL = os.environ.get("AGROLINK_API_URL", "http://backend:8000/api")
+# Google Custom Search – Isidoro web analysis
+GOOGLE_CSE_API_KEY = os.environ.get("GOOGLE_CSE_API_KEY", "")
+GOOGLE_CSE_CX = os.environ.get("GOOGLE_CSE_CX", "")
 ISIDORO_LLM_MODEL = os.environ.get("ISIDORO_LLM_MODEL", "gemini-2.5-flash")
 ISIDORO_API_KEY = os.environ.get("ISIDORO_API_KEY", "")
 ISIDORO_LLM_BASE_URL = os.environ.get(
