@@ -596,8 +596,9 @@ class ChatPDFExportView(APIView):
             # Generate PDF via WeasyPrint
             pdf_bytes = HTML(string=html_str).write_pdf()
 
-            # Return as file download
-            response = Response(
+            # Return as file download (use Django HttpResponse for binary data)
+            from django.http import HttpResponse as DjangoHttpResponse
+            response = DjangoHttpResponse(
                 pdf_bytes,
                 content_type='application/pdf',
             )

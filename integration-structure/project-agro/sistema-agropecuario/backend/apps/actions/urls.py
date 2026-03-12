@@ -16,8 +16,11 @@ actions_router = SimpleRouter()
 actions_router.register(r"", ActionViewSet, basename="action")
 
 urlpatterns = [
-    path("", include(uploads_router.urls)),
-    path("", include(actions_router.urls)),
+    # Explicit paths MUST come before the catch-all ActionViewSet router
+    # (registered at r"") whose detail pattern ^<pk>/$ would otherwise
+    # swallow slugs like "chat-pdf-export" and "isidoro-search".
     path("isidoro-search/", GoogleSearchAPIView.as_view(), name="isidoro-search"),
     path("chat-pdf-export/", ChatPDFExportView.as_view(), name="chat-pdf-export"),
+    path("", include(uploads_router.urls)),
+    path("", include(actions_router.urls)),
 ]

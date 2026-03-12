@@ -59,6 +59,7 @@ vine==5.1.0
 wcwidth==0.2.14
 wheel==0.45.1
 WeasyPrint==60.1
+pydyf==0.9.0
 xsdata==25.7
 signxml==4.2.2
 
