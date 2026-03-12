@@ -28,7 +28,7 @@ class ActionSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = [
             "id", "status", "aprovado_por", "aprovado_em",
-            "executado_em", "resultado_execucao",
+            "executado_em", "resultado_execucao", "tenant",
         ]
 
     def get_criado_por_nome(self, obj):

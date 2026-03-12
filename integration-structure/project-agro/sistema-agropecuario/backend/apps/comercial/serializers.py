@@ -63,7 +63,7 @@ class FornecedorSerializer(serializers.ModelSerializer):
 
             'criado_por', 'criado_por_nome', 'criado_em', 'atualizado_em'
         ]
-        read_only_fields = ['criado_por', 'criado_em', 'atualizado_em', 'total_compras', 'ultima_compra', 'documentos_pendentes', 'documentos_vencendo_count', 'documentos_vencidos_count']
+        read_only_fields = ['criado_por', 'criado_em', 'atualizado_em', 'total_compras', 'ultima_compra', 'documentos_pendentes', 'documentos_vencendo_count', 'documentos_vencidos_count', 'tenant']
 
     def get_documentos_vencendo_count(self, obj):
         return obj.documentos_vencendo().count()

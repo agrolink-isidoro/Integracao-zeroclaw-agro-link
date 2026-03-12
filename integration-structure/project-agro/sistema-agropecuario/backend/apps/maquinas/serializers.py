@@ -107,7 +107,7 @@ class EquipamentoSerializer(serializers.ModelSerializer):
         read_only_fields = [
             'criado_em', 'atualizado_em', 
             'idade_equipamento', 'depreciacao_estimada',
-            'tipo_mobilidade', 'e_autopropelido', 'e_estacionario', 'e_implemento'
+            'tipo_mobilidade', 'e_autopropelido', 'e_estacionario', 'e_implemento', 'tenant'
         ]
 
     def validate(self, data):

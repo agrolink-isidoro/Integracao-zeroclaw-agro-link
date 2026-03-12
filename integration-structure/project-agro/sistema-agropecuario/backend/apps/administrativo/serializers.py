@@ -6,6 +6,7 @@ class CentroCustoSerializer(serializers.ModelSerializer):
     class Meta:
         model = CentroCusto
         fields = ['id', 'codigo', 'nome', 'descricao', 'categoria', 'ativo', 'pai', 'criado_por']
+        read_only_fields = ['tenant']
 
 
 class DespesaAdministrativaSerializer(serializers.ModelSerializer):

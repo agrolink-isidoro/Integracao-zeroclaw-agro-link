@@ -19,7 +19,7 @@ class ProprietarioSerializer(serializers.ModelSerializer):
     class Meta:
         model = Proprietario
         fields = ["id", "nome", "cpf_cnpj", "telefone", "email", "endereco"]
-        read_only_fields = ["id"]
+        read_only_fields = ["id", "tenant"]
 
     def validate_cpf_cnpj(self, value):
         """Valida CPF ou CNPJ."""

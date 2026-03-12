@@ -28,6 +28,10 @@ class CulturaViewSet(TenantQuerySetMixin, viewsets.ModelViewSet):
     ordering_fields = ['nome', 'ciclo_dias', 'criado_em']
     ordering = ['nome']
 
+    def perform_create(self, serializer):
+        """Automatically assign tenant on creation"""
+        serializer.save(tenant=self.request.user.tenant)
+
 
 class PlantioViewSet(TenantQuerySetMixin, viewsets.ModelViewSet):
     """ViewSet para Plantio com relacionamentos otimizados"""

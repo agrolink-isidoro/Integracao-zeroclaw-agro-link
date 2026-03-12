@@ -466,8 +466,7 @@ class ContaBancariaSerializer(serializers.ModelSerializer):
     class Meta:
         model = __import__('apps.financeiro.models', fromlist=['ContaBancaria']).ContaBancaria
         fields = ['id', 'banco', 'agencia', 'conta', 'tipo', 'moeda', 'saldo_inicial', 'current_balance', 'reconciled_count', 'ativo', 'criado_em']
-        read_only_fields = ['id', 'criado_em']
-        read_only_fields = ['id', 'criado_em', 'raw_payload']
+        read_only_fields = ['id', 'criado_em', 'raw_payload', 'tenant']
 
     def get_current_balance(self, obj):
         try:

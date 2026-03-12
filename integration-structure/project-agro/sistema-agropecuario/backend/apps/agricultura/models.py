@@ -6,7 +6,7 @@ from apps.estoque.models import Produto
 from apps.core.models import CustomUser
 
 
-class Cultura(models.Model):
+class Cultura(TenantModel):
     TIPO_CHOICES = [
         ('graos', 'Grãos'),
         ('hortalicas', 'Hortaliças'),
@@ -21,7 +21,7 @@ class Cultura(models.Model):
         ('caixa', 'Caixa / Unidade'),
     ]
 
-    nome = models.CharField(max_length=100, unique=True)
+    nome = models.CharField(max_length=100)
     descricao = models.TextField(null=True, blank=True)
     tipo = models.CharField(max_length=20, choices=TIPO_CHOICES, default='graos', verbose_name="Tipo")
     ciclo_dias = models.PositiveIntegerField(null=True, blank=True, verbose_name="Ciclo em dias")  # Dias para colheita
@@ -45,6 +45,7 @@ class Cultura(models.Model):
         verbose_name = "Cultura"
         verbose_name_plural = "Culturas"
         ordering = ['nome']
+        unique_together = [('tenant', 'nome')]
 
     def __str__(self):
         return self.nome

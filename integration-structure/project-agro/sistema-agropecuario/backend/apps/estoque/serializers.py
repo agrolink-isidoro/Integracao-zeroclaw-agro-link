@@ -113,7 +113,7 @@ class ProdutoSerializer(serializers.ModelSerializer):
             'saldo_atual', 'alerta_baixo', 'lotes',
             'criado_por', 'criado_por_nome', 'criado_em', 'atualizado_em'
         ]
-        read_only_fields = ['criado_por', 'criado_em', 'atualizado_em', 'saldo_atual', 'alerta_baixo']
+        read_only_fields = ['criado_por', 'criado_em', 'atualizado_em', 'saldo_atual', 'alerta_baixo', 'tenant']
 
     def validate(self, data):
         """Validações gerais do produto"""

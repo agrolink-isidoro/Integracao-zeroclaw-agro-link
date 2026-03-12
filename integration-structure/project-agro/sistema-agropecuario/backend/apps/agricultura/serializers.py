@@ -10,6 +10,7 @@ class CulturaSerializer(serializers.ModelSerializer):
     class Meta:
         model = Cultura
         fields = '__all__'
+        read_only_fields = ['tenant']
 
 
 class TalhaoVariedadeSerializer(serializers.Serializer):
