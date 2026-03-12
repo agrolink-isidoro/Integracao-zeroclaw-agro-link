@@ -22,6 +22,7 @@ interface MenuItem {
 
 const allMenuItems: MenuItem[] = [
   { name: 'Dashboard', path: '/', icon: 'bi-house-door', rbacModule: 'dashboard' },
+  { name: 'Isidoro IA', path: '/actions', icon: 'bi-robot', rbacModule: 'actions', title: 'Fila de ações geradas por IA' },
   { name: 'Central de Inteligência', path: '/dashboard/inteligencia', icon: 'bi-lightbulb-fill', rbacModule: 'dashboard', title: 'Visão consolidada da propriedade' },
   {
     name: 'Fazendas',
@@ -88,7 +89,6 @@ const allMenuItems: MenuItem[] = [
   },
   { name: 'Administrativo', path: '/administrativo', icon: 'bi-people', rbacModule: 'administrativo' },
   { name: 'Fiscal', path: '/fiscal', icon: 'bi-receipt', rbacModule: 'fiscal' },
-  { name: 'Isidoro IA', path: '/actions', icon: 'bi-robot', rbacModule: 'actions', title: 'Fila de ações geradas por IA' },
 ];
 
 const Sidebar: React.FC = () => {

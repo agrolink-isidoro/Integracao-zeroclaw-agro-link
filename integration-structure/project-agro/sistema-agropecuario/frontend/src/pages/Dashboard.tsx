@@ -9,6 +9,7 @@ import {
   MODULE_LABELS,
   type ActionType,
 } from '../services/actions';
+import PendingActivitiesTable from '../components/PendingActivitiesTable';
 
 interface DashboardResumo {
   kpis: {
@@ -282,6 +283,9 @@ const Dashboard: React.FC = () => {
         {/* Right column — Modules */}
         <div className="col-lg-8">
 
+          {/* Pending activities consolidated table */}
+          <PendingActivitiesTable />
+
           {/* Quick Access Modules */}
           <h6 className="text-muted text-uppercase fw-semibold mb-3" style={{ fontSize: '0.75rem', letterSpacing: '0.05em' }}>
             <i className="bi bi-grid-3x3-gap me-2"></i>Acesso Rápido
@@ -310,6 +314,8 @@ const Dashboard: React.FC = () => {
               </div>
             ))}
           </div>
+
+          
         </div>
       </div>
     </div>
