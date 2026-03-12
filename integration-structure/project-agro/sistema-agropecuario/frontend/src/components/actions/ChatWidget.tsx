@@ -30,18 +30,21 @@ function isReportMessage(text: string): boolean {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// PDF Export — WeasyPrint (selectable text) via backend
+// PDF Export — WeasyPrint Server-side (selectable text) — ONLY METHOD
 // ─────────────────────────────────────────────────────────────────────────────
 
-async function exportMessageToPdfServer(
+/**
+ * Export chat message to PDF via WeasyPrint server endpoint.
+ * Generates text-selectable PDFs (not image-based).
+ * This is the ONLY PDF export method available.
+ */
+async function exportMessageToPdf(
   messageElement: HTMLElement,
   title: string = 'Relatório Isidoro'
 ) {
   try {
-    // Get the HTML content of the message with minimal cleanup
     const htmlContent = messageElement.innerHTML;
 
-    // Call the backend endpoint
     const response = await fetch('/api/actions/chat-pdf-export/', {
       method: 'POST',
       headers: {
@@ -58,7 +61,6 @@ async function exportMessageToPdfServer(
       throw new Error(errorData.detail || `HTTP ${response.status}`);
     }
 
-    // Download the PDF
     const blob = await response.blob();
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -69,88 +71,11 @@ async function exportMessageToPdfServer(
     window.URL.revokeObjectURL(url);
     document.body.removeChild(a);
 
-    console.log(`✓ PDF exportado: ${a.download}`);
+    console.log(`✓ PDF exportado via WeasyPrint: ${a.download}`);
   } catch (error) {
-    console.error('Erro ao exportar PDF (server-side):', error);
-    // Fallback to client-side if server fails
-    await exportMessageToPdfClient(messageElement, title);
+    console.error('❌ Erro ao exportar PDF:', error);
+    alert(`Erro ao gerar PDF: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
   }
-}
-
-/**
- * Fallback: Client-side PDF export using html2canvas + jsPDF (image-based).
- * Used only if server-side export fails.
- */
-async function exportMessageToPdfClient(messageElement: HTMLElement, title: string = 'Relatório Isidoro') {
-  const { default: jsPDF } = await import('jspdf');
-  const { default: html2canvas } = await import('html2canvas');
-
-  // Clone and style for printing
-  const clone = messageElement.cloneNode(true) as HTMLElement;
-  clone.style.width = '700px';
-  clone.style.padding = '32px';
-  clone.style.background = '#fff';
-  clone.style.color = '#1a1a1a';
-  clone.style.fontSize = '13px';
-  clone.style.lineHeight = '1.7';
-  clone.style.position = 'fixed';
-  clone.style.left = '-9999px';
-  clone.style.top = '0';
-  document.body.appendChild(clone);
-
-  try {
-    const canvas = await html2canvas(clone, { scale: 2, useCORS: true, backgroundColor: '#ffffff' });
-    const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-
-    const pageWidth = pdf.internal.pageSize.getWidth();
-    const pageHeight = pdf.internal.pageSize.getHeight();
-    const margin = 10;
-    const imgWidth = pageWidth - margin * 2;
-    const imgHeight = (canvas.height * imgWidth) / canvas.width;
-
-    // Header
-    pdf.setFontSize(8);
-    pdf.setTextColor(150);
-    pdf.text(`${title}  —  ${new Date().toLocaleDateString('pt-BR')}`, margin, 7);
-
-    let yPos = 12;
-    let remainingHeight = imgHeight;
-    let sourceY = 0;
-
-    while (remainingHeight > 0) {
-      const availableHeight = pageHeight - yPos - margin;
-      const sliceHeight = Math.min(remainingHeight, availableHeight);
-      const sliceCanvasHeight = (sliceHeight / imgHeight) * canvas.height;
-
-      // Create a slice of the canvas
-      const sliceCanvas = document.createElement('canvas');
-      sliceCanvas.width = canvas.width;
-      sliceCanvas.height = sliceCanvasHeight;
-      const ctx = sliceCanvas.getContext('2d')!;
-      ctx.drawImage(canvas, 0, sourceY, canvas.width, sliceCanvasHeight, 0, 0, canvas.width, sliceCanvasHeight);
-
-      const sliceData = sliceCanvas.toDataURL('image/png');
-      pdf.addImage(sliceData, 'PNG', margin, yPos, imgWidth, sliceHeight);
-
-      remainingHeight -= sliceHeight;
-      sourceY += sliceCanvasHeight;
-
-      if (remainingHeight > 0) {
-        pdf.addPage();
-        yPos = margin;
-      }
-    }
-
-    pdf.save(`${title.replace(/\s+/g, '_')}_${new Date().toISOString().slice(0, 10)}.pdf`);
-    console.log(`✓ PDF exportado (fallback client-side): ${title.replace(/\s+/g, '_')}`);
-  } finally {
-    document.body.removeChild(clone);
-  }
-}
-
-// Primary export function: try server-side first, fallback to client-side
-async function exportMessageToPdf(messageElement: HTMLElement, title: string = 'Relatório Isidoro') {
-  await exportMessageToPdfServer(messageElement, title);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
