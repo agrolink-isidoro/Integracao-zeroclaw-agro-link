@@ -251,6 +251,9 @@ class IsidoroChatConsumer(AsyncWebsocketConsumer):
                     "Cleared Isidoro history for new session: "
                     "tenant_id=%s user_id=%s", self.tenant_id, self.user_id
                 )
+                # Recarrega arquivos enviados anteriormente nesta sessão
+                # para que o Isidoro se lembre das cotações, PDFs, etc.
+                await self._restore_uploaded_files_context()
         except (ValueError, Exception) as exc:
             logger.error("Falha ao inicializar Isidoro agent: %s", exc)
             self.isidoro = None
@@ -414,6 +417,60 @@ class IsidoroChatConsumer(AsyncWebsocketConsumer):
 
         logger.info("Upload processed: upload_id=%s module=%s filename=%s content_chars=%d",
                     upload_id, module, filename, len(file_content))
+
+    async def _restore_uploaded_files_context(self):
+        """
+        Recarrega os arquivos enviados nas últimas 30 sessões/dias para que
+        o Isidoro recorde cotações, PDFs e outros documentos em novas conexões.
+        """
+        if not self.isidoro:
+            return
+        uploads = await self._get_recent_uploads()
+        tenant_nome = getattr(self.tenant, "nome", "Sua Fazenda")
+        restored = 0
+        for upload in uploads:
+            path = upload.caminho_arquivo or ""
+            if not path or not os.path.exists(path):
+                continue
+            file_content = _extract_text_from_file(
+                path=path,
+                mime_type=upload.mime_type or "",
+                filename=upload.nome_original or "arquivo",
+            )
+            self.isidoro.inject_file_context(
+                tenant_id=self.tenant_id,
+                user_id=self.user_id,
+                filename=upload.nome_original or "arquivo",
+                content=file_content,
+                tenant_nome=tenant_nome,
+            )
+            restored += 1
+        if restored:
+            logger.info(
+                "Restored %d uploaded file(s) into Isidoro context: "
+                "tenant_id=%s user_id=%s",
+                restored, self.tenant_id, self.user_id,
+            )
+
+    @database_sync_to_async
+    def _get_recent_uploads(self, days: int = 30):
+        """
+        Retorna os UploadedFiles mais recentes (últimos N dias) para este tenant/user.
+        Limitado a 10 arquivos para não sobrecarregar o contexto do LLM.
+        """
+        from datetime import datetime, timedelta
+        from apps.actions.models import UploadedFile
+        try:
+            since = datetime.utcnow() - timedelta(days=days)
+            qs = UploadedFile.objects.filter(criado_em__gte=since)
+            if self.tenant:
+                qs = qs.filter(tenant=self.tenant)
+            if self.user:
+                qs = qs.filter(criado_por=self.user)
+            return list(qs.order_by("criado_em")[:10])
+        except Exception as exc:
+            logger.warning("Erro ao buscar uploads recentes: %s", exc)
+            return []
 
     @database_sync_to_async
     def _get_upload(self, upload_id: str):
