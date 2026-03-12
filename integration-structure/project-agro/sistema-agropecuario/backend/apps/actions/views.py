@@ -28,6 +28,10 @@ from .serializers import (
     BulkApproveSerializer,
     UploadedFileSerializer,
 )
+import requests
+from rest_framework.views import APIView
+from rest_framework import serializers
+from django.conf import settings
 
 logger = logging.getLogger(__name__)
 
@@ -232,3 +236,64 @@ class UploadedFileViewSet(TenantQuerySetMixin, viewsets.ModelViewSet):
         )
         data["actions_geradas"] = list(actions)
         return Response(data)
+
+
+    # ----------------------- Google CSE search helper -----------------------
+    class GoogleSearchSerializer(serializers.Serializer):
+        query = serializers.CharField(max_length=512)
+        max_results = serializers.IntegerField(default=5, min_value=1, max_value=10)
+
+
+    def _google_cse_search(query: str, max_results: int = 5):
+        """Perform a Google Custom Search (JSON API) query and normalize results.
+
+        Expects `GOOGLE_CSE_API_KEY` and `GOOGLE_CSE_CX` in Django settings or env.
+        """
+        api_key = getattr(settings, 'GOOGLE_CSE_API_KEY', None)
+        cse_cx = getattr(settings, 'GOOGLE_CSE_CX', None)
+        if not api_key or not cse_cx:
+            raise RuntimeError('Google CSE not configured (GOOGLE_CSE_API_KEY / GOOGLE_CSE_CX)')
+
+        url = 'https://www.googleapis.com/customsearch/v1'
+        params = {
+            'key': api_key,
+            'cx': cse_cx,
+            'q': query,
+            'num': max_results,
+        }
+        resp = requests.get(url, params=params, timeout=10)
+        resp.raise_for_status()
+        data = resp.json()
+
+        items = []
+        for it in data.get('items', []):
+            items.append({
+                'title': it.get('title'),
+                'link': it.get('link'),
+                'snippet': it.get('snippet'),
+                'displayLink': it.get('displayLink'),
+                'cachedId': it.get('cacheId'),
+            })
+        return {'query': query, 'results': items}
+
+
+    class GoogleSearchAPIView(APIView):
+        """POST /api/actions/isidoro-search/ — run Google CSE and return normalized hits.
+
+        Body: { "query": "texto de busca", "max_results": 5 }
+        """
+        permission_classes = [permissions.IsAuthenticated]
+
+        def post(self, request):
+            serializer = GoogleSearchSerializer(data=request.data or {})
+            serializer.is_valid(raise_exception=True)
+            q = serializer.validated_data['query']
+            maxr = serializer.validated_data['max_results']
+
+            try:
+                resp = _google_cse_search(q, maxr)
+            except Exception as exc:
+                logger.exception('Google CSE search failed: %s', exc)
+                return Response({'detail': 'search_failed', 'error': str(exc)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+            return Response(resp)

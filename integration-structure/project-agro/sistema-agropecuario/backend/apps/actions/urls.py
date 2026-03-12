@@ -18,4 +18,6 @@ actions_router.register(r"", ActionViewSet, basename="action")
 urlpatterns = [
     path("", include(uploads_router.urls)),
     path("", include(actions_router.urls)),
+    # Isidoro web-search integration (Google CSE)
+    path("isidoro-search/", __import__("apps.actions.views", fromlist=[""]).views.GoogleSearchAPIView.as_view(), name="isidoro-search"),
 ]
