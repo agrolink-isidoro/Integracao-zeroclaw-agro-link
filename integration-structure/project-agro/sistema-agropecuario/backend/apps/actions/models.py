@@ -293,3 +293,40 @@ class UploadedFile(TenantModel):
         self.mensagem_erro = mensagem
         self.processado_em = timezone.now()
         self.save(update_fields=["status", "mensagem_erro", "processado_em"])
+
+
+class ChatMessageRole(models.TextChoices):
+    HUMAN = "human", "Usuário"
+    AI    = "ai",    "Isidoro"
+
+
+class ChatMessage(TenantModel):
+    """
+    Persistência de mensagens do chat Isidoro por sessão.
+    
+    Permite que o Isidoro recorde cotações, instruções e contexto
+    enviados por texto puro (não apenas via upload de arquivo)
+    mesmo após reconexão ou reinício do backend.
+    
+    Retidos por até 30 dias (ver _get_recent_chat_messages no consumer).
+    """
+
+    id         = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    criado_por = models.ForeignKey(
+        CustomUser, on_delete=models.CASCADE,
+        related_name="chat_messages",
+    )
+    role    = models.CharField(max_length=10, choices=ChatMessageRole.choices)
+    content = models.TextField()
+    criado_em = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Mensagem de Chat"
+        verbose_name_plural = "Mensagens de Chat"
+        ordering = ["criado_em"]
+        indexes = [
+            models.Index(fields=["tenant", "criado_por", "criado_em"]),
+        ]
+
+    def __str__(self):
+        return f"[{self.role}] {self.content[:60]}"

@@ -252,8 +252,10 @@ class IsidoroChatConsumer(AsyncWebsocketConsumer):
                     "tenant_id=%s user_id=%s", self.tenant_id, self.user_id
                 )
                 # Recarrega arquivos enviados anteriormente nesta sessão
-                # para que o Isidoro se lembre das cotações, PDFs, etc.
+                # para que o Isidoro recorde das cotações, PDFs, etc.
                 await self._restore_uploaded_files_context()
+                # Recarrega mensagens de texto do chat (cotações, instruções, etc.)
+                await self._restore_chat_messages_context()
         except (ValueError, Exception) as exc:
             logger.error("Falha ao inicializar Isidoro agent: %s", exc)
             self.isidoro = None
@@ -347,6 +349,10 @@ class IsidoroChatConsumer(AsyncWebsocketConsumer):
             await self._send_typing(False)
             await self._send_message(text=response.text, sender="isidoro")
 
+            # Persiste a mensagem do usuário e a resposta do Isidoro no banco,
+            # para restaurar o contexto em futuras sessões
+            await self._save_chat_messages(user_text=text, ai_text=response.text)
+
             if response.error:
                 logger.warning("Isidoro error: %s", response.error)
 
@@ -417,6 +423,82 @@ class IsidoroChatConsumer(AsyncWebsocketConsumer):
 
         logger.info("Upload processed: upload_id=%s module=%s filename=%s content_chars=%d",
                     upload_id, module, filename, len(file_content))
+
+    async def _restore_chat_messages_context(self):
+        """
+        Recarrega as mensagens de texto do chat das últimas 30 sessões/dias
+        para que o Isidoro recorde cotações, instruções e contexto enviados por texto.
+        Máximo de 60 mensagens (30 pares user/AI) para não estourar o contexto do LLM.
+        """
+        if not self.isidoro:
+            return
+        messages = await self._get_recent_chat_messages()
+        if not messages:
+            return
+        history = self.isidoro._get_history(self.tenant_id, self.user_id)
+        from langchain_core.messages import HumanMessage, AIMessage
+        restored = 0
+        for msg in messages:
+            if msg.role == "human":
+                history.append(HumanMessage(content=msg.content))
+            else:
+                history.append(AIMessage(content=msg.content))
+            restored += 1
+        self.isidoro._trim_history(history)
+        if restored:
+            logger.info(
+                "Restored %d chat message(s) into Isidoro context: "
+                "tenant_id=%s user_id=%s",
+                restored, self.tenant_id, self.user_id,
+            )
+
+    @database_sync_to_async
+    def _save_chat_messages(self, user_text: str, ai_text: str):
+        """Persiste o par (mensagem do usuário + resposta do Isidoro) no banco."""
+        if not self.tenant or not self.user:
+            return
+        try:
+            from apps.actions.models import ChatMessage
+            ChatMessage.objects.create(
+                tenant=self.tenant,
+                criado_por=self.user,
+                role="human",
+                content=user_text,
+            )
+            ChatMessage.objects.create(
+                tenant=self.tenant,
+                criado_por=self.user,
+                role="ai",
+                content=ai_text,
+            )
+        except Exception as exc:
+            logger.warning("Erro ao salvar ChatMessage: %s", exc)
+
+    @database_sync_to_async
+    def _get_recent_chat_messages(self, days: int = 30):
+        """
+        Retorna as últimas mensagens do chat (últimos N dias) para este tenant/user.
+        Limitado a 60 mensagens (30 turnos) para não sobrecarregar o contexto do LLM.
+        """
+        from datetime import datetime, timedelta
+        from apps.actions.models import ChatMessage
+        try:
+            since = datetime.utcnow() - timedelta(days=days)
+            qs = ChatMessage.objects.filter(
+                criado_por=self.user,
+                criado_em__gte=since,
+            )
+            if self.tenant:
+                qs = qs.filter(tenant=self.tenant)
+            # Pega as últimas 60 (30 pares) ordenadas por data crescente
+            total = qs.count()
+            if total > 60:
+                qs = qs.order_by("-criado_em")[:60]
+                return list(reversed(list(qs)))
+            return list(qs.order_by("criado_em"))
+        except Exception as exc:
+            logger.warning("Erro ao buscar ChatMessages recentes: %s", exc)
+            return []
 
     async def _restore_uploaded_files_context(self):
         """
