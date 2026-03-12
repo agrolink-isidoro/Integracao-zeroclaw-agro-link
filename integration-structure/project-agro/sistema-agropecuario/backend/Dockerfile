@@ -1,7 +1,7 @@
 FROM python:3.12-slim
 WORKDIR /app
 
-# Install system dependencies for PostgreSQL, PostGIS/GDAL and OCR/barcode libs
+# Install system dependencies for PostgreSQL, PostGIS/GDAL, OCR/barcode libs, and WeasyPrint
 ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && apt-get install -y --no-install-recommends \
     postgresql-client \
@@ -22,6 +22,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     tesseract-ocr \
     libtesseract-dev \
     libleptonica-dev \
+    libffi-dev \
+    libcairo2 \
+    libcairo2-dev \
+    libpango-1.0-0 \
+    libpango1.0-dev \
+    libpangoft2-1.0-0 \
+    fonts-dejavu-core \
     && rm -rf /var/lib/apt/lists/*
 
 # Set GDAL environment variables

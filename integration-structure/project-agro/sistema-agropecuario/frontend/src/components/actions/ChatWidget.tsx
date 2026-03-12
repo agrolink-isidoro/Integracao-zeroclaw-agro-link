@@ -30,10 +30,58 @@ function isReportMessage(text: string): boolean {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// PDF Export
+// PDF Export — WeasyPrint (selectable text) via backend
 // ─────────────────────────────────────────────────────────────────────────────
 
-async function exportMessageToPdf(messageElement: HTMLElement, title: string = 'Relatório Isidoro') {
+async function exportMessageToPdfServer(
+  messageElement: HTMLElement,
+  title: string = 'Relatório Isidoro'
+) {
+  try {
+    // Get the HTML content of the message with minimal cleanup
+    const htmlContent = messageElement.innerHTML;
+
+    // Call the backend endpoint
+    const response = await fetch('/api/actions/chat-pdf-export/', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        html_content: htmlContent,
+        title: title,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ detail: 'Erro desconhecido' }));
+      throw new Error(errorData.detail || `HTTP ${response.status}`);
+    }
+
+    // Download the PDF
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${title.replace(/\s+/g, '_')}_${new Date().toISOString().slice(0, 10)}.pdf`;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+
+    console.log(`✓ PDF exportado: ${a.download}`);
+  } catch (error) {
+    console.error('Erro ao exportar PDF (server-side):', error);
+    // Fallback to client-side if server fails
+    await exportMessageToPdfClient(messageElement, title);
+  }
+}
+
+/**
+ * Fallback: Client-side PDF export using html2canvas + jsPDF (image-based).
+ * Used only if server-side export fails.
+ */
+async function exportMessageToPdfClient(messageElement: HTMLElement, title: string = 'Relatório Isidoro') {
   const { default: jsPDF } = await import('jspdf');
   const { default: html2canvas } = await import('html2canvas');
 
@@ -94,9 +142,15 @@ async function exportMessageToPdf(messageElement: HTMLElement, title: string = '
     }
 
     pdf.save(`${title.replace(/\s+/g, '_')}_${new Date().toISOString().slice(0, 10)}.pdf`);
+    console.log(`✓ PDF exportado (fallback client-side): ${title.replace(/\s+/g, '_')}`);
   } finally {
     document.body.removeChild(clone);
   }
+}
+
+// Primary export function: try server-side first, fallback to client-side
+async function exportMessageToPdf(messageElement: HTMLElement, title: string = 'Relatório Isidoro') {
+  await exportMessageToPdfServer(messageElement, title);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

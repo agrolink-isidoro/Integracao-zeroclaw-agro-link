@@ -427,3 +427,192 @@ class GoogleSearchAPIView(APIView):
         )
 
         return Response({**analysis, 'citations': citations, 'search_query': search_query})
+
+
+# ---------------------------------------------------------------------------#
+#  Chat PDF Export — WeasyPrint (selectable text)                            #
+# ---------------------------------------------------------------------------#
+
+class ChatPDFExportSerializer(serializers.Serializer):
+    """Serializer para /api/actions/chat-pdf-export/"""
+    html_content = serializers.CharField(
+        help_text="HTML content of the chat (usually from ChatWidget innerHTML)"
+    )
+    title = serializers.CharField(
+        max_length=200,
+        default="Relatório Isidoro",
+        help_text="PDF title and filename (will append date)"
+    )
+
+
+class ChatPDFExportView(APIView):
+    """
+    POST /api/actions/chat-pdf-export/
+
+    Converte HTML do chat para PDF com texto selecionável via WeasyPrint.
+    Retorna PDF binary (Content-Disposition: attachment).
+
+    Body:
+      {
+        "html_content": "<div>...</div>",
+        "title": "Relatório Isidoro"  // opcional
+      }
+
+    Response:
+      - Content-Type: application/pdf
+      - Content-Disposition: attachment; filename="Relatório_Isidoro_2026-03-12.pdf"
+      - Binary PDF data (selectable text, not image-based)
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        from weasyprint import HTML, CSS
+        from io import BytesIO
+        from datetime import date
+        import base64
+
+        ser = ChatPDFExportSerializer(data=request.data or {})
+        ser.is_valid(raise_exception=True)
+        
+        html_content = ser.validated_data['html_content']
+        title = ser.validated_data.get('title', 'Relatório Isidoro')
+
+        try:
+            # Wrap HTML content with proper styling for PDF
+            html_str = f"""
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta charset="UTF-8">
+                <style>
+                    @page {{
+                        size: A4;
+                        margin: 15mm;
+                        @bottom-right {{
+                            content: "Página " counter(page);
+                            font-size: 10px;
+                            color: #999;
+                        }}
+                    }}
+                    body {{
+                        font-family: 'DejaVu Sans', 'Segoe UI', Arial, sans-serif;
+                        font-size: 11pt;
+                        line-height: 1.6;
+                        color: #1a1a1a;
+                        margin: 0;
+                        padding: 0;
+                    }}
+                    h1, h2, h3, h4, h5, h6 {{
+                        color: #0f172a;
+                        margin-top: 12pt;
+                        margin-bottom: 6pt;
+                        page-break-after: avoid;
+                    }}
+                    h1 {{ font-size: 16pt; }}
+                    h2 {{ font-size: 14pt; }}
+                    h3 {{ font-size: 12pt; }}
+                    p {{
+                        margin: 6pt 0;
+                    }}
+                    p:last-child {{
+                        margin-bottom: 0;
+                    }}
+                    ul, ol {{
+                        margin: 6pt 0 6pt 20pt;
+                        padding: 0;
+                    }}
+                    li {{
+                        margin-bottom: 4pt;
+                        list-style-type: inherit;
+                    }}
+                    table {{
+                        width: 100%;
+                        border-collapse: collapse;
+                        margin: 10pt 0;
+                    }}
+                    th, td {{
+                        border: 1px solid #ddd;
+                        padding: 6pt;
+                        text-align: left;
+                    }}
+                    th {{
+                        background-color: #f5f5f5;
+                        font-weight: bold;
+                    }}
+                    tr:nth-child(even) {{
+                        background-color: #f9f9f9;
+                    }}
+                    code {{
+                        background-color: #f0f0f0;
+                        padding: 2pt 4pt;
+                        border-radius: 2px;
+                        font-family: 'Courier New', monospace;
+                        font-size: 10pt;
+                    }}
+                    pre {{
+                        background-color: #f5f5f5;
+                        padding: 10pt;
+                        border-radius: 4px;
+                        overflow-x: auto;
+                        page-break-inside: avoid;
+                    }}
+                    blockquote {{
+                        border-left: 4px solid #198754;
+                        padding-left: 12pt;
+                        margin-left: 0;
+                        color: #555;
+                    }}
+                    .pdf-header {{
+                        border-bottom: 2px solid #198754;
+                        padding-bottom: 10pt;
+                        margin-bottom: 20pt;
+                        color: #0f172a;
+                    }}
+                    .pdf-footer {{
+                        border-top: 1px solid #ddd;
+                        padding-top: 10pt;
+                        margin-top: 20pt;
+                        font-size: 9pt;
+                        color: #999;
+                        text-align: center;
+                    }}
+                </style>
+            </head>
+            <body>
+                <div class="pdf-header">
+                    <h1>{title}</h1>
+                    <p><small>Gerado em {date.today().strftime('%d/%m/%Y')} às {__import__('datetime').datetime.now().strftime('%H:%M')}</small></p>
+                </div>
+                <div class="pdf-content">
+                    {html_content}
+                </div>
+                <div class="pdf-footer">
+                    <p>© Sistema Agrícola - Isidoro | Relatório confidencial para uso interno</p>
+                </div>
+            </body>
+            </html>
+            """
+
+            # Generate PDF via WeasyPrint
+            pdf_bytes = HTML(string=html_str).write_pdf()
+
+            # Return as file download
+            response = Response(
+                pdf_bytes,
+                content_type='application/pdf',
+            )
+            response['Content-Disposition'] = f'attachment; filename="{title.replace(" ", "_")}_{date.today().isoformat()}.pdf"'
+            
+            logger.info(
+                'chat-pdf-export: user=%s title=%r size=%d bytes',
+                request.user, title, len(pdf_bytes),
+            )
+            
+            return response
+
+        except Exception as exc:
+            logger.exception('WeasyPrint PDF generation error: %s', exc)
+            return Response(
+                {'detail': f'Erro ao gerar PDF: {str(exc)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )

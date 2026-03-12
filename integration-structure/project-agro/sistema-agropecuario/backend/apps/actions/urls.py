@@ -3,7 +3,7 @@
 from django.urls import path, include
 from rest_framework.routers import SimpleRouter
 
-from .views import ActionViewSet, UploadedFileViewSet, GoogleSearchAPIView
+from .views import ActionViewSet, UploadedFileViewSet, GoogleSearchAPIView, ChatPDFExportView
 
 app_name = "actions"
 
@@ -19,4 +19,5 @@ urlpatterns = [
     path("", include(uploads_router.urls)),
     path("", include(actions_router.urls)),
     path("isidoro-search/", GoogleSearchAPIView.as_view(), name="isidoro-search"),
+    path("chat-pdf-export/", ChatPDFExportView.as_view(), name="chat-pdf-export"),
 ]
