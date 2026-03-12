@@ -26,7 +26,7 @@ export default defineConfig({
     proxy: {
       '/api': {
         target: (() => {
-          const defaultTarget = 'http://localhost:8000';
+          const defaultTarget = 'http://localhost:8001';
           const dockerBackendTarget = 'http://backend:8000';
           const env = process.env.VITE_API_BASE;
           if (env && /^https?:\/\//.test(env)) {
@@ -42,7 +42,7 @@ export default defineConfig({
         target: (() => {
           const env = process.env.VITE_API_BASE;
           if (env && env.startsWith('/')) return 'ws://backend:8000';
-          return 'ws://localhost:8000';
+          return 'ws://localhost:8001';
         })(),
         ws: true,
         changeOrigin: true,
