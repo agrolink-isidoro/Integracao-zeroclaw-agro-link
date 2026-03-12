@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { useActions } from '../../contexts/ActionsContext';
+import { getStoredTokens } from '../../hooks/useAuth';
 import type { ChatMessage } from '../../contexts/ActionsContext';
 import type { ActionModule } from '../../services/actions';
 
@@ -43,12 +44,18 @@ async function exportMessageToPdf(
   title: string = 'Relatório Isidoro'
 ) {
   try {
+    const tokens = getStoredTokens();
+    if (!tokens?.access) {
+      throw new Error('Autenticação necessária. Por favor, faça login novamente.');
+    }
+
     const htmlContent = messageElement.innerHTML;
 
     const response = await fetch('/api/actions/chat-pdf-export/', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'Authorization': `Bearer ${tokens.access}`,
       },
       body: JSON.stringify({
         html_content: htmlContent,
