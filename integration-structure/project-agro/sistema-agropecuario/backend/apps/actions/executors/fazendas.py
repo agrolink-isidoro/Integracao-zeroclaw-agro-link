@@ -122,7 +122,9 @@ def execute_criar_fazenda(action) -> None:
     data = action.draft_data
     tenant = action.tenant
 
-    nome = data.get("nome", "").strip()
+    # Tenta "name" primeiro (campo real do modelo), depois "nome" (compatibilidade)
+    nome = data.get("name") or data.get("nome", "")
+    nome = nome.strip() if isinstance(nome, str) else ""
     matricula = data.get("matricula", "").strip()
 
     if not nome:
