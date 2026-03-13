@@ -7,26 +7,33 @@ e cria Actions (draft) na fila de aprovação humana.
 Todas as ferramentas retornam JSON string com o resultado da operação.
 Nenhuma altera dados diretamente — o fluxo sempre passa pelo Action Queue.
 
-Cobertura de formulários (todos os 4 módulos):
-  Fazendas   : criar_proprietario, criar_fazenda, criar_area,
-               criar_talhao, registrar_arrendamento
-  Agricultura: criar_safra, registrar_colheita, registrar_operacao_agricola,
-               registrar_manejo, registrar_ordem_servico_agricola
-  Estoque    : criar_produto_estoque, registrar_entrada_estoque,
-               registrar_saida_estoque, registrar_movimentacao_estoque
-  Máquinas   : criar_equipamento, registrar_abastecimento,
-               registrar_ordem_servico_maquina, registrar_manutencao_maquina
-  Consultas  : consultar_actions_pendentes, consultar_estoque,
-               consultar_talhoes, consultar_maquinas, consultar_abastecimentos,
-               consultar_ordens_servico, consultar_safras_ativas, consultar_safras,
-               consultar_sessoes_colheita_ativas, consultar_fazendas,
-               consultar_proprietarios, consultar_colheitas,
-               consultar_movimentacoes_estoque, consultar_vencimentos,
-               consultar_lancamentos_financeiros
-  Relatórios : relatorio_resumo_geral, relatorio_financeiro,
-               relatorio_estoque, relatorio_agricultura,
-               relatorio_comercial, relatorio_administrativo,
-               relatorio_maquinas
+Cobertura completa de todos os 4 módulos:
+
+  FAZENDAS (Proprietários, Fazendas, Áreas, Talhões, Arrendamentos):
+  - Criar: criar_proprietario, criar_fazenda, criar_area, criar_talhao, registrar_arrendamento
+  - Ler: consultar_proprietarios, consultar_fazendas, consultar_areas,
+         consultar_talhoes, consultar_arrendamentos
+
+  AGRICULTURA (Operações, Culturas, Safras, Colheitas):
+  - Criar: criar_safra, registrar_colheita, registrar_operacao_agricola,
+           registrar_manejo, registrar_ordem_servico_agricola, registrar_movimentacao_carga
+  - Ler: consultar_safras_ativas, consultar_safras, consultar_operacoes,
+         consultar_culturas, consultar_sessoes_colheita_ativas, consultar_colheitas
+
+  ESTOQUE (Produtos, Movimentações, Locais de Armazenamento):
+  - Criar: criar_produto_estoque, registrar_entrada_estoque, registrar_saida_estoque,
+           registrar_movimentacao_estoque
+  - Ler: consultar_estoque, consultar_estoque_alertas, consultar_movimentacoes_estoque,
+         consultar_locais_armazenamento
+
+  MÁQUINAS (Máquinas, Abastecimentos, Ordens de Serviço):
+  - Criar: criar_equipamento, registrar_abastecimento, registrar_ordem_servico_maquina,
+           registrar_manutencao_maquina
+  - Ler: consultar_maquinas, consultar_abastecimentos, consultar_ordens_servico
+
+  Relatórios/Analytics: relatorio_resumo_geral, relatorio_financeiro, relatorio_estoque,
+                        relatorio_agricultura, relatorio_comercial, relatorio_administrativo,
+                        relatorio_maquinas
 
 Uso:
     from zeroclaw_tools.tools.agrolink_tools import get_agrolink_tools
@@ -1685,6 +1692,57 @@ def get_agrolink_tools(base_url: str, jwt_token: str, tenant_id: str = "") -> li
             params["search"] = fazenda
         return _get(base_url, jwt_token, tenant_id, "/agricultura/harvest-sessions/", params)
 
+    @tool
+    def consultar_operacoes(fazenda: str = "", tipo: str = "") -> str:
+        """
+        Lista as operações agrícolas (plantio, capina, pulverização, colheita) registradas.
+
+        Use quando o usuário pedir: "operações", "o que foi feito na fazenda?",
+        "histórico de operações", "serviços realizados".
+
+        Args:
+            fazenda: Filtrar por nome da fazenda. Deixar vazio para listar todas.
+            tipo: Filtrar por tipo de operação (plantio, pulverização, etc). Deixar vazio para todas.
+        """
+        params = {}
+        if fazenda:
+            params["search"] = fazenda
+        if tipo:
+            params["tipo"] = tipo
+        return _get(base_url, jwt_token, tenant_id, "/agricultura/operacoes/", params)
+
+    @tool
+    def consultar_culturas(search: str = "") -> str:
+        """
+        Lista as culturas (tipos de plantios) cadastradas no sistema.
+
+        Use quando o usuário pedir: "culturas disponíveis", "que culturas podemos plantar?",
+        "variedades de culturas".
+
+        Args:
+            search: Texto para filtrar culturas por nome.
+        """
+        params = {}
+        if search:
+            params["search"] = search
+        return _get(base_url, jwt_token, tenant_id, "/agricultura/culturas/", params)
+
+    @tool
+    def consultar_locais_armazenamento(search: str = "") -> str:
+        """
+        Lista os locais de armazenamento (silos, galpões) cadastrados no sistema.
+
+        Use quando o usuário pedir: "locais de armazenamento", "silos disponíveis",
+        "galpões", "capacidade de armazenamento".
+
+        Args:
+            search: Texto para filtrar locais por nome ou localização.
+        """
+        params = {}
+        if search:
+            params["search"] = search
+        return _get(base_url, jwt_token, tenant_id, "/estoque/locais-armazenamento/", params)
+
     # ── Relatórios / Analytics ────────────────────────────────────────────────
 
     @tool
@@ -1810,6 +1868,41 @@ def get_agrolink_tools(base_url: str, jwt_token: str, tenant_id: str = "") -> li
         return _get(base_url, jwt_token, tenant_id, "/proprietarios/")
 
     @tool
+    def consultar_areas(fazenda: str = "") -> str:
+        """
+        Lista as áreas (quadras) cadastradas no sistema.
+
+        Use quando o usuário pedir: "listar áreas", "áreas da fazenda",
+        "quantas áreas temos?".
+
+        Args:
+            fazenda: Filtrar por nome da fazenda. Deixar vazio para listar todas.
+        """
+        params = {}
+        if fazenda:
+            params["search"] = fazenda
+        return _get(base_url, jwt_token, tenant_id, "/areas/", params)
+
+    @tool
+    def consultar_arrendamentos(fazenda: str = "", status: str = "") -> str:
+        """
+        Lista os arrendamentos (de terras) registrados no sistema.
+
+        Use quando o usuário pedir: "listar arrendamentos", "quais áreas estão arrendadas?",
+        "informações de arrendamento".
+
+        Args:
+            fazenda: Filtrar por nome da fazenda. Deixar vazio para listar todas.
+            status: Filtrar por status (ativo, vencido, finalizando). Deixar vazio para todos.
+        """
+        params = {}
+        if fazenda:
+            params["search"] = fazenda
+        if status:
+            params["status"] = status
+        return _get(base_url, jwt_token, tenant_id, "/arrendamentos/", params)
+
+    @tool
     def consultar_colheitas(ano: int = 0) -> str:
         """
         Lista as colheitas registradas no sistema. Pode filtrar por ano.
@@ -1911,17 +2004,22 @@ def get_agrolink_tools(base_url: str, jwt_token: str, tenant_id: str = "") -> li
         consultar_actions_pendentes,
         consultar_estoque,
         consultar_estoque_alertas,
+        consultar_proprietarios,
+        consultar_fazendas,
+        consultar_areas,
+        consultar_arrendamentos,
         consultar_talhoes,
         consultar_maquinas,
         consultar_abastecimentos,
         consultar_ordens_servico,
         consultar_safras_ativas,
         consultar_safras,
+        consultar_operacoes,
+        consultar_culturas,
         consultar_sessoes_colheita_ativas,
-        consultar_fazendas,
-        consultar_proprietarios,
         consultar_colheitas,
         consultar_movimentacoes_estoque,
+        consultar_locais_armazenamento,
         consultar_vencimentos,
         consultar_lancamentos_financeiros,
         # Relatórios / Analytics
