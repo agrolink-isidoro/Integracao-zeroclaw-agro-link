@@ -14,11 +14,11 @@ Cobertura de formulários (todos os 4 módulos):
                registrar_manejo, registrar_ordem_servico_agricola
   Estoque    : criar_produto_estoque, registrar_entrada_estoque,
                registrar_saida_estoque, registrar_movimentacao_estoque
-  Máquinas   : criar_equipamento, registrar_ordem_servico_maquina,
-               registrar_manutencao_maquina
+  Máquinas   : criar_equipamento, registrar_abastecimento,
+               registrar_ordem_servico_maquina, registrar_manutencao_maquina
   Consultas  : consultar_actions_pendentes, consultar_estoque,
-               consultar_talhoes, consultar_maquinas,
-               consultar_safras_ativas, consultar_safras,
+               consultar_talhoes, consultar_maquinas, consultar_abastecimentos,
+               consultar_ordens_servico, consultar_safras_ativas, consultar_safras,
                consultar_sessoes_colheita_ativas, consultar_fazendas,
                consultar_proprietarios, consultar_colheitas,
                consultar_movimentacoes_estoque, consultar_vencimentos,
@@ -1598,6 +1598,44 @@ def get_agrolink_tools(base_url: str, jwt_token: str, tenant_id: str = "") -> li
         return _get(base_url, jwt_token, tenant_id, "/maquinas/equipamentos/", params)
 
     @tool
+    def consultar_abastecimentos(maquina: str = "", dias: int = 30) -> str:
+        """
+        Lista os abastecimentos registrados no sistema.
+        
+        Use quando o usuário pedir: "histórico de abastecimentos", "quanto foi gasto em combustível",
+        "abastecimentos do mês", "consumo de diesel".
+
+        Args:
+            maquina: Filtrar por nome da máquina. Deixar vazio para listar todos.
+            dias: Período em dias para buscar (padrão: 30).
+        """
+        params = {}
+        if maquina:
+            params["search"] = maquina
+        if dias:
+            params["days"] = dias
+        return _get(base_url, jwt_token, tenant_id, "/maquinas/abastecimentos/", params)
+
+    @tool
+    def consultar_ordens_servico(maquina: str = "", status: str = "") -> str:
+        """
+        Lista as ordens de serviço (manutenção) registradas no sistema.
+        
+        Use quando o usuário pedir: "ordens de serviço", "manutenções programadas",
+        "máquinas que precisam manutenção", "status das máquinas".
+
+        Args:
+            maquina: Filtrar por nome da máquina. Deixar vazio para listar todas.
+            status: Filtrar por status (aberta, em_progresso, concluida, cancelada). Deixar vazio para todas.
+        """
+        params = {}
+        if maquina:
+            params["search"] = maquina
+        if status:
+            params["status"] = status
+        return _get(base_url, jwt_token, tenant_id, "/maquinas/ordens-servico/", params)
+
+    @tool
     def consultar_safras_ativas(fazenda: str = "") -> str:
         """
         Lista as safras (plantios) ATIVAS no sistema — status 'em_andamento' ou 'planejado'.
@@ -1875,6 +1913,8 @@ def get_agrolink_tools(base_url: str, jwt_token: str, tenant_id: str = "") -> li
         consultar_estoque_alertas,
         consultar_talhoes,
         consultar_maquinas,
+        consultar_abastecimentos,
+        consultar_ordens_servico,
         consultar_safras_ativas,
         consultar_safras,
         consultar_sessoes_colheita_ativas,
