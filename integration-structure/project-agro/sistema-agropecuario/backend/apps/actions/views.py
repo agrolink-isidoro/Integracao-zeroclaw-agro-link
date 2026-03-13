@@ -478,21 +478,20 @@ class ChatPDFExportView(APIView):
         title = ser.validated_data.get('title', 'Relatório Isidoro')
 
         try:
+            import os
             now_str = __import__('datetime').datetime.now().strftime('%H:%M')
 
-            # Inline SVG leaf icon (replaces FontAwesome fa-leaf)
-            leaf_svg = (
-                '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" '
-                'width="18" height="18" style="vertical-align:middle;margin-right:6px;fill:#198754;">'
-                '<path d="M272 96c-78.6 0-145.1 51.5-167.7 122.5c33.6-17 '
-                '71.5-26.5 111.7-26.5h88c8.8 0 16 7.2 16 16s-7.2 16-16 16H216'
-                'c-43.1 0-84.9 10.6-122.2 30.9C86.6 280.2 80 308.7 80 338.7'
-                'c0 44.2 35.8 80 80 80h16c97.2 0 176-78.8 176-176V120c0-13.3'
-                '-10.7-24-24-24H272zM0 176c0-106 86-192 192-192h136c48.6 0 88'
-                ' 39.4 88 88V256c0 132.5-107.5 240-240 240H160C71.6 496 0'
-                ' 424.4 0 336c0-30.4 5.1-59.7 14.5-87C5 225.5 0 201.2 0 176z"/>'
-                '</svg>'
+            # Load logo PNG as base64 data URI (transparent background)
+            logo_html = ''
+            logo_path = os.path.join(
+                os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+                'static', 'img', 'logo-agrolink.png'
             )
+            if os.path.isfile(logo_path):
+                with open(logo_path, 'rb') as f:
+                    logo_b64 = base64.b64encode(f.read()).decode('ascii')
+                logo_html = f'<img class="brand-logo" src="data:image/png;base64,{logo_b64}" alt="Agro-Link" />'
+            # If no logo file, just text (no icon)
 
             # Wrap HTML content with Agro-Link themed styling for PDF
             html_str = f"""
@@ -531,9 +530,13 @@ class ChatPDFExportView(APIView):
                         font-size: 14pt;
                         font-weight: 700;
                         letter-spacing: 0.3pt;
+                        display: flex;
+                        align-items: center;
+                        gap: 8pt;
                     }}
-                    .pdf-header .brand svg {{
-                        fill: #ffffff;
+                    .pdf-header .brand-logo {{
+                        height: 36pt;
+                        width: auto;
                     }}
                     .pdf-header .subtitle {{
                         font-size: 8.5pt;
@@ -667,7 +670,7 @@ class ChatPDFExportView(APIView):
             </head>
             <body>
                 <div class="pdf-header">
-                    <div class="brand">{leaf_svg} Agro-Link</div>
+                    <div class="brand">{logo_html} Agro-Link</div>
                     <div class="subtitle">Sua gestão otimizada via inteligência artificial</div>
                     <div class="report-title">{title}</div>
                     <div class="report-date">Gerado em {date.today().strftime('%d/%m/%Y')} às {now_str}</div>
