@@ -478,7 +478,23 @@ class ChatPDFExportView(APIView):
         title = ser.validated_data.get('title', 'Relatório Isidoro')
 
         try:
-            # Wrap HTML content with proper styling for PDF
+            now_str = __import__('datetime').datetime.now().strftime('%H:%M')
+
+            # Inline SVG leaf icon (replaces FontAwesome fa-leaf)
+            leaf_svg = (
+                '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" '
+                'width="18" height="18" style="vertical-align:middle;margin-right:6px;fill:#198754;">'
+                '<path d="M272 96c-78.6 0-145.1 51.5-167.7 122.5c33.6-17 '
+                '71.5-26.5 111.7-26.5h88c8.8 0 16 7.2 16 16s-7.2 16-16 16H216'
+                'c-43.1 0-84.9 10.6-122.2 30.9C86.6 280.2 80 308.7 80 338.7'
+                'c0 44.2 35.8 80 80 80h16c97.2 0 176-78.8 176-176V120c0-13.3'
+                '-10.7-24-24-24H272zM0 176c0-106 86-192 192-192h136c48.6 0 88'
+                ' 39.4 88 88V256c0 132.5-107.5 240-240 240H160C71.6 496 0'
+                ' 424.4 0 336c0-30.4 5.1-59.7 14.5-87C5 225.5 0 201.2 0 176z"/>'
+                '</svg>'
+            )
+
+            # Wrap HTML content with Agro-Link themed styling for PDF
             html_str = f"""
             <!DOCTYPE html>
             <html>
@@ -487,107 +503,180 @@ class ChatPDFExportView(APIView):
                 <style>
                     @page {{
                         size: A4;
-                        margin: 15mm;
-                        @bottom-right {{
-                            content: "Página " counter(page);
-                            font-size: 10px;
-                            color: #999;
+                        margin: 15mm 15mm 20mm 15mm;
+                        @bottom-center {{
+                            content: "Agro-Link | Página " counter(page);
+                            font-size: 8pt;
+                            color: #94a3b8;
                         }}
                     }}
                     body {{
                         font-family: 'DejaVu Sans', 'Segoe UI', Arial, sans-serif;
-                        font-size: 11pt;
-                        line-height: 1.6;
-                        color: #1a1a1a;
+                        font-size: 10.5pt;
+                        line-height: 1.65;
+                        color: #1e293b;
                         margin: 0;
                         padding: 0;
                     }}
+
+                    /* ── Header branding ─────────────────────────── */
+                    .pdf-header {{
+                        background: linear-gradient(135deg, #166534 0%, #198754 100%);
+                        color: #ffffff;
+                        padding: 14pt 18pt;
+                        border-radius: 8px;
+                        margin-bottom: 18pt;
+                    }}
+                    .pdf-header .brand {{
+                        font-size: 14pt;
+                        font-weight: 700;
+                        letter-spacing: 0.3pt;
+                    }}
+                    .pdf-header .brand svg {{
+                        fill: #ffffff;
+                    }}
+                    .pdf-header .subtitle {{
+                        font-size: 8.5pt;
+                        color: #bbf7d0;
+                        margin-top: 2pt;
+                    }}
+                    .pdf-header .report-title {{
+                        font-size: 13pt;
+                        font-weight: 700;
+                        margin-top: 10pt;
+                        padding-top: 8pt;
+                        border-top: 1px solid rgba(255,255,255,0.3);
+                    }}
+                    .pdf-header .report-date {{
+                        font-size: 8.5pt;
+                        color: #bbf7d0;
+                        margin-top: 2pt;
+                    }}
+
+                    /* ── Typography ──────────────────────────────── */
                     h1, h2, h3, h4, h5, h6 {{
                         color: #0f172a;
-                        margin-top: 12pt;
+                        margin-top: 14pt;
                         margin-bottom: 6pt;
                         page-break-after: avoid;
+                        font-weight: 700;
+                        line-height: 1.3;
                     }}
-                    h1 {{ font-size: 16pt; }}
-                    h2 {{ font-size: 14pt; }}
-                    h3 {{ font-size: 12pt; }}
+                    h1 {{ font-size: 15pt; }}
+                    h2 {{ font-size: 13pt; border-bottom: 1.5px solid #198754; padding-bottom: 3pt; }}
+                    h3 {{ font-size: 11.5pt; color: #166534; }}
+                    h4 {{ font-size: 10.5pt; }}
                     p {{
-                        margin: 6pt 0;
+                        margin: 5pt 0;
                     }}
                     p:last-child {{
                         margin-bottom: 0;
                     }}
+                    strong {{ font-weight: 700; color: #0f172a; }}
+
+                    /* ── Lists ───────────────────────────────────── */
                     ul, ol {{
-                        margin: 6pt 0 6pt 20pt;
+                        margin: 4pt 0 8pt 18pt;
                         padding: 0;
                     }}
                     li {{
-                        margin-bottom: 4pt;
-                        list-style-type: inherit;
+                        margin-bottom: 3pt;
+                        line-height: 1.55;
                     }}
+
+                    /* ── Tables ──────────────────────────────────── */
                     table {{
                         width: 100%;
                         border-collapse: collapse;
-                        margin: 10pt 0;
-                    }}
-                    th, td {{
-                        border: 1px solid #ddd;
-                        padding: 6pt;
-                        text-align: left;
+                        margin: 8pt 0;
+                        font-size: 9.5pt;
                     }}
                     th {{
-                        background-color: #f5f5f5;
-                        font-weight: bold;
+                        background-color: #f0fdf4;
+                        font-weight: 700;
+                        text-align: left;
+                        padding: 5pt 7pt;
+                        border-bottom: 2px solid #198754;
+                        color: #166534;
                     }}
-                    tr:nth-child(even) {{
-                        background-color: #f9f9f9;
+                    td {{
+                        padding: 4pt 7pt;
+                        border-bottom: 1px solid #e2e8f0;
                     }}
+                    tr:nth-child(even) td {{
+                        background-color: #f8fafc;
+                    }}
+
+                    /* ── Code ────────────────────────────────────── */
                     code {{
-                        background-color: #f0f0f0;
-                        padding: 2pt 4pt;
-                        border-radius: 2px;
-                        font-family: 'Courier New', monospace;
-                        font-size: 10pt;
+                        background: #f1f5f9;
+                        padding: 1.5pt 4pt;
+                        border-radius: 3px;
+                        font-family: 'DejaVu Sans Mono', 'Courier New', monospace;
+                        font-size: 9pt;
+                        color: #be185d;
                     }}
                     pre {{
-                        background-color: #f5f5f5;
-                        padding: 10pt;
-                        border-radius: 4px;
-                        overflow-x: auto;
+                        background: #1e293b;
+                        color: #e2e8f0;
+                        padding: 10pt 12pt;
+                        border-radius: 6px;
+                        margin: 6pt 0;
+                        font-size: 9pt;
+                        line-height: 1.5;
                         page-break-inside: avoid;
                     }}
+                    pre code {{
+                        background: transparent;
+                        color: inherit;
+                        padding: 0;
+                        font-size: inherit;
+                    }}
+
+                    /* ── Blockquote ──────────────────────────────── */
                     blockquote {{
-                        border-left: 4px solid #198754;
-                        padding-left: 12pt;
-                        margin-left: 0;
-                        color: #555;
+                        border-left: 3px solid #198754;
+                        margin: 6pt 0;
+                        padding: 4pt 0 4pt 10pt;
+                        color: #475569;
+                        background: #f0fdf4;
+                        border-radius: 0 6px 6px 0;
                     }}
-                    .pdf-header {{
-                        border-bottom: 2px solid #198754;
-                        padding-bottom: 10pt;
-                        margin-bottom: 20pt;
-                        color: #0f172a;
+
+                    /* ── Horizontal rule ─────────────────────────── */
+                    hr {{
+                        border: 0;
+                        border-top: 1px solid #e2e8f0;
+                        margin: 8pt 0;
                     }}
+
+                    /* ── Footer ──────────────────────────────────── */
                     .pdf-footer {{
-                        border-top: 1px solid #ddd;
-                        padding-top: 10pt;
-                        margin-top: 20pt;
-                        font-size: 9pt;
-                        color: #999;
+                        border-top: 1.5px solid #198754;
+                        padding-top: 8pt;
+                        margin-top: 24pt;
+                        font-size: 8pt;
+                        color: #94a3b8;
                         text-align: center;
+                    }}
+                    .pdf-footer .footer-brand {{
+                        color: #198754;
+                        font-weight: 700;
                     }}
                 </style>
             </head>
             <body>
                 <div class="pdf-header">
-                    <h1>{title}</h1>
-                    <p><small>Gerado em {date.today().strftime('%d/%m/%Y')} às {__import__('datetime').datetime.now().strftime('%H:%M')}</small></p>
+                    <div class="brand">{leaf_svg} Agro-Link</div>
+                    <div class="subtitle">Sua gestão otimizada via inteligência artificial</div>
+                    <div class="report-title">{title}</div>
+                    <div class="report-date">Gerado em {date.today().strftime('%d/%m/%Y')} às {now_str}</div>
                 </div>
                 <div class="pdf-content">
                     {html_content}
                 </div>
                 <div class="pdf-footer">
-                    <p>© Sistema Agrícola - Isidoro | Relatório confidencial para uso interno</p>
+                    <p><span class="footer-brand">Agro-Link</span> — Sistema Agrícola Inteligente | Relatório confidencial para uso interno</p>
                 </div>
             </body>
             </html>
