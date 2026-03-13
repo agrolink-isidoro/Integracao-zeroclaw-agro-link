@@ -83,9 +83,19 @@ return _get(base_url, jwt_token, tenant_id, "/fazendas/")
 
 ### 🔧 MÁQUINAS ✓
 - `GET /api/maquinas/equipamentos/` → **200 OK**
+- `GET /api/maquinas/abastecimentos/` → **200 OK**
+- `GET /api/maquinas/ordens-servico/` → **200 OK**
 
 **Ferramentas Isidoro:**
 - `consultar_maquinas(search)` ✓
+- `consultar_abastecimentos(maquina, dias)` ✓ **[NOVO]**
+- `consultar_ordens_servico(maquina, status)` ✓ **[NOVO]**
+
+**Ferramentas de Criação:**
+- `criar_equipamento(...)` - nova máquina
+- `registrar_abastecimento(...)` - registra combustível
+- `registrar_ordem_servico_maquina(...)` - cria ordem de manutenção
+- `registrar_manutencao_maquina(...)` - registra manutenção realizada
 
 ---
 
@@ -149,7 +159,10 @@ client.get('/api/maquinas/equipamentos/', ...)                         # 200
 
 ## Referências
 
-- **Commit de Fix:** `7cfa0e9`
-- **Arquivo alterado:** `zeroclaw_tools/tools/agrolink_tools.py` (2 linhas)
-- **Restarted:** Docker containers para reload das ferramentas
-- **Verificado:** Todos 11 endpoints (4 módulos) retornam 200 OK
+- **Commits:** 
+  - `7cfa0e9` - Fix endpoint paths for proprietarios and fazendas
+  - `b9598a1` - Documentation of API fix
+  - `6bcad5c` - Add machine module query tools
+- **Arquivos alterados:** `zeroclaw_tools/tools/agrolink_tools.py` (46 linhas)
+- **Total de endpoints testados:** 14 (todos 200 OK)
+- **Verificado:** Todos 11 endpoints (4 módulos) + 3 novos endpoints machine
