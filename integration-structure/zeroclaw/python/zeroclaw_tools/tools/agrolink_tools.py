@@ -362,14 +362,24 @@ def get_agrolink_tools(base_url: str, jwt_token: str, tenant_id: str = "") -> li
     ) -> str:
         """
         Cadastra um novo proprietário rural no sistema.
-        Pergunte os campos obrigatórios antes de chamar. Campos opcionais podem ser omitidos. Ao confirmar, CHAME a ferramenta IMEDIATAMENTE.
+        
+        ⚠️ ESTE É O PRIMEIRO PASSO DA SEQUÊNCIA OBRIGATÓRIA:
+        Proprietário → Fazenda → Área → Talhão
+        
+        SEMPRE pergunte TODOS os campos obrigatórios (nome*, cpf_cnpj*) antes de chamar.
+        Campos opcionais (telefone, email, endereco) podem ser perguntados, mas não são bloqueantes.
+        
+        Ao usuário CONFIRMAR com "sim", "ok", "pode criar", "confirma", ou similar — chame IMEDIATAMENTE.
+        Não volte a perguntar. Use valores vazios "" para opcionais não informados.
 
         Args:
-            nome: Nome completo do proprietário (obrigatório)
-            cpf_cnpj: CPF (000.000.000-00) ou CNPJ (00.000.000/0000-00) — obrigatório e único
+            nome: Nome completo do proprietário(*obrigatório)
+            cpf_cnpj: CPF (000.000.000-00) ou CNPJ (00.000.000/0000-00) — *obrigatório e único
             telefone: Telefone de contato com DDD (ex: 65 99999-9999)
             email: E-mail de contato
             endereco: Endereço completo (logradouro, cidade, estado)
+            
+        ⚠️ Após criar: próximo passo é SEMPRE criar_fazenda (que depende deste proprietário)
         """
         return _post_action(
             base_url, jwt_token, tenant_id,
@@ -392,12 +402,22 @@ def get_agrolink_tools(base_url: str, jwt_token: str, tenant_id: str = "") -> li
     ) -> str:
         """
         Cadastra uma nova fazenda vinculada a um proprietário.
-        Pergunte os campos obrigatórios antes de chamar. Campos opcionais podem ser omitidos. Ao confirmar, CHAME a ferramenta IMEDIATAMENTE.
+        
+        ⚠️ SEGUNDO PASSO DA SEQUÊNCIA OBRIGATÓRIA:
+        Proprietário → Fazenda → Área → Talhão
+        
+        OBRIGATÓRIO: O PROPRIETÁRIO DEVE EXISTIR PREVIAMENTE!
+        Se não existir, ofereça criar primeiro (criar_proprietario).
+        
+        SEMPRE pergunte os 3 campos obrigatórios (name*, matricula*, proprietario*) antes de chamar.
+        Ao usuário CONFIRMAR — chame IMEDIATAMENTE. Não repita resumos. Não faça mais perguntas.
 
         Args:
-            name: Nome da fazenda (ex: Fazenda Santa Maria) — obrigatório
-            matricula: Registro/matrícula da fazenda — obrigatório e único
-            proprietario: Nome ou CPF/CNPJ do proprietário — obrigatório
+            name: Nome da fazenda(*obrigatório) — ex: "Fazenda Santa Maria"
+            matricula: Registro/matrícula da fazenda(*obrigatório) — deve ser único, ex: "MAT-2024-001"
+            proprietario: Nome do proprietário existente(*obrigatório) — será procurado no sistema
+            
+        ⚠️ Após criar: próximo passo é SEMPRE criar_area (que depende desta fazenda)
         """
         return _post_action(
             base_url, jwt_token, tenant_id,
@@ -421,15 +441,32 @@ def get_agrolink_tools(base_url: str, jwt_token: str, tenant_id: str = "") -> li
     ) -> str:
         """
         Cria uma área (seção/gleba) dentro de uma fazenda.
-        Pergunte os campos obrigatórios antes de chamar. Campos opcionais podem ser omitidos. Ao confirmar, CHAME a ferramenta IMEDIATAMENTE.
+        
+        ⚠️ TERCEIRO PASSO DA SEQUÊNCIA OBRIGATÓRIA:
+        Proprietário → Fazenda → Área → Talhão
+        
+        OBRIGATÓRIO: A FAZENDA DEVE EXISTIR PREVIAMENTE!
+        Se não existir, ofereça criar primeiro (criar_fazenda).
+        
+        SEMPRE pergunte os campos obrigatórios (name*, fazenda*, proprietario*, tipo*) antes de chamar:
+        1. Nome da área
+        2. Qual fazenda (valide se existe)
+        3. Qual proprietário (valide se existe)
+        4. Tipo de posse: 'propria' (padrão) ou 'arrendada'?
+        
+        Se tipo='arrendada', pergunte também: "Qual o custo em sacas/hectare?"
+        
+        Ao usuário CONFIRMAR — chame IMEDIATAMENTE. Não repita. Não faça mais perguntas.
 
         Args:
-            name: Nome da área (ex: Gleba Norte, Sede) — obrigatório
-            fazenda: Nome da fazenda à qual a área pertence — obrigatório
-            proprietario: Nome ou CPF/CNPJ do proprietário — obrigatório
-            tipo: Tipo de posse: 'propria' (padrão) ou 'arrendada'
-            custo_arrendamento: Custo em sacas/hectare — obrigatório se tipo='arrendada'
+            name: Nome da área(*obrigatório) — ex: "Gleba Norte", "Sede"
+            fazenda: Nome da fazenda à qual a área pertence(*obrigatório)
+            proprietario: Nome do proprietário(*obrigatório)
+            tipo: Tipo de posse(*obrigatório): 'propria' (padrão) ou 'arrendada'
+            custo_arrendamento: Custo em sacas/hectare — obrigatório APENAS se tipo='arrendada'
             observacoes: Observações adicionais
+            
+        ⚠️ Após criar: próximo passo é SEMPRE criar_talhao (que depende desta área)
         """
         return _post_action(
             base_url, jwt_token, tenant_id,
@@ -457,15 +494,33 @@ def get_agrolink_tools(base_url: str, jwt_token: str, tenant_id: str = "") -> li
     ) -> str:
         """
         Cria um novo talhão (unidade de trabalho agrícola) dentro de uma área/fazenda.
-        Pergunte os campos obrigatórios antes de chamar. Campos opcionais podem ser omitidos. Ao confirmar, CHAME a ferramenta IMEDIATAMENTE.
+        
+        ⚠️ QUARTO PASSO DA SEQUÊNCIA OBRIGATÓRIA:
+        Proprietário → Fazenda → Área → Talhão
+        
+        OBRIGATÓRIO: A ÁREA DEVE EXISTIR PREVIAMENTE!
+        Se não existir, ofereça criar primeiro (criar_area).
+        
+        CAMPOS OBRIGATÓRIOS — sempre pergunte nesta ordem:
+        1. Nome/código do talhão (ex: "Talhão A1", "Gleba Norte")
+        2. Qual área pertence? (validar se existe)
+        3. Qual a área em hectares?
+        
+        Campos opcionais (após os obrigatórios):
+        4. Qual a fazenda? (para ajudar a resolver se 'area_nome' for ambíguo)
+        5. Código interno do talhão?
+        6. Custo de arrendamento?
+        7. Observações?
+        
+        Ao usuário CONFIRMAR — chame IMEDIATAMENTE. Não volte a perguntar.
 
         Args:
-            nome: Nome ou código do talhão (ex: Talhão A1, Gleba Norte) — obrigatório
-            area_ha: Área do talhão em hectares — obrigatório
-            area_nome: Nome da área (seção/gleba) dentro da fazenda à qual pertence
-            fazenda: Nome da fazenda (se area_nome não for suficiente para identificar)
-            codigo: Código interno do talhão (ex: T-001)
-            custo_arrendamento: Custo de arrendamento em sacas/hectare (se aplicável)
+            nome: Nome ou código do talhão(*obrigatório) — ex: "Talhão A1", "Gleba Norte"
+            area_ha: Área do talhão em hectares(*obrigatório) — ex: 50.5
+            area_nome: Nome da área à qual o talhão pertence (se vazio, usa primeira área da fazenda)
+            fazenda: Nome da fazenda (ajuda a resolver área se 'area_nome' for ambíguo)
+            codigo: Código interno do talhão
+            custo_arrendamento: Custo de arrendamento em sacas/hectare
             observacoes: Observações adicionais
         """
         return _post_action(
