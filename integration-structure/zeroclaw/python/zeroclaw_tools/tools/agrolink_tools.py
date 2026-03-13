@@ -1759,7 +1759,7 @@ def get_agrolink_tools(base_url: str, jwt_token: str, tenant_id: str = "") -> li
         Use quando o usuário pedir: "listar fazendas", "quais fazendas temos?",
         "informações das propriedades".
         """
-        return _get(base_url, jwt_token, tenant_id, "/fazendas/fazendas/")
+        return _get(base_url, jwt_token, tenant_id, "/fazendas/")
 
     @tool
     def consultar_proprietarios() -> str:
@@ -1769,7 +1769,7 @@ def get_agrolink_tools(base_url: str, jwt_token: str, tenant_id: str = "") -> li
         Use quando o usuário pedir: "listar proprietários", "quem são os donos?",
         "proprietários cadastrados".
         """
-        return _get(base_url, jwt_token, tenant_id, "/fazendas/proprietarios/")
+        return _get(base_url, jwt_token, tenant_id, "/proprietarios/")
 
     @tool
     def consultar_colheitas(ano: int = 0) -> str:
