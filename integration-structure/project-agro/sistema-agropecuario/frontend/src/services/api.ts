@@ -3,7 +3,7 @@ import { getStoredTokens, refreshAccessToken, setStoredTokens, clearTokens, getS
 
 // Resolve baseURL in a way that works for browser, Node (tests), and Vite dev server
 // Avoid using the `import.meta` syntax directly to keep TS happy in Jest (ts-jest) environments.
-let baseURL = '/api/';
+let baseURL = 'http://localhost:8001/api/';
 const maybeProcess = (globalThis as unknown as { process?: { env?: { VITE_API_BASE?: string } } }).process;
 if (typeof maybeProcess !== 'undefined' && maybeProcess.env && maybeProcess.env.VITE_API_BASE) {
   baseURL = maybeProcess.env.VITE_API_BASE;
@@ -12,12 +12,12 @@ if (typeof maybeProcess !== 'undefined' && maybeProcess.env && maybeProcess.env.
   baseURL = (window as unknown as { VITE_API_BASE?: string }).VITE_API_BASE as string;
 }
 
-
-// If baseURL points to localhost/127.0.0.1 (eg. http://localhost:8001/api/), it will break in-container
-// because the frontend container's localhost is itself. Prefer relative '/api/' when running in Docker.
+// In Docker, frontend and backend are separate containers on the same network
+// Use the backend service hostname when running in container
 try {
-  if (typeof baseURL === 'string' && /https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?/.test(baseURL)) {
-    baseURL = '/api/';
+  if (typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+    // Running in Docker container
+    baseURL = 'http://backend:8001/api/';
   }
 } catch (e) {
   // ignore

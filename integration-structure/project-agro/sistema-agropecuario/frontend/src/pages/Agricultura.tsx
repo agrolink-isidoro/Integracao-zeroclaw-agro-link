@@ -2,6 +2,7 @@ import React, { lazy, Suspense } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import OperacoesList from '../components/agricultura/OperacoesList';
+import WeatherWidget from '../components/agricultura/WeatherWidget';
 import DashboardService from '../services/dashboard';
 import type { AgriculturaKpis } from '../services/dashboard';
 import { formatCurrency } from '../utils/formatters';
@@ -101,6 +102,11 @@ const Agricultura: React.FC = () => {
             </div>
           </div>
         </div>
+      </div>
+
+      {/* Weather Widget */}
+      <div className="col-12 mb-4">
+        <WeatherWidget />
       </div>
 
       {/* Produção por Talhão */}

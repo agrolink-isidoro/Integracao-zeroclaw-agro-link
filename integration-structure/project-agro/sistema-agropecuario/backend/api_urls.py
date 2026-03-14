@@ -25,6 +25,7 @@ def _redirect_fazendas_resource(request, resource):
 i18n_urls = import_module("apps.i18n.urls").urlpatterns
 fazendas_urls = import_module("apps.fazendas.urls").urlpatterns
 agricultura_urls = import_module("apps.agricultura.urls").urlpatterns
+agricultura_weather_urls = import_module("apps.agricultura_weather.urls").urlpatterns
 estoque_urls = import_module("apps.estoque.urls").urlpatterns
 financeiro_urls = import_module("apps.financeiro.urls").urlpatterns
 maquinas_urls = import_module("apps.maquinas.urls").urlpatterns
@@ -64,6 +65,7 @@ urlpatterns = [
     # re_path(r'^fazendas/(?P<resource>proprietarios|fazendas|areas|talhoes|arrendamentos|cotacoes-saca)/$', _redirect_fazendas_resource),
     path('', include('apps.fazendas.urls')),
     path('agricultura/', include('apps.agricultura.urls')),
+    path('agricultura-weather/', include('apps.agricultura_weather.urls')),
     # path('fazendas/', include('apps.fazendas.urls')),  # REMOVED - duplicated with line 40
     path('estoque/', include('apps.estoque.urls')),
     path('financeiro/', include('apps.financeiro.urls')),

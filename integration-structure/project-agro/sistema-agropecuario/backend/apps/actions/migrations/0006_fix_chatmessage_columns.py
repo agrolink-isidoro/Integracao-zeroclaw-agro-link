@@ -10,18 +10,6 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.RunSQL(
-            # Forward migrations
-            [
-                # Rename 'conteudo' to 'content'
-                "ALTER TABLE actions_chatmessage RENAME COLUMN conteudo TO content;",
-                # Rename 'tipo' to 'role'
-                "ALTER TABLE actions_chatmessage RENAME COLUMN tipo TO role;",
-            ],
-            # Reverse migrations
-            [
-                "ALTER TABLE actions_chatmessage RENAME COLUMN content TO conteudo;",
-                "ALTER TABLE actions_chatmessage RENAME COLUMN role TO tipo;",
-            ]
-        ),
+        # No-op: migration 0004 already created the table with correct column names
+        # (content, role, criado_por - not conteudo, tipo, usuario_id)
     ]

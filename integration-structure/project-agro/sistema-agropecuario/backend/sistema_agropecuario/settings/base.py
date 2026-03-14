@@ -26,6 +26,7 @@ INSTALLED_APPS = [
     "apps.core",
     "apps.fazendas",
     "apps.agricultura",
+    "apps.agricultura_weather",
     "apps.financeiro",
     "apps.comercial",
     "apps.administrativo",
