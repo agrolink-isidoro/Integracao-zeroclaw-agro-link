@@ -31,7 +31,7 @@ class TenantTestCase(TestCase):
             tenant=self.tenant,
             name="Test Farm",
             proprietario=self.proprietario,
-            defaults={"descricao": "Fazenda para testes"}
+            defaults={"matricula": "TEST-FARM-002"}
         )
         self.client.force_login(self.user)
 
