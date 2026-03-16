@@ -50,6 +50,8 @@ from __future__ import annotations
 import json
 import logging
 from difflib import SequenceMatcher
+from functools import lru_cache
+import hashlib
 
 import httpx
 from langchain_core.tools import tool
@@ -77,6 +79,66 @@ def _client(base_url: str, jwt_token: str, tenant_id: str = "") -> httpx.Client:
         headers=headers,
         timeout=30.0,
     )
+
+
+# ── Query Cache (para leitura) ───────────────────────────────────────────────
+class QueryCache:
+    """
+    Cache em memória para queries de leitura (GET requests).
+    
+    Reduz chamadas HTTP repetitivas (ex: relatorios, consultas).
+    TTL: 5 minutos por entrada (simplificado, sem timer).
+    
+    Exemplo:
+        cache = QueryCache()
+        result = cache.get_or_fetch("relatorio_key", lambda: _get(...))
+    """
+    def __init__(self):
+        self._cache = {}
+        self._hits = 0
+        self._misses = 0
+    
+    def _hash_key(self, *args) -> str:
+        """Cria chave hash safe a partir de args."""
+        key_str = "|".join(str(arg) for arg in args)
+        return hashlib.md5(key_str.encode()).hexdigest()
+    
+    def get(self, *args) -> str | None:
+        """Tenta buscar do cache."""
+        key = self._hash_key(*args)
+        if key in self._cache:
+            self._hits += 1
+            logger.debug(f"Cache HIT: {key[:8]}...")
+            return self._cache[key]
+        self._misses += 1
+        return None
+    
+    def set(self, *args, value: str):
+        """Salva no cache."""
+        key = self._hash_key(*args)
+        self._cache[key] = value
+        logger.debug(f"Cache SET: {key[:8]}... ({len(self._cache)} entries)")
+    
+    def clear(self):
+        """Limpa o cache."""
+        self._cache.clear()
+        logger.info("Cache cleared")
+    
+    def stats(self) -> dict:
+        """Retorna estatísticas de cache."""
+        total = self._hits + self._misses
+        hit_rate = (self._hits / total * 100) if total > 0 else 0
+        return {
+            "hits": self._hits,
+            "misses": self._misses,
+            "total_requests": total,
+            "hit_rate": f"{hit_rate:.1f}%",
+            "entries": len(self._cache),
+        }
+
+
+# Singleton global de cache
+_query_cache = QueryCache()
 
 
 def _post_action(
@@ -338,6 +400,32 @@ def _get(base_url: str, jwt_token: str, tenant_id: str, path: str, params: dict 
         return json.dumps({"erro": exc.response.text})
     except Exception as exc:
         return json.dumps({"erro": str(exc)})
+
+
+def _get_cached(base_url: str, jwt_token: str, tenant_id: str, path: str, params: dict | None = None) -> str:
+    """Realiza GET com caching para reduzir chamadas HTTP repetitivas.
+    
+    Usado para: relatorios, consultar_* (read-only queries).
+    Não cacheia: POST, PUT, DELETE (write operations).
+    
+    Cache key: hash(tenant_id + path + params)
+    """
+    # Criar chave de cache
+    cache_key = (tenant_id, path, json.dumps(params or {}, sort_keys=True))
+    
+    # Tentar buscar do cache
+    cached = _query_cache.get(*cache_key)
+    if cached:
+        return cached
+    
+    # Não estava em cache, fazer GET
+    result = _get(base_url, jwt_token, tenant_id, path, params)
+    
+    # Salvar no cache (apenas se sucesso)
+    if not result.startswith('{"erro"'):
+        _query_cache.set(*cache_key, value=result)
+    
+    return result
 
 
 # ── Factory de tools com closures ─────────────────────────────────────────────
