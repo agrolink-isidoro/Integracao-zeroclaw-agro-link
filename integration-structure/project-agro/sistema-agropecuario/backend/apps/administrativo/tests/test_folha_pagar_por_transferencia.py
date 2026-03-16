@@ -3,7 +3,8 @@ from decimal import Decimal
 from django.contrib.auth import get_user_model
 from apps.administrativo.models import FolhaPagamento, FolhaPagamentoItem, Funcionario
 from apps.financeiro.models import ContaBancaria, Transferencia, PaymentAllocation, Vencimento
-from apps.fazendas.models import Tenant, Proprietario, Fazenda
+from apps.core.models import Tenant
+from apps.fazendas.models import Proprietario, Fazenda
 
 from django.urls import reverse
 

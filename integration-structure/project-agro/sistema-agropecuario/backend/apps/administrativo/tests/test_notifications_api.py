@@ -4,7 +4,7 @@ from rest_framework.test import APIClient
 from rest_framework import status
 import pytest
 from apps.administrativo.models import Notificacao
-from apps.fazendas.models import Tenant
+from apps.core.models import Tenant
 
 User = get_user_model()
 
