@@ -258,7 +258,7 @@ def authenticated_user_with_tenant():
     proprietario, _ = Proprietario.objects.get_or_create(
         tenant=tenant,
         nome="Test Proprietário",
-        cpf="12345678901",
+        cpf_cnpj="12345678901",
         defaults={
             "email": "proprietario@test.local",
             "telefone": "11999999999",
@@ -351,7 +351,7 @@ def user_with_tenant():
     proprietario, _ = Proprietario.objects.get_or_create(
         tenant=tenant,
         nome="Test Proprietário",
-        cpf="12345678901",
+        cpf_cnpj="12345678901",
         defaults={
             "email": "proprietario@test.local",
             "telefone": "11999999999",

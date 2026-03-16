@@ -19,7 +19,7 @@ class TenantTestCase(TestCase):
         self.proprietario, _ = Proprietario.objects.get_or_create(
             tenant=self.tenant,
             nome="Test Owner",
-            cpf="00000000000",
+            cpf_cnpj="00000000000",
             defaults={"email": "owner@test.local", "telefone": "11999999999"}
         )
         self.user = User.objects.create(
