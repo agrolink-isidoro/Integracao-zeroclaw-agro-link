@@ -1,18 +1,15 @@
 import React, { useState } from 'react';
 import OperacaoForm from '@/components/financeiro/OperacaoForm';
 import OperacaoDetailModal from '@/components/financeiro/OperacaoDetailModal';
+import ModalForm from '@/components/common/ModalForm';
 import { useApiQuery } from '@/hooks/useApi';
 import type { Emprestimo, Financiamento } from '@/types/financeiro';
 
 const OperacoesPage: React.FC = () => {
-  const [open, setOpen] = useState(false);
+  const [showNovaModal, setShowNovaModal] = useState(false);
   const [detailOpen, setDetailOpen] = useState(false);
   const [selectedOperacao, setSelectedOperacao] = useState<Emprestimo | Financiamento | null>(null);
   const [selectedTipo, setSelectedTipo] = useState<'emprestimo' | 'financiamento'>('emprestimo');
-
-  React.useEffect(() => {
-    console.log('[Operacoes] detailOpen state changed:', detailOpen, 'selectedOperacao:', selectedOperacao?.id);
-  }, [detailOpen, selectedOperacao]);
 
   const { data: emprestimos = [] } = useApiQuery<any[]>(['emprestimos'], '/financeiro/emprestimos/');
   const { data: financiamentos = [] } = useApiQuery<any[]>(['financiamentos'], '/financeiro/financiamentos/');
@@ -55,22 +52,11 @@ const OperacoesPage: React.FC = () => {
           </h3>
           <small className="text-muted">Empréstimos e Financiamentos</small>
         </div>
-        <button className="btn btn-primary" onClick={() => setOpen(true)}>
+        <button className="btn btn-primary" onClick={() => setShowNovaModal(true)}>
           <i className="bi bi-plus-circle me-2"></i>
           Nova Operação
         </button>
       </div>
-
-      {open && (
-        <div className="card p-3 mb-4 border-left-primary">
-          <OperacaoForm 
-            onClose={() => setOpen(false)} 
-            onSaved={() => { 
-              setOpen(false);
-            }} 
-          />
-        </div>
-      )}
 
       {/* Tabela */}
       {combined.length > 0 ? (
@@ -136,9 +122,22 @@ const OperacoesPage: React.FC = () => {
         <div className="alert alert-info py-4 text-center">
           <i className="bi bi-info-circle me-2"></i>
           Nenhuma operação cadastrada. 
-          <button className="btn btn-link" onClick={() => setOpen(true)}>Criar primeira operação</button>
+          <button className="btn btn-link" onClick={() => setShowNovaModal(true)}>Criar primeira operação</button>
         </div>
       )}
+
+      {/* Modal Nova Operação */}
+      <ModalForm
+        isOpen={showNovaModal}
+        title="Nova Operação Financeira"
+        onClose={() => setShowNovaModal(false)}
+        size="lg"
+      >
+        <OperacaoForm
+          onClose={() => setShowNovaModal(false)}
+          onSaved={() => setShowNovaModal(false)}
+        />
+      </ModalForm>
 
       {/* Modal de Detalhes */}
       <OperacaoDetailModal

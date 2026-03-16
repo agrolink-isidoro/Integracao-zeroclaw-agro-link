@@ -38,7 +38,7 @@ const FuncionarioForm: React.FC<{ onClose?: () => void; initialData?: Partial<Fu
   const [banco, setBanco] = useState('');
   const [agencia, setAgencia] = useState('');
   const [conta, setConta] = useState('');
-  const [tipoConta, setTipoConta] = useState<'corrente'|'poupanca'|''>('');
+  const [tipoConta, setTipoConta] = useState<'corrente'|'poupanca'|undefined>(undefined);
   const [pixKey, setPixKey] = useState('');
   const [recebePor, setRecebePor] = useState<'pix'|'transferencia'|'boleto'>('pix');
   const [nomeTitular, setNomeTitular] = useState('');
@@ -61,7 +61,7 @@ const FuncionarioForm: React.FC<{ onClose?: () => void; initialData?: Partial<Fu
       setBanco(initialData.banco || '');
       setAgencia(initialData.agencia || '');
       setConta(initialData.conta || '');
-      setTipoConta((initialData.tipo_conta as any) || '');
+      setTipoConta(initialData.tipo_conta || undefined);
       setPixKey(initialData.pix_key || '');
       setRecebePor((initialData.recebe_por as any) || 'pix');
       setNomeTitular(initialData.nome_titular || '');

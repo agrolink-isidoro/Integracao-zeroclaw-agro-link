@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import financeiroService from '@/services/financeiro';
 import { useQueryClient } from '@tanstack/react-query';
+import type { Query, QueryFilters } from '@tanstack/react-query';
 import { useApiQuery } from '@/hooks/useApi';
 import { toast } from 'react-hot-toast';
 
@@ -82,20 +83,20 @@ const VencimentoForm: React.FC<Props> = ({ initialData, onClose, onSaved }) => {
 
         // Update caches immediately: cancel in-flight vencimentos queries, then insert created item into matching caches
         try {
-          const predicate = (query: any) => {
+          const predicate = (query: Query) => {
             const key = query.queryKey;
             return Array.isArray(key) && key[0] === 'financeiro' && key[1] === 'vencimentos';
           };
 
           // Cancel ongoing vencimentos queries to avoid race where an older in-flight response overwrites our inserted item
           try {
-            await queryClient.cancelQueries({ predicate });
+            await queryClient.cancelQueries({ predicate: predicate as (query: Query) => boolean });
             console.log('🛑 Cancelled in-flight vencimentos queries');
           } catch (e) {
             console.warn('⚠️ Erro ao cancelar queries:', e);
           }
 
-          const matched = queryClient.getQueryCache().findAll(predicate);
+          const matched = queryClient.getQueryCache().findAll({ predicate: predicate as (query: Query) => boolean });
           console.log('🔍 Queries matched for cache update:', matched.map(q => q.queryKey));
 
           matched.forEach(q => {
@@ -120,17 +121,17 @@ const VencimentoForm: React.FC<Props> = ({ initialData, onClose, onSaved }) => {
 
       console.log('🔄 Invalidando cache de queries...');
       // Invalidate all vencimentos queries regardless of pageSize
-      const predicate = (query: any) => {
+      const predicate = (query: Query) => {
         const key = query.queryKey;
         return Array.isArray(key) && key[0] === 'financeiro' && key[1] === 'vencimentos';
       };
-      queryClient.invalidateQueries({ predicate });
+      queryClient.invalidateQueries({ predicate: predicate as (query: Query) => boolean });
 
       // Log which queries matched and force refetch to ensure UI updates
       try {
-        const matched = queryClient.getQueryCache().findAll(predicate);
+        const matched = queryClient.getQueryCache().findAll({ predicate: predicate as (query: Query) => boolean });
         console.log('🔍 Queries matched for refetch:', matched.map(q => q.queryKey));
-        await queryClient.refetchQueries({ predicate, cancelRefetch: false });
+        await queryClient.refetchQueries({ predicate: predicate as (query: Query) => boolean });
         console.log('✅ Refetch triggered for matched queries');
       } catch (e) {
         console.warn('⚠️ Erro ao forçar refetch:', e);

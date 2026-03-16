@@ -63,6 +63,7 @@ const VendaCreate: React.FC<VendaCreateProps> = ({ onSuccess, onCancel }) => {
   const [produtos, setProdutos] = React.useState<Array<{ id: number; nome?: string; unidade?: string }>>([]);
   const [unidadeProduto, setUnidadeProduto] = React.useState<string>('');
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
   const mutation = useMutation({
     mutationFn: (payload: unknown) => ComercialService.createVendaCompra(payload as Parameters<typeof ComercialService.createVendaCompra>[0]),
@@ -75,14 +76,23 @@ const VendaCreate: React.FC<VendaCreateProps> = ({ onSuccess, onCancel }) => {
 
   const loading = mutation.status === 'pending';
 
+  const [allProdutos, setAllProdutos] = React.useState<Array<{ id: number; nome?: string; unidade?: string }>>([]);
+
   React.useEffect(() => {
-    // load clients and locais for selectors
+    // load clients, locais e todos os produtos para selectors
     let mounted = true;
     ComercialService.getClientes().then((c) => {
       if (mounted) setClientes(c || []);
     }).catch(() => {});
     ComercialService.getLocais().then((l) => {
       if (mounted) setLocais(l || []);
+    }).catch(() => {});
+    ComercialService.getAllProdutos().then((p) => {
+      if (mounted) {
+        const list: Array<{ id: number; nome?: string; unidade?: string }> = Array.isArray(p) ? p : [];
+        setAllProdutos(list);
+        setProdutos(list);
+      }
     }).catch(() => {});
     return () => { mounted = false; };
   }, []);
@@ -218,16 +228,22 @@ const VendaCreate: React.FC<VendaCreateProps> = ({ onSuccess, onCancel }) => {
                         <select {...field} className="form-select" onChange={async (e) => {
                           field.onChange(e);
                           const val = e.target.value;
-                          setProdutos([]);
+                          setValue('produto', '');
+                          setUnidadeProduto('');
                           if (val) {
-                            const raw = await ComercialService.getProdutosByLocal(Number(val));
-                            const list: Array<{ id: number; nome?: string; unidade?: string }> = Array.isArray(raw) ? raw : ((raw as any)?.results ?? []);
-                            setProdutos(list);
-                            setUnidadeProduto('');
-                            setValue('produto', '');
-                            if (list.length === 1) { setValue('produto', list[0].id); setUnidadeProduto(list[0].unidade || ''); }
+                            // Filter from already-loaded products by local, fallback to API
+                            const filtered = allProdutos.filter((p: any) =>
+                              p.local_armazenamento === Number(val) || String(p.local_armazenamento) === val
+                            );
+                            if (filtered.length > 0) {
+                              setProdutos(filtered);
+                            } else {
+                              const raw = await ComercialService.getProdutosByLocal(Number(val));
+                              const list: Array<{ id: number; nome?: string; unidade?: string }> = Array.isArray(raw) ? raw : ((raw as any)?.results ?? []);
+                              setProdutos(list.length > 0 ? list : allProdutos);
+                            }
                           } else {
-                            setValue('produto', '');
+                            setProdutos(allProdutos);
                           }
                         }}>
                           <option value="">Selecione o local</option>

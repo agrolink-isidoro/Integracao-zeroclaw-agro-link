@@ -46,15 +46,42 @@ const ContratoForm: React.FC<ContratoFormProps> = ({
   contrato,
   loading = false
 }) => {
-  const [activeTab, setActiveTab] = useState<'dados_gerais' | 'partes' | 'itens' | 'condicoes' | 'documento'>('dados_gerais');
+  const [activeTab, setActiveTab] = useState<'dados_gerais' | 'partes' | 'itens' | 'condicoes' | 'documento' | 'compra_especifico' | 'venda_especifico' | 'financeiro_especifico'>('dados_gerais');
   const [partes, setPartes] = useState<ParteContrato[]>(contrato?.partes || []);
   const [itens, setItens] = useState<ItemContrato[]>(contrato?.itens || []);
   const [condicoes, setCondicoes] = useState<CondicaoContrato[]>(contrato?.condicoes || []);
   const [fornecedores, setFornecedores] = useState<Fornecedor[]>([]);
   const [prestadores, setPrestadores] = useState<PrestadorServico[]>([]);
   const [instituicoes, setInstituicoes] = useState<InstituicaoFinanceira[]>([]);
+  
+  // Estados específicos para Compra
+  const [compraData, setCompraData] = useState({
+    fornecedor_id: 0,
+    condicao_pagamento: 'dinheiro',
+    prazo_entrega_dias: 0,
+    desconto_global_percentual: 0,
+  });
 
-  const { control, handleSubmit, setValue, formState: { errors } } = useForm<ContratoComercial>({
+  // Estados específicos para Venda
+  const [vendaData, setVendaData] = useState({
+    cliente_id: 0,
+    numero_parcelas: 1,
+    periodicidade_parcela: 'mensal',
+    rastrear_comissao: true,
+    percentual_comissao: 0,
+  });
+
+  // Estados específicos para Financeiro
+  const [financeiroData, setFinanceiroData] = useState({
+    produto_financeiro: 'emprestimo',
+    instituicao_financeira_id: 0,
+    valor_entrada: 0,
+    taxa_juros: 0,
+    prazo_meses: 12,
+    numero_parcelas: 12,
+  });
+
+  const { control, handleSubmit, setValue, watch, formState: { errors } } = useForm<ContratoComercial>({
     resolver: yupResolver(schema),
     defaultValues: contrato || {
       tipo_contrato: 'compra',
@@ -98,12 +125,27 @@ const ContratoForm: React.FC<ContratoFormProps> = ({
   }, [contrato, setValue]);
   const handleFormSubmit = async (data: ContratoComercial) => {
     try {
-      await onSubmit({
+      const submitData: any = {
         ...data,
         partes,
         itens,
         condicoes,
-      });
+      };
+
+      // Adicionar dados específicos baseado no tipo de contrato
+      switch (data.tipo_contrato) {
+        case 'compra':
+          submitData.compra_especifico = compraData;
+          break;
+        case 'venda':
+          submitData.venda_especifico = vendaData;
+          break;
+        case 'financiamento':
+          submitData.financeiro_especifico = financeiroData;
+          break;
+      }
+
+      await onSubmit(submitData);
       onClose();
     } catch (error) {
       console.error('Erro ao salvar contrato:', error);
@@ -250,6 +292,9 @@ const ContratoForm: React.FC<ContratoFormProps> = ({
 
   const tabs = [
     { id: 'dados_gerais', label: 'Dados Gerais', icon: '📋' },
+    ...(watch('tipo_contrato') === 'compra' ? [{ id: 'compra_especifico', label: 'Compra', icon: '🛒' }] : []),
+    ...(watch('tipo_contrato') === 'venda' ? [{ id: 'venda_especifico', label: 'Venda', icon: '📊' }] : []),
+    ...(watch('tipo_contrato') === 'financiamento' ? [{ id: 'financeiro_especifico', label: 'Financeiro', icon: '💰' }] : []),
     { id: 'partes', label: 'Partes', icon: '👥' },
     { id: 'itens', label: 'Itens', icon: '📦' },
     { id: 'condicoes', label: 'Condições', icon: '⚖️' },
@@ -271,7 +316,7 @@ const ContratoForm: React.FC<ContratoFormProps> = ({
               <button
                 key={tab.id}
                 type="button"
-                onClick={() => setActiveTab(tab.id as 'dados_gerais' | 'partes' | 'itens' | 'condicoes' | 'documento')}
+                onClick={() => setActiveTab(tab.id as 'dados_gerais' | 'partes' | 'itens' | 'condicoes' | 'documento' | 'compra_especifico' | 'venda_especifico' | 'financeiro_especifico')}
                 className={`py-2 px-1 border-bottom border-2 fw-medium text-nowrap me-3 ${
                   activeTab === tab.id
                     ? 'border-primary text-primary'
@@ -828,6 +873,207 @@ const ContratoForm: React.FC<ContratoFormProps> = ({
                 <p className="text-muted mt-1">
                   Formatos aceitos: PDF, DOC, DOCX
                 </p>
+              </div>
+            </div>
+          )}
+
+          {/* Aba específica para Contrato de Compra */}
+          {activeTab === 'compra_especifico' && (
+            <div className="row g-2 g-md-3">
+              <div className="col-12 col-md-6">
+                <label className="form-label">
+                  Fornecedor
+                </label>
+                <SelectDropdown
+                  value={compraData.fornecedor_id?.toString() || ''}
+                  onChange={(value) => setCompraData({ ...compraData, fornecedor_id: parseInt(value as string) })}
+                  options={[
+                    { value: '', label: 'Selecione...' },
+                    ...fornecedores.map(f => ({
+                      value: f.id!.toString(),
+                      label: f.tipo_pessoa === 'pf' ? f.nome_completo! : f.razao_social!
+                    }))
+                  ]}
+                />
+              </div>
+
+              <div className="col-12 col-md-6">
+                <label className="form-label">
+                  Condição de Pagamento
+                </label>
+                <SelectDropdown
+                  value={compraData.condicao_pagamento?.toString() ?? ''}
+                  onChange={(value) => setCompraData({ ...compraData, condicao_pagamento: String(value) })}
+                  options={[
+                    { value: 'dinheiro', label: 'Dinheiro' },
+                    { value: 'credito_30', label: 'Crédito 30 dias' },
+                    { value: 'credito_60', label: 'Crédito 60 dias' },
+                    { value: 'credito_90', label: 'Crédito 90 dias' },
+                    { value: 'parcelado', label: 'Parcelado' },
+                  ]}
+                />
+              </div>
+
+              <div className="col-12 col-md-6">
+                <Input
+                  label="Prazo de Entrega (dias)"
+                  type="number"
+                  value={compraData.prazo_entrega_dias?.toString() || ''}
+                  onChange={(e) => setCompraData({ ...compraData, prazo_entrega_dias: parseInt(e.target.value) || 0 })}
+                />
+              </div>
+
+              <div className="col-12 col-md-6">
+                <Input
+                  label="Desconto Global (%)"
+                  type="number"
+                  step="0.01"
+                  value={compraData.desconto_global_percentual?.toString() || ''}
+                  onChange={(e) => setCompraData({ ...compraData, desconto_global_percentual: parseFloat(e.target.value) || 0 })}
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Aba específica para Contrato de Venda */}
+          {activeTab === 'venda_especifico' && (
+            <div className="row g-2 g-md-3">
+              <div className="col-12 col-md-6">
+                <label className="form-label">
+                  Cliente
+                </label>
+                <SelectDropdown
+                  value={vendaData.cliente_id?.toString() || ''}
+                  onChange={(value) => setVendaData({ ...vendaData, cliente_id: parseInt(value as string) })}
+                  options={[
+                    { value: '', label: 'Selecione...' },
+                    { value: '1', label: 'Carregando clientes...' }
+                  ]}
+                />
+              </div>
+
+              <div className="col-12 col-md-6">
+                <Input
+                  label="Número de Parcelas"
+                  type="number"
+                  value={vendaData.numero_parcelas?.toString() || ''}
+                  onChange={(e) => setVendaData({ ...vendaData, numero_parcelas: parseInt(e.target.value) || 1 })}
+                />
+              </div>
+
+              <div className="col-12 col-md-6">
+                <label className="form-label">
+                  Periodicidade da Parcela
+                </label>
+                <SelectDropdown
+                  value={vendaData.periodicidade_parcela?.toString() ?? ''}
+                  onChange={(value) => setVendaData({ ...vendaData, periodicidade_parcela: String(value) })}
+                  options={[
+                    { value: 'semanal', label: 'Semanal' },
+                    { value: 'quinzenal', label: 'Quinzenal' },
+                    { value: 'mensal', label: 'Mensal' },
+                    { value: 'bimestral', label: 'Bimestral' },
+                    { value: 'trimestral', label: 'Trimestral' },
+                  ]}
+                />
+              </div>
+
+              <div className="col-12 col-md-6">
+                <Input
+                  label="Percentual de Comissão (%)"
+                  type="number"
+                  step="0.01"
+                  value={vendaData.percentual_comissao?.toString() || ''}
+                  onChange={(e) => setVendaData({ ...vendaData, percentual_comissao: parseFloat(e.target.value) || 0 })}
+                />
+              </div>
+
+              <div className="col-12">
+                <input
+                  type="checkbox"
+                  checked={vendaData.rastrear_comissao}
+                  onChange={(e) => setVendaData({ ...vendaData, rastrear_comissao: e.target.checked })}
+                  className="form-check-input me-2"
+                />
+                <label className="form-check-label">
+                  Rastrear Comissão
+                </label>
+              </div>
+            </div>
+          )}
+
+          {/* Aba específica para Contrato Financeiro */}
+          {activeTab === 'financeiro_especifico' && (
+            <div className="row g-2 g-md-3">
+              <div className="col-12 col-md-6">
+                <label className="form-label">
+                  Tipo de Produto Financeiro
+                </label>
+                <SelectDropdown
+                  value={financeiroData.produto_financeiro?.toString() ?? ''}
+                  onChange={(value) => setFinanceiroData({ ...financeiroData, produto_financeiro: String(value) })}
+                  options={[
+                    { value: 'emprestimo', label: 'Empréstimo' },
+                    { value: 'consorcio', label: 'Consórcio' },
+                    { value: 'seguro', label: 'Seguro' },
+                    { value: 'aplicacao', label: 'Aplicação Financeira' },
+                  ]}
+                />
+              </div>
+
+              <div className="col-12 col-md-6">
+                <label className="form-label">
+                  Instituição Financeira
+                </label>
+                <SelectDropdown
+                  value={financeiroData.instituicao_financeira_id?.toString() || ''}
+                  onChange={(value) => setFinanceiroData({ ...financeiroData, instituicao_financeira_id: parseInt(value as string) })}
+                  options={[
+                    { value: '', label: 'Selecione...' },
+                    ...instituicoes.map(i => ({
+                      value: i.id!.toString(),
+                      label: i.nome
+                    }))
+                  ]}
+                />
+              </div>
+
+              <div className="col-12 col-md-6">
+                <Input
+                  label="Valor de Entrada"
+                  type="number"
+                  step="0.01"
+                  value={financeiroData.valor_entrada?.toString() || ''}
+                  onChange={(e) => setFinanceiroData({ ...financeiroData, valor_entrada: parseFloat(e.target.value) || 0 })}
+                />
+              </div>
+
+              <div className="col-12 col-md-6">
+                <Input
+                  label="Taxa de Juros (%)"
+                  type="number"
+                  step="0.01"
+                  value={financeiroData.taxa_juros?.toString() || ''}
+                  onChange={(e) => setFinanceiroData({ ...financeiroData, taxa_juros: parseFloat(e.target.value) || 0 })}
+                />
+              </div>
+
+              <div className="col-12 col-md-6">
+                <Input
+                  label="Prazo (meses)"
+                  type="number"
+                  value={financeiroData.prazo_meses?.toString() || ''}
+                  onChange={(e) => setFinanceiroData({ ...financeiroData, prazo_meses: parseInt(e.target.value) || 12 })}
+                />
+              </div>
+
+              <div className="col-12 col-md-6">
+                <Input
+                  label="Número de Parcelas"
+                  type="number"
+                  value={financeiroData.numero_parcelas?.toString() || ''}
+                  onChange={(e) => setFinanceiroData({ ...financeiroData, numero_parcelas: parseInt(e.target.value) || 12 })}
+                />
               </div>
             </div>
           )}

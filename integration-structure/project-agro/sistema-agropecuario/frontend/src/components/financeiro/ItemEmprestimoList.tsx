@@ -40,7 +40,7 @@ const ItemEmprestimoList: React.FC<Props> = ({ items, onRemoveItem, onEditItem }
                 <th>Quantidade</th>
                 <th>Valor Unitário</th>
                 <th>Valor Total</th>
-                <th width="100">Ações</th>
+                <th style={{ width: '100px' }}>Ações</th>
               </tr>
             </thead>
             <tbody>

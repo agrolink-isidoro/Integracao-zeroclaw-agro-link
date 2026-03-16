@@ -56,7 +56,8 @@ export interface Colheita {
   unidade: string; // 'kg', 'ton', 'sacas', etc.
   qualidade?: string; // 'premium', 'standard', 'descarte', etc.
   observacoes?: string;
-  status: 'colhida' | 'armazenada' | 'comercializada' | 'vendida';
+  status: 'colhida' | 'armazenada' | 'comercializada' | 'vendida' | 'finalizada';
+  area_total?: number;
   
   // Transportes (novo)
   transportes?: ColheitaTransporte[];

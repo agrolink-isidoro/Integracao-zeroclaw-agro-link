@@ -53,8 +53,7 @@ import DespesaPrestadoraCreate from '@/pages/comercial/DespesaPrestadoraCreate';
 import CompraCreate from '@/pages/comercial/CompraCreate';
 import ClienteCreate from '@/pages/comercial/ClienteCreate';
 import VendaCreate from '@/pages/comercial/VendaCreate';
-import ContratoCreate from '@/pages/comercial/ContratoCreate';
-import ContratoForm from '@/pages/comercial/ContratoForm';
+import ContratosList from '@/pages/comercial/ContratosList';
 import ContratoDetalhes from '@/pages/comercial/ContratoDetalhes';
 
 // Financeiro detail routes
@@ -165,10 +164,17 @@ function App() {
               <Route path="compras/new" element={<CompraCreate />} />
               <Route path="clientes/new" element={<ClienteCreate />} />
               <Route path="clientes/:id" element={React.createElement(React.lazy(() => import('./pages/comercial/ClienteDetail')))} />
+              <Route path="clientes/:id/editar" element={<ClienteCreate />} />
               <Route path="vendas/new" element={<VendaCreate />} />
-              <Route path="contratos/novo" element={<ContratoForm />} />
-              <Route path="contratos/new" element={<ContratoCreate />} />
+              <Route path="contratos/novo" element={<ContratosList />} />
+              <Route path="contratos/new" element={<ContratosList />} />
               <Route path="contratos/:id" element={<ContratoDetalhes />} />
+              <Route path="contratos" element={<Comercial />} />
+              <Route path="dashboard" element={<Comercial />} />
+              <Route path="vendas" element={<Comercial />} />
+              <Route path="clientes" element={<Comercial />} />
+              <Route path="fornecedores" element={<Comercial />} />
+              <Route path="relatorios" element={<Comercial />} />
               <Route path="*" element={<Comercial />} />
             </Route>
 

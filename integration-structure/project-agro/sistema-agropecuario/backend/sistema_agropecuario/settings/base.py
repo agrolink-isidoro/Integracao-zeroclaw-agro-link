@@ -26,6 +26,7 @@ INSTALLED_APPS = [
     "apps.core",
     "apps.fazendas",
     "apps.agricultura",
+    "apps.agricultura_weather",
     "apps.financeiro",
     "apps.comercial",
     "apps.administrativo",
@@ -237,6 +238,7 @@ CORS_ALLOW_HEADERS = [
     'user-agent',
     'x-csrftoken',
     'x-requested-with',
+    'x-tenant-id',
 ]
 
 # Trusted origins for Django's CSRF origin check (required when frontend runs on different host/port)

@@ -200,7 +200,7 @@ export default function SaudePropriedade() {
                       interaction: { intersect: false, mode: 'index' },
                       plugins: {
                         legend: { position: 'bottom', labels: { boxWidth: 12 } },
-                        tooltip: { callbacks: { label: (ctx) => `${ctx.dataset.label}: ${fmt(ctx.parsed.y)}` } },
+                        tooltip: { callbacks: { label: (ctx) => `${ctx.dataset.label}: ${fmt(ctx.parsed.y ?? 0)}` } },
                       },
                       scales: {
                         y: { ticks: { callback: (v) => `R$ ${Number(v).toLocaleString('pt-BR')}` } },

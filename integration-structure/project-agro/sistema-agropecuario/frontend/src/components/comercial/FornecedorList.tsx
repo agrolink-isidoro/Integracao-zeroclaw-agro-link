@@ -20,6 +20,7 @@ const FornecedorList: React.FC<FornecedorListProps> = ({ onView, onEdit }) => {
   const [showForm, setShowForm] = useState(false);
   const [editingFornecedor, setEditingFornecedor] = useState<Fornecedor | undefined>();
   const [deletingFornecedor, setDeletingFornecedor] = useState<Fornecedor | null>(null);
+  const [viewingFornecedor, setViewingFornecedor] = useState<Fornecedor | null>(null);
   const [filtros, setFiltros] = useState<FiltrosComerciais>({});
   const [showFilters, setShowFilters] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -52,6 +53,11 @@ const FornecedorList: React.FC<FornecedorListProps> = ({ onView, onEdit }) => {
     }
     setEditingFornecedor(undefined);
     setShowForm(true);
+  };
+
+  const handleView = (fornecedor: Fornecedor) => {
+    if (onView) onView(fornecedor);
+    else setViewingFornecedor(fornecedor);
   };
 
   const handleEdit = (fornecedor: Fornecedor) => {
@@ -201,26 +207,22 @@ const FornecedorList: React.FC<FornecedorListProps> = ({ onView, onEdit }) => {
 
   const actions = (item: Fornecedor) => (
     <div className="flex space-x-2">
-      {onView && (
-        <Button
-          variant="secondary"
-          size="sm"
-          onClick={() => onView(item)}
-          title="Visualizar"
-        >
-          <Eye size={16} />
-        </Button>
-      )}
-      {onEdit && (
-        <Button
-          variant="secondary"
-          size="sm"
-          onClick={() => handleEdit(item)}
-          title="Editar"
-        >
-          <Edit size={16} />
-        </Button>
-      )}
+      <Button
+        variant="secondary"
+        size="sm"
+        onClick={() => handleView(item)}
+        title="Visualizar"
+      >
+        <Eye size={16} />
+      </Button>
+      <Button
+        variant="secondary"
+        size="sm"
+        onClick={() => handleEdit(item)}
+        title="Editar"
+      >
+        <Edit size={16} />
+      </Button>
       <Button
         variant="danger"
         size="sm"
@@ -370,6 +372,41 @@ const FornecedorList: React.FC<FornecedorListProps> = ({ onView, onEdit }) => {
         confirmText="Excluir"
         cancelText="Cancelar"
       />
+
+      {/* View Modal */}
+      {viewingFornecedor && (
+        <div className="modal d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1050 }} tabIndex={-1}>
+          <div className="modal-dialog modal-dialog-centered modal-lg">
+            <div className="modal-content">
+              <div className="modal-header">
+                <h5 className="modal-title"><i className="bi bi-building me-2"></i>Fornecedor: {viewingFornecedor.razao_social || viewingFornecedor.nome_completo}</h5>
+                <button type="button" className="btn-close" onClick={() => setViewingFornecedor(null)}></button>
+              </div>
+              <div className="modal-body">
+                <div className="row g-3">
+                  <div className="col-md-6"><strong>Nome/Razão Social:</strong> {viewingFornecedor.razao_social || viewingFornecedor.nome_completo || '-'}</div>
+                  <div className="col-md-6"><strong>Nome Fantasia:</strong> {viewingFornecedor.nome_fantasia || '-'}</div>
+                  <div className="col-md-6"><strong>CPF/CNPJ:</strong> {viewingFornecedor.cpf_cnpj || '-'}</div>
+                  <div className="col-md-6"><strong>Tipo:</strong> {viewingFornecedor.tipo_pessoa === 'pj' ? 'Pessoa Jurídica' : 'Pessoa Física'}</div>
+                  <div className="col-md-6"><strong>Categoria:</strong> {viewingFornecedor.categoria_fornecedor || '-'}</div>
+                  <div className="col-md-6"><strong>Status:</strong> {viewingFornecedor.status || '-'}</div>
+                  <div className="col-md-6"><strong>Telefone:</strong> {viewingFornecedor.contato?.telefone_principal || '-'}</div>
+                  <div className="col-md-6"><strong>E-mail:</strong> {viewingFornecedor.contato?.email_principal || '-'}</div>
+                  <div className="col-md-6"><strong>Cidade:</strong> {viewingFornecedor.endereco?.cidade || '-'}</div>
+                  <div className="col-md-6"><strong>Estado:</strong> {viewingFornecedor.endereco?.estado || '-'}</div>
+                  {viewingFornecedor.observacoes && <div className="col-12"><strong>Observações:</strong> {viewingFornecedor.observacoes}</div>}
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button className="btn btn-secondary" onClick={() => setViewingFornecedor(null)}>Fechar</button>
+                <button className="btn btn-warning" onClick={() => { handleEdit(viewingFornecedor); setViewingFornecedor(null); }}>
+                  <Edit size={16} className="me-1" /> Editar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

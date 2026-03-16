@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import * as yup from 'yup';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
@@ -32,15 +32,32 @@ const schema = yup.object().shape({
 interface EmpresaCreateProps {
   onSuccess?: (data?: unknown) => void;
   onCancel?: () => void;
+  initialData?: any;
 }
 
-const EmpresaCreate: React.FC<EmpresaCreateProps> = ({ onSuccess, onCancel }) => {
-  const { control, handleSubmit } = useForm({ resolver: makeResolver(schema), defaultValues: { nome: '', cnpj: '', contato: '', endereco: '' } });
+const EmpresaCreate: React.FC<EmpresaCreateProps> = ({ onSuccess, onCancel, initialData }) => {
+  const isEditing = !!(initialData?.id);
+  const { control, handleSubmit, reset } = useForm({ resolver: makeResolver(schema), defaultValues: { nome: '', cnpj: '', contato: '', endereco: '' } });
   const queryClient = useQueryClient();
   const navigate = useNavigate();
 
+  useEffect(() => {
+    if (initialData) {
+      reset({
+        nome: initialData.nome || '',
+        cnpj: initialData.cnpj || '',
+        contato: initialData.contato || '',
+        endereco: initialData.endereco || '',
+      });
+    }
+  }, [initialData, reset]);
+
   const mutation = useMutation({
-    mutationFn: (payload: unknown) => ComercialService.createEmpresa(payload as Parameters<typeof ComercialService.createEmpresa>[0]),
+    mutationFn: (payload: unknown) => {
+      const p = payload as Parameters<typeof ComercialService.createEmpresa>[0];
+      if (isEditing) return ComercialService.updateEmpresa(initialData.id, p);
+      return ComercialService.createEmpresa(p);
+    },
     onSuccess: (data: unknown) => {
       queryClient.invalidateQueries({ queryKey: ['empresas'] });
       const d = data as Record<string, unknown>;
@@ -59,7 +76,7 @@ const EmpresaCreate: React.FC<EmpresaCreateProps> = ({ onSuccess, onCancel }) =>
       const d = data as Record<string, unknown>;
       await mutation.mutateAsync({ nome: String(d.nome || ''), cnpj: String(d.cnpj || ''), contato: String(d.contato || ''), endereco: String(d.endereco || '') });
     } catch (e) {
-      console.error('Erro ao criar empresa', e);
+      console.error('Erro ao salvar empresa', e);
     }
   };
 
@@ -74,6 +91,9 @@ const EmpresaCreate: React.FC<EmpresaCreateProps> = ({ onSuccess, onCancel }) =>
       <div className="card">
         <div className="card-body p-3 p-md-4">
           <form onSubmit={handleSubmit(onSubmit)}>
+            {!onCancel && (
+              <h2 className="mb-3">{isEditing ? 'Editar Empresa' : 'Nova Empresa / Prestadora'}</h2>
+            )}
             <div className="row g-2 g-md-3">
               <div className="col-12 col-md-6">
                 <Controller
@@ -120,7 +140,7 @@ const EmpresaCreate: React.FC<EmpresaCreateProps> = ({ onSuccess, onCancel }) =>
             </div>
 
             <div className="mt-3">
-              <Button type="submit" className="btn btn-primary" disabled={loading}>Salvar Empresa</Button>
+              <Button type="submit" className="btn btn-primary" disabled={loading}>{isEditing ? 'Atualizar Empresa' : 'Salvar Empresa'}</Button>
               {onCancel && (
                 <button type="button" className="btn btn-outline-secondary ms-2" onClick={onCancel}>Cancelar</button>
               )}

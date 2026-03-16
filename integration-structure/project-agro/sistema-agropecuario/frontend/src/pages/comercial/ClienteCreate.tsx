@@ -2,7 +2,7 @@ import React from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import * as yup from 'yup';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import Input from '@/components/common/Input';
 import Button from '@/components/Button';
 import ComercialService from '@/services/comercial';
@@ -51,10 +51,14 @@ const schema = yup.object().shape({
 interface ClienteCreateProps {
   onSuccess?: (data?: unknown) => void;
   onCancel?: () => void;
+  initialData?: any;
 }
 
-const ClienteCreate: React.FC<ClienteCreateProps> = ({ onSuccess, onCancel }) => {
-  const { control, handleSubmit, watch } = useForm({ 
+const ClienteCreate: React.FC<ClienteCreateProps> = ({ onSuccess, onCancel, initialData }) => {
+  const { id: routeId } = useParams<{ id?: string }>();
+  const id = initialData?.id ? String(initialData.id) : routeId;
+  const isEditing = !!id;
+  const { control, handleSubmit, watch, reset } = useForm({ 
     resolver: makeResolver(schema), 
     defaultValues: { 
       nome: '', 
@@ -81,8 +85,62 @@ const ClienteCreate: React.FC<ClienteCreateProps> = ({ onSuccess, onCancel }) =>
   
   const tipoPessoa = watch('tipo_pessoa');
 
+  // Load existing data when editing
+  React.useEffect(() => {
+    if (!isEditing) return;
+    // If initialData is passed directly, use it (modal mode)
+    if (initialData) {
+      const safeStr = (v: unknown) => (v === null || v === undefined ? '' : String(v));
+      reset({
+        nome: safeStr(initialData.nome),
+        tipo_pessoa: initialData.tipo_pessoa || 'pf',
+        cpf_cnpj: safeStr(initialData.cpf_cnpj),
+        rg_ie: safeStr(initialData.rg_ie),
+        inscricao_estadual: safeStr(initialData.inscricao_estadual),
+        telefone: safeStr(initialData.telefone),
+        celular: safeStr(initialData.celular),
+        email: safeStr(initialData.email),
+        cep: safeStr(initialData.cep),
+        endereco: safeStr(initialData.endereco),
+        numero: safeStr(initialData.numero),
+        complemento: safeStr(initialData.complemento),
+        bairro: safeStr(initialData.bairro),
+        cidade: safeStr(initialData.cidade),
+        estado: safeStr(initialData.estado),
+        status: initialData.status || 'ativo',
+        observacoes: safeStr(initialData.observacoes),
+      });
+      return;
+    }
+    // Otherwise fetch from API (route mode)
+    ComercialService.getClienteById(Number(id)).then((data: any) => {
+      const safeStr = (v: unknown) => (v === null || v === undefined ? '' : String(v));
+      reset({
+        nome: safeStr(data.nome),
+        tipo_pessoa: data.tipo_pessoa || 'pf',
+        cpf_cnpj: safeStr(data.cpf_cnpj),
+        rg_ie: safeStr(data.rg_ie),
+        inscricao_estadual: safeStr(data.inscricao_estadual),
+        telefone: safeStr(data.telefone),
+        celular: safeStr(data.celular),
+        email: safeStr(data.email),
+        cep: safeStr(data.cep),
+        endereco: safeStr(data.endereco),
+        numero: safeStr(data.numero),
+        complemento: safeStr(data.complemento),
+        bairro: safeStr(data.bairro),
+        cidade: safeStr(data.cidade),
+        estado: safeStr(data.estado),
+        status: data.status || 'ativo',
+        observacoes: safeStr(data.observacoes),
+      });
+    }).catch(console.error);
+  }, [id, isEditing, initialData, reset]);
+
   const mutation = useMutation({
-    mutationFn: (payload: unknown) => ComercialService.createCliente(payload as Record<string, unknown>),
+    mutationFn: (payload: unknown) => isEditing
+      ? ComercialService.updateCliente(Number(id), payload as Record<string, unknown>)
+      : ComercialService.createCliente(payload as Record<string, unknown>),
     onSuccess: (data: unknown) => {
       queryClient.invalidateQueries({ queryKey: ['clientes'] });
       const d = data as Record<string, unknown>;
@@ -100,17 +158,8 @@ const ClienteCreate: React.FC<ClienteCreateProps> = ({ onSuccess, onCancel }) =>
     }
   };
 
-  return (
-    <div className="container-fluid py-4">
-      {!onCancel && (
-        <div className="d-flex justify-content-between align-items-center mb-3">
-          <h2>Novo Cliente</h2>
-        </div>
-      )}
-
-      <div className="card">
-        <div className="card-body">
-          <form onSubmit={handleSubmit(onSubmit)}>
+  const formContent = (
+    <form onSubmit={handleSubmit(onSubmit)}>
             {/* Dados Principais */}
             <div className="mb-4">
               <h6 className="text-primary mb-3">
@@ -368,10 +417,26 @@ const ClienteCreate: React.FC<ClienteCreateProps> = ({ onSuccess, onCancel }) =>
               )}
               <Button type="submit" className="btn btn-primary" disabled={loading}>
                 <i className="bi bi-check-circle me-1"></i>
-                {loading ? 'Salvando...' : 'Salvar Cliente'}
+                {loading ? 'Salvando...' : isEditing ? 'Atualizar Cliente' : 'Salvar Cliente'}
               </Button>
             </div>
           </form>
+  );
+
+  // Modal mode: render form directly without container/card wrappers
+  if (onCancel) {
+    return formContent;
+  }
+
+  // Page mode: wrap with container, heading and card
+  return (
+    <div className="container-fluid py-4">
+      <div className="d-flex justify-content-between align-items-center mb-3">
+        <h2>{isEditing ? 'Editar Cliente' : 'Novo Cliente'}</h2>
+      </div>
+      <div className="card">
+        <div className="card-body">
+          {formContent}
         </div>
       </div>
     </div>

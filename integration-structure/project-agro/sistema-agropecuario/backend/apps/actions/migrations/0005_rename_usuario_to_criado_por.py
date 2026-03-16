@@ -8,12 +8,6 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.RunSQL(
-            sql=(
-                "ALTER TABLE actions_chatmessage RENAME COLUMN usuario_id TO criado_por_id;"
-            ),
-            reverse_sql=(
-                "ALTER TABLE actions_chatmessage RENAME COLUMN criado_por_id TO usuario_id;"
-            ),
-        ),
+        # No-op: migration 0004 already created the table with correct column names
+        # (criado_por, not usuario_id)
     ]

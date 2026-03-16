@@ -292,7 +292,7 @@ export default function SaudeProducao() {
                   <div className="card-body">
                     <Bar data={barData} options={{
                       responsive: true,
-                      plugins: { legend: { display: false }, tooltip: { callbacks: { label: (ctx) => `${fmt(ctx.parsed.y)} /ha` } } },
+                      plugins: { legend: { display: false }, tooltip: { callbacks: { label: (ctx) => `${fmt(ctx.parsed.y ?? 0)} /ha` } } },
                       scales: { y: { beginAtZero: true, ticks: { callback: (v) => `R$ ${v}` } } },
                     }} />
                   </div>

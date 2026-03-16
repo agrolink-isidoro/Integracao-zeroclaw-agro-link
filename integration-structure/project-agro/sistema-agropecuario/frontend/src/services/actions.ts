@@ -51,13 +51,21 @@ export type UploadStatus =
   | 'failed'
   | 'error';
 
+export interface ActionValidation {
+  warnings?: string[];
+  avisos?: string[];
+  erros?: string[];
+  errors?: string[];
+  is_valid?: boolean;
+}
+
 export interface Action {
   id: string;
   module: ActionModule;
   action_type: ActionType;
   status: ActionStatus;
   draft_data: Record<string, unknown>;
-  validation: Record<string, unknown>;
+  validation: ActionValidation;
   criado_por: string | null;
   criado_por_nome: string;
   aprovado_por: string | null;
