@@ -51,10 +51,12 @@ const schema = yup.object().shape({
 interface ClienteCreateProps {
   onSuccess?: (data?: unknown) => void;
   onCancel?: () => void;
+  initialData?: any;
 }
 
-const ClienteCreate: React.FC<ClienteCreateProps> = ({ onSuccess, onCancel }) => {
-  const { id } = useParams<{ id?: string }>();
+const ClienteCreate: React.FC<ClienteCreateProps> = ({ onSuccess, onCancel, initialData }) => {
+  const { id: routeId } = useParams<{ id?: string }>();
+  const id = initialData?.id ? String(initialData.id) : routeId;
   const isEditing = !!id;
   const { control, handleSubmit, watch, reset } = useForm({ 
     resolver: makeResolver(schema), 
@@ -86,6 +88,31 @@ const ClienteCreate: React.FC<ClienteCreateProps> = ({ onSuccess, onCancel }) =>
   // Load existing data when editing
   React.useEffect(() => {
     if (!isEditing) return;
+    // If initialData is passed directly, use it (modal mode)
+    if (initialData) {
+      const safeStr = (v: unknown) => (v === null || v === undefined ? '' : String(v));
+      reset({
+        nome: safeStr(initialData.nome),
+        tipo_pessoa: initialData.tipo_pessoa || 'pf',
+        cpf_cnpj: safeStr(initialData.cpf_cnpj),
+        rg_ie: safeStr(initialData.rg_ie),
+        inscricao_estadual: safeStr(initialData.inscricao_estadual),
+        telefone: safeStr(initialData.telefone),
+        celular: safeStr(initialData.celular),
+        email: safeStr(initialData.email),
+        cep: safeStr(initialData.cep),
+        endereco: safeStr(initialData.endereco),
+        numero: safeStr(initialData.numero),
+        complemento: safeStr(initialData.complemento),
+        bairro: safeStr(initialData.bairro),
+        cidade: safeStr(initialData.cidade),
+        estado: safeStr(initialData.estado),
+        status: initialData.status || 'ativo',
+        observacoes: safeStr(initialData.observacoes),
+      });
+      return;
+    }
+    // Otherwise fetch from API (route mode)
     ComercialService.getClienteById(Number(id)).then((data: any) => {
       const safeStr = (v: unknown) => (v === null || v === undefined ? '' : String(v));
       reset({
@@ -108,7 +135,7 @@ const ClienteCreate: React.FC<ClienteCreateProps> = ({ onSuccess, onCancel }) =>
         observacoes: safeStr(data.observacoes),
       });
     }).catch(console.error);
-  }, [id, isEditing, reset]);
+  }, [id, isEditing, initialData, reset]);
 
   const mutation = useMutation({
     mutationFn: (payload: unknown) => isEditing

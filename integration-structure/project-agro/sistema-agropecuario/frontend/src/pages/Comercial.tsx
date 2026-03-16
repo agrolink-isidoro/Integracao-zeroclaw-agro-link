@@ -248,6 +248,8 @@ const Comercial: React.FC = () => {
   const [showContratoVenda, setShowContratoVenda] = useState(false);
   const [showContratoFinanceiro, setShowContratoFinanceiro] = useState(false);
   const [showClienteModal, setShowClienteModal] = useState(false);
+  const [viewingCliente, setViewingCliente] = useState<any | null>(null);
+  const [editingCliente, setEditingCliente] = useState<any | null>(null);
 
   // State for delete confirmation
   const [deleteConfirm, setDeleteConfirm] = useState<{ id: number; tipo: string; nome: string } | null>(null);
@@ -474,10 +476,10 @@ const Comercial: React.FC = () => {
                         </td>
                         <td>
                           <div className="btn-group btn-group-sm">
-                            <button className="btn btn-outline-info" title="Visualizar" onClick={() => navigate(`/comercial/clientes/${c.id}`)}>
+                            <button className="btn btn-outline-info" title="Visualizar" onClick={() => setViewingCliente(c)}>
                               <i className="bi bi-eye"></i>
                             </button>
-                            <button className="btn btn-outline-warning" title="Editar" onClick={() => navigate(`/comercial/clientes/${c.id}/editar`)}>
+                            <button className="btn btn-outline-warning" title="Editar" onClick={() => setEditingCliente(c)}>
                               <i className="bi bi-pencil"></i>
                             </button>
                             <button className="btn btn-outline-danger" title="Deletar" onClick={() => setDeleteConfirm({ id: c.id, tipo: 'cliente', nome: c.nome || `Cliente #${c.id}` })}>
@@ -672,8 +674,44 @@ const Comercial: React.FC = () => {
       />
 
       <ModalForm isOpen={showClienteModal} onClose={() => setShowClienteModal(false)} title="Novo Cliente">
-        <ClienteCreate onSuccess={(data: any) => { setShowClienteModal(false); navigate(`/comercial/clientes/${data.id}`); }} onCancel={() => setShowClienteModal(false)} />
+        <ClienteCreate onSuccess={(data: any) => { setShowClienteModal(false); }} onCancel={() => setShowClienteModal(false)} />
       </ModalForm>
+
+      {/* Modal editar cliente */}
+      <ModalForm isOpen={!!editingCliente} onClose={() => setEditingCliente(null)} title="Editar Cliente">
+        <ClienteCreate initialData={editingCliente} onSuccess={() => { setEditingCliente(null); }} onCancel={() => setEditingCliente(null)} />
+      </ModalForm>
+
+      {/* Modal visualizar cliente */}
+      {viewingCliente && (
+        <div className="modal d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }} tabIndex={-1}>
+          <div className="modal-dialog modal-dialog-centered modal-lg">
+            <div className="modal-content">
+              <div className="modal-header">
+                <h5 className="modal-title"><i className="bi bi-person-circle me-2"></i>{viewingCliente.nome || `Cliente #${viewingCliente.id}`}</h5>
+                <button type="button" className="btn-close" onClick={() => setViewingCliente(null)}></button>
+              </div>
+              <div className="modal-body">
+                <div className="row g-3">
+                  <div className="col-md-6"><strong>Tipo:</strong> {viewingCliente.tipo_pessoa === 'pf' ? 'Pessoa Física' : 'Pessoa Jurídica'}</div>
+                  <div className="col-md-6"><strong>CPF/CNPJ:</strong> {viewingCliente.cpf_cnpj || '-'}</div>
+                  <div className="col-md-6"><strong>Status:</strong> <span className={`badge bg-${viewingCliente.status === 'ativo' ? 'success' : viewingCliente.status === 'bloqueado' ? 'danger' : 'secondary'}`}>{viewingCliente.status || '-'}</span></div>
+                  {viewingCliente.email && <div className="col-md-6"><strong>E-mail:</strong> {viewingCliente.email}</div>}
+                  {viewingCliente.telefone && <div className="col-md-6"><strong>Telefone:</strong> {viewingCliente.telefone}</div>}
+                  {viewingCliente.celular && <div className="col-md-6"><strong>Celular:</strong> {viewingCliente.celular}</div>}
+                  {viewingCliente.cidade && <div className="col-md-6"><strong>Cidade/UF:</strong> {viewingCliente.cidade}{viewingCliente.estado ? `/${viewingCliente.estado}` : ''}</div>}
+                  {viewingCliente.endereco && <div className="col-12"><strong>Endereço:</strong> {viewingCliente.endereco}{viewingCliente.numero ? `, ${viewingCliente.numero}` : ''}{viewingCliente.bairro ? ` - ${viewingCliente.bairro}` : ''}</div>}
+                  {viewingCliente.observacoes && <div className="col-12"><strong>Observações:</strong> {viewingCliente.observacoes}</div>}
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button className="btn btn-outline-warning" onClick={() => { setEditingCliente(viewingCliente); setViewingCliente(null); }}><i className="bi bi-pencil me-1"></i>Editar</button>
+                <button className="btn btn-secondary" onClick={() => setViewingCliente(null)}>Fechar</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Contrato split view modal */}
       {viewingContrato && (
