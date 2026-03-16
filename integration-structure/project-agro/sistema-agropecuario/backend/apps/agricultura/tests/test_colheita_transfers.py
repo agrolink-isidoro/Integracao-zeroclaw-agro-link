@@ -30,7 +30,7 @@ class TenantTestCase(TestCase):
         )
         self.fazenda, _ = Fazenda.objects.get_or_create(
             tenant=self.tenant,
-            nome="Test Farm",
+            name="Test Farm",
             proprietario=self.proprietario,
             defaults={"descricao": "Fazenda para testes"}
         )

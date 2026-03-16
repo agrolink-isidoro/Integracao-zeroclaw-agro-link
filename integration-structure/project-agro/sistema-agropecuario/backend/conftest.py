@@ -284,7 +284,7 @@ def authenticated_user_with_tenant():
     # 4. Criar Fazenda (propriedade agrícola)
     fazenda, _ = Fazenda.objects.get_or_create(
         tenant=tenant,
-        nome="Test Farm",
+        name="Test Farm",
         proprietario=proprietario,
         defaults={
             "localizacao": "POINT(-48.123 -15.456)",  # lon, lat (Brasília aprox)

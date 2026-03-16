@@ -56,7 +56,7 @@ class TenantTestCase(TestCase):
         # 4. Criar fazenda
         self.fazenda, _ = Fazenda.objects.get_or_create(
             tenant=self.tenant,
-            nome="Test Farm",
+            name="Test Farm",
             proprietario=self.proprietario,
             defaults={
                 "localizacao": "POINT(-48.123 -15.456)",
