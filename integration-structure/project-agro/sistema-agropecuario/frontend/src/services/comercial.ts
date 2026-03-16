@@ -723,6 +723,25 @@ class ComercialService {
     }
   }
 
+  async updateEmpresa(id: number, payload: { nome?: string; cnpj?: string; contato?: string; endereco?: string; }): Promise<any> {
+    try {
+      const response = await api.patch(`/comercial/empresas/${id}/`, payload);
+      return response.data;
+    } catch (error) {
+      console.error('Erro ao atualizar empresa:', error);
+      throw error;
+    }
+  }
+
+  async deleteEmpresa(id: number): Promise<void> {
+    try {
+      await api.delete(`/comercial/empresas/${id}/`);
+    } catch (error) {
+      console.error('Erro ao deletar empresa:', error);
+      throw error;
+    }
+  }
+
   async createDespesaPrestadora(d: { empresa: number; prestador?: number; data: string; categoria: string; valor: number | string; centro_custo?: number; descricao?: string; }): Promise<any> {
     try {
       const response = await api.post('/comercial/despesas-prestadoras/', d);

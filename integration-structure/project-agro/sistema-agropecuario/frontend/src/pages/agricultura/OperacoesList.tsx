@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import api from '../../services/api';
 import type { Manejo } from '../../types/agricultura';
 import type { OrdemServico } from '../../types';
@@ -27,10 +27,13 @@ interface Operacao {
 }
 
 export const OperacoesList: React.FC = () => {
+  const qc = useQueryClient();
   const [filtroTipo, setFiltroTipo] = useState<string>('todos');
   const [filtroStatus, setFiltroStatus] = useState<string>('todos');
   const [showManejoForm, setShowManejoForm] = useState(false);
   const [showOSForm, setShowOSForm] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState<{ id: number; tipo_origem: string; nome: string } | null>(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
 
   // Buscar manejos
   const { data: manejos = [], isLoading: loadingManejos } = useQuery<Manejo[]>({
@@ -83,6 +86,24 @@ export const OperacoesList: React.FC = () => {
   const isLoading = loadingManejos || loadingOrdens;
 
   if (isLoading) return <LoadingSpinner />;
+
+  const handleDelete = async () => {
+    if (!deleteConfirm) return;
+    setDeleteLoading(true);
+    try {
+      const endpoint = deleteConfirm.tipo_origem === 'manejo'
+        ? `/agricultura/manejos/${deleteConfirm.id}/`
+        : `/agricultura/ordens-servico/${deleteConfirm.id}/`;
+      await api.delete(endpoint);
+      qc.invalidateQueries({ queryKey: ['manejos'] });
+      qc.invalidateQueries({ queryKey: ['ordens-servico'] });
+      setDeleteConfirm(null);
+    } catch (e) {
+      console.error('Erro ao deletar operação:', e);
+    } finally {
+      setDeleteLoading(false);
+    }
+  };
 
   // Filtrar operações
   const operacoesFiltradas = operacoes.filter(op => {
@@ -241,6 +262,7 @@ export const OperacoesList: React.FC = () => {
                     <th>Equipamento</th>
                     <th>Status</th>
                     <th className="text-end">Custo</th>
+                    <th>Ações</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -294,6 +316,15 @@ export const OperacoesList: React.FC = () => {
                       <td className="text-end">
                         <strong>R$ {op.custo.toFixed(2)}</strong>
                       </td>
+                      <td>
+                        <button
+                          className="btn btn-sm btn-outline-danger"
+                          title="Deletar"
+                          onClick={() => setDeleteConfirm({ id: op.id, tipo_origem: op.tipo_origem, nome: op.descricao || op.tipo })}
+                        >
+                          <i className="bi bi-trash"></i>
+                        </button>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -329,6 +360,30 @@ export const OperacoesList: React.FC = () => {
                   setShowOSForm(false);
                 }}
               />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {deleteConfirm && (
+        <div className="modal d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
+          <div className="modal-dialog modal-dialog-centered">
+            <div className="modal-content">
+              <div className="modal-header">
+                <h5 className="modal-title text-danger"><i className="bi bi-exclamation-triangle me-2"></i>Confirmar exclusão</h5>
+                <button className="btn-close" onClick={() => setDeleteConfirm(null)} disabled={deleteLoading}></button>
+              </div>
+              <div className="modal-body">
+                <p>Excluir operação <strong>{deleteConfirm.nome}</strong>?</p>
+                <p className="text-muted small mb-0">Esta ação não pode ser desfeita.</p>
+              </div>
+              <div className="modal-footer">
+                <button className="btn btn-secondary" onClick={() => setDeleteConfirm(null)} disabled={deleteLoading}>Cancelar</button>
+                <button className="btn btn-danger" onClick={handleDelete} disabled={deleteLoading}>
+                  {deleteLoading ? <span className="spinner-border spinner-border-sm me-1"></span> : <i className="bi bi-trash me-1"></i>}
+                  Deletar
+                </button>
+              </div>
             </div>
           </div>
         </div>
