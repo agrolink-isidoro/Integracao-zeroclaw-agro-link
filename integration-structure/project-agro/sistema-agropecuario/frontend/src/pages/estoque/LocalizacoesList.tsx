@@ -1,5 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import {
+  Table, TableHead, TableBody, TableRow, TableCell, TableContainer, TablePagination,
+  Dialog, DialogTitle, DialogContent,
+  Box, Button, TextField, Typography,
+  Select, MenuItem, FormControl, InputLabel,
+  CircularProgress, Alert,
+  Tooltip, IconButton, Card, CardContent, Paper, Chip,
+  LinearProgress,
+} from '@mui/material';
+import { Add as AddIcon, Refresh as RefreshIcon, Edit as EditIcon, Delete as DeleteIcon, Inventory as InventoryIcon, History as HistoryIcon } from '@mui/icons-material';
 import localizacoesService from '../../services/localizacoes';
 import LocalizacaoForm from './LocalizacaoForm';
 import type { Localizacao, TipoLocalizacao } from '../../types/estoque_maquinas';
@@ -299,14 +309,14 @@ const LocalizacoesList: React.FC = () => {
           component="div"
           count={totalCount}
           page={page}
-          onPageChange={(_, newPage) => setPage(newPage)}
+          onPageChange={(_: any, newPage: number) => setPage(newPage)}
           rowsPerPage={rowsPerPage}
-          onRowsPerPageChange={(e) => {
+          onRowsPerPageChange={(e: any) => {
             setRowsPerPage(parseInt(e.target.value, 10));
             setPage(0);
           }}
           labelRowsPerPage="Linhas por página:"
-          labelDisplayedRows={({ from, to, count }) => `${from}-${to} de ${count}`}
+          labelDisplayedRows={({ from, to, count }: { from: number; to: number; count: number }) => `${from}-${to} de ${count}`}
         />
       </TableContainer>
 

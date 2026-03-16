@@ -27,7 +27,7 @@ import {
   uploadFile,
   type BulkApproveResult,
 } from '../services/actions';
-import useAuth, { getStoredTokens } from '../hooks/useAuth';
+import useAuth, { getStoredTokens, getStoredTenant } from '../hooks/useAuth';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Chat Types
@@ -164,17 +164,23 @@ export function ActionsProvider({ children }: { children: React.ReactNode }) {
     destroyedRef.current = false;
 
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    
+
+    // Include tenant_id in WS URL so the backend can resolve the active
+    // session's tenant for service accounts (e.g. isidoro_agent) that have
+    // no fixed tenant in their JWT.
+    const tenantId = getStoredTenant()?.id ?? '';
+    const tenantParam = tenantId ? `&tenant_id=${tenantId}` : '';
+
     // Determine backend host:
     // - In Docker: use relative URL (both services on same network)
     // - In dev: detect if frontend is on port 5173 and backend on 8001
     let wsUrl: string;
     if (window.location.port === '5173') {
       // Development: frontend on 5173, backend on 8001
-      wsUrl = `${protocol}//localhost:8001/ws/chat/?token=${accessToken}`;
+      wsUrl = `${protocol}//localhost:8001/ws/chat/?token=${accessToken}${tenantParam}`;
     } else {
       // Production/Docker: use relative URL to same host
-      wsUrl = `${protocol}//${window.location.host}/ws/chat/?token=${accessToken}`;
+      wsUrl = `${protocol}//${window.location.host}/ws/chat/?token=${accessToken}${tenantParam}`;
     }
 
     const ws = new WebSocket(wsUrl);

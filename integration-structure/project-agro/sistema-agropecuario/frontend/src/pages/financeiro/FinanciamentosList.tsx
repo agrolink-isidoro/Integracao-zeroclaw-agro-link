@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
 import financeiroService from '@/services/financeiro';
 import type { Financiamento } from '@/types/financeiro';
 import FinanciamentoCreate from '@/pages/financeiro/FinanciamentoCreate';
@@ -9,7 +10,10 @@ import { useToast } from '@/hooks/useToast';
 
 const FinanciamentosList: React.FC = () => {
   const qc = useQueryClient();
+  const navigate = useNavigate();
   const [showForm, setShowForm] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState<{ id: number; nome: string } | null>(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
   const { showSuccess, showError } = useToast();
   const { data, isLoading, error } = useQuery<Financiamento[]>({
     queryKey: ['financeiro', 'financiamentos'],
@@ -56,6 +60,22 @@ const FinanciamentosList: React.FC = () => {
     } catch (err) {
       console.error('Erro ao gerar parcelas', err);
       showError('Erro ao gerar parcelas');
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!deleteConfirm) return;
+    setDeleteLoading(true);
+    try {
+      await financeiroService.deleteFinanciamento(deleteConfirm.id);
+      showSuccess('Financiamento excluído');
+      qc.invalidateQueries({ queryKey: ['financeiro', 'financiamentos'] });
+      setDeleteConfirm(null);
+    } catch (e) {
+      console.error('Erro ao deletar financiamento:', e);
+      showError('Erro ao excluir financiamento');
+    } finally {
+      setDeleteLoading(false);
     }
   };
 
@@ -107,14 +127,41 @@ const FinanciamentosList: React.FC = () => {
                 </div>
               </div>
               <div>
-                <a className="btn btn-sm btn-outline-primary me-2" href={`/financeiro/financiamentos/${f.id}`}>Ver</a>
+                <a className="btn btn-sm btn-outline-primary me-2" onClick={() => navigate(`/financeiro/financiamentos/${f.id}`)}>Ver</a>
                 <button className="btn btn-sm btn-outline-secondary" disabled={(gerarMutation as any).isLoading} onClick={() => handleGerarParcelas(f.id)}>Gerar Parcelas</button>
+                <button className="btn btn-sm btn-outline-danger ms-1" title="Deletar" onClick={() => setDeleteConfirm({ id: f.id, nome: f.titulo || f.descricao || `#${f.id}` })}>
+                  <i className="bi bi-trash"></i>
+                </button>
               </div>
             </div>
           );
         })}
         {!data || data.length === 0 ? <div className="text-muted mt-2">Nenhum financiamento encontrado.</div> : null}
       </div>
+
+      {deleteConfirm && (
+        <div className="modal d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
+          <div className="modal-dialog modal-dialog-centered">
+            <div className="modal-content">
+              <div className="modal-header">
+                <h5 className="modal-title text-danger"><i className="bi bi-exclamation-triangle me-2"></i>Confirmar exclusão</h5>
+                <button className="btn-close" onClick={() => setDeleteConfirm(null)} disabled={deleteLoading}></button>
+              </div>
+              <div className="modal-body">
+                <p>Excluir financiamento <strong>{deleteConfirm.nome}</strong>?</p>
+                <p className="text-muted small mb-0">Esta ação não pode ser desfeita.</p>
+              </div>
+              <div className="modal-footer">
+                <button className="btn btn-secondary" onClick={() => setDeleteConfirm(null)} disabled={deleteLoading}>Cancelar</button>
+                <button className="btn btn-danger" onClick={handleDelete} disabled={deleteLoading}>
+                  {deleteLoading ? <span className="spinner-border spinner-border-sm me-1"></span> : <i className="bi bi-trash me-1"></i>}
+                  Deletar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

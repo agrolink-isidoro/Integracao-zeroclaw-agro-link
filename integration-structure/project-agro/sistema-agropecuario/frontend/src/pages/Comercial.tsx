@@ -5,7 +5,10 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import ModalForm from '@/components/common/ModalForm';
 import FornecedoresList from './comercial/FornecedoresList';
 import VendaCreate from './comercial/VendaCreate';
-import ContratoCreate from './comercial/ContratoCreate';
+import ContratoTypeSelector from '@/components/comercial/ContratoTypeSelector';
+import ContratoCompraForm from '@/components/comercial/ContratoCompraForm';
+import ContratoVendaForm from '@/components/comercial/ContratoVendaForm';
+import ContratoFinanceiroForm from '@/components/comercial/ContratoFinanceiroForm';
 import ClienteCreate from './comercial/ClienteCreate';
 import DashboardService from '@/services/dashboard';
 import type { ComercialKpis } from '@/services/dashboard';
@@ -240,8 +243,39 @@ const Comercial: React.FC = () => {
   );
 
   const [showVendaModal, setShowVendaModal] = useState(false);
-  const [showContratoModal, setShowContratoModal] = useState(false);
+  const [showContratoTypeSelector, setShowContratoTypeSelector] = useState(false);
+  const [showContratoCompra, setShowContratoCompra] = useState(false);
+  const [showContratoVenda, setShowContratoVenda] = useState(false);
+  const [showContratoFinanceiro, setShowContratoFinanceiro] = useState(false);
   const [showClienteModal, setShowClienteModal] = useState(false);
+  const [viewingCliente, setViewingCliente] = useState<any | null>(null);
+  const [editingCliente, setEditingCliente] = useState<any | null>(null);
+
+  // State for delete confirmation
+  const [deleteConfirm, setDeleteConfirm] = useState<{ id: number; tipo: string; nome: string } | null>(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [viewingContrato, setViewingContrato] = useState<any | null>(null);
+  const [editingContrato, setEditingContrato] = useState<any | null>(null);
+
+  const handleConfirmDelete = async () => {
+    if (!deleteConfirm) return;
+    setDeleteLoading(true);
+    try {
+      if (deleteConfirm.tipo === 'cliente') await ComercialService.deleteCliente(deleteConfirm.id);
+      else if (deleteConfirm.tipo === 'venda') await ComercialService.deleteVendaCompra(deleteConfirm.id);
+      else if (deleteConfirm.tipo === 'contrato') await ComercialService.deleteContrato(deleteConfirm.id);
+      else if (deleteConfirm.tipo === 'contrato-compra') await ComercialService.deleteContratoCompra(deleteConfirm.id);
+      else if (deleteConfirm.tipo === 'contrato-venda') await ComercialService.deleteContratoVenda(deleteConfirm.id);
+      else if (deleteConfirm.tipo === 'contrato-financeiro') await ComercialService.deleteContratoFinanceiro(deleteConfirm.id);
+      setDeleteConfirm(null);
+      // Refresh queries
+      window.location.reload();
+    } catch (err) {
+      console.error('Erro ao deletar:', err);
+    } finally {
+      setDeleteLoading(false);
+    }
+  };
 
   const handleOpenVendaModal = () => {
     setShowVendaModal(true);
@@ -276,6 +310,7 @@ const Comercial: React.FC = () => {
                       <th>Produto</th>
                       <th>Valor</th>
                       <th>Data</th>
+                      <th>Ações</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -285,6 +320,19 @@ const Comercial: React.FC = () => {
                         <td>{v.itens?.[0]?.descricao || v.produto || '-'}</td>
                         <td>R$ {Number(v.valor_total || v.valor || 0).toFixed(2)}</td>
                         <td>{v.data_venda || v.data || '-'}</td>
+                        <td>
+                          <div className="btn-group btn-group-sm">
+                            <button className="btn btn-outline-info" title="Visualizar" onClick={() => navigate(`/comercial/vendas/${v.id}`)}>
+                              <i className="bi bi-eye"></i>
+                            </button>
+                            <button className="btn btn-outline-warning" title="Editar" onClick={() => navigate(`/comercial/vendas/${v.id}`)}>
+                              <i className="bi bi-pencil"></i>
+                            </button>
+                            <button className="btn btn-outline-danger" title="Deletar" onClick={() => setDeleteConfirm({ id: v.id, tipo: 'venda', nome: v.cliente_nome || `Venda #${v.id}` })}>
+                              <i className="bi bi-trash"></i>
+                            </button>
+                          </div>
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -300,6 +348,18 @@ const Comercial: React.FC = () => {
   );
 
   const { data: contratos = [], isLoading: contratosLoading } = useQuery<any[]>({ queryKey: ['contratos', 'dashboard'], queryFn: () => ComercialService.getContratos(), staleTime: 60_000 });
+  const { data: contratosCompra = [] } = useQuery<any[]>({ queryKey: ['contratos-compra'], queryFn: () => ComercialService.getContratosCompra(), staleTime: 60_000 });
+  const { data: contratosVenda = [] } = useQuery<any[]>({ queryKey: ['contratos-venda'], queryFn: () => ComercialService.getContratosVenda(), staleTime: 60_000 });
+  const { data: contratosFinanceiro = [] } = useQuery<any[]>({ queryKey: ['contratos-financeiro'], queryFn: () => ComercialService.getContratosFinanceiro(), staleTime: 60_000 });
+
+  // Agrega todos os tipos de contrato (legacy + novos split models)
+  const todosContratos = [
+    ...contratos,
+    ...contratosCompra.map((c: any) => ({ ...c, _tipo: 'Compra' })),
+    ...contratosVenda.map((c: any) => ({ ...c, _tipo: 'Venda' })),
+    ...contratosFinanceiro.map((c: any) => ({ ...c, _tipo: 'Financeiro' })),
+  ];
+  const contratosLoading2 = contratosLoading;
 
   const renderContratos = () => (
     <div className="row">
@@ -307,31 +367,57 @@ const Comercial: React.FC = () => {
         <div className="card">
           <div className="card-header d-flex justify-content-between align-items-center">
             <h5 className="mb-0">Contratos</h5>
-            <button className="btn btn-sm btn-primary" onClick={() => setShowContratoModal(true)}>
+            <button className="btn btn-sm btn-primary" onClick={() => setShowContratoTypeSelector(true)}>
               <i className="bi bi-plus-circle me-1"></i> Novo Contrato
             </button>
           </div>
           <div className="card-body">
-            {contratosLoading ? (
+            {contratosLoading2 ? (
               <div>Carregando contratos...</div>
-            ) : contratos && contratos.length ? (
+            ) : todosContratos && todosContratos.length ? (
               <div className="table-responsive">
                 <table className="table table-hover">
                   <thead>
                     <tr>
-                      <th>Cliente</th>
-                      <th>Descrição</th>
+                      <th>Tipo</th>
+                      <th>Título / Número</th>
+                      <th>Parte</th>
                       <th>Valor</th>
                       <th>Status</th>
+                      <th>Ações</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {contratos.slice(0, 10).map((c: any) => (
-                      <tr key={c.id}>
-                        <td>{c.partes?.[0]?.entidade_nome || c.cliente_nome || '-'}</td>
+                    {todosContratos.slice(0, 20).map((c: any, idx: number) => (
+                      <tr key={`${c._tipo || 'legacy'}-${c.id}-${idx}`}>
+                        <td><span className="badge bg-secondary">{c._tipo || 'Legado'}</span></td>
                         <td>{c.titulo || c.numero_contrato || '-'}</td>
+                        <td>{c.cliente_nome || c.fornecedor_nome || c.partes?.[0]?.entidade_nome || '-'}</td>
                         <td>R$ {Number(c.valor_total || 0).toFixed(2)}</td>
-                        <td><span className={`badge bg-${c.status?.toLowerCase() === 'ativo' ? 'success' : 'warning'}`}>{c.status || '-'}</span></td>
+                        <td><span className={`badge bg-${c.status === 'ativo' || c.status === 'assinado' ? 'success' : c.status === 'rascunho' ? 'secondary' : 'warning'}`}>{c.status_display || c.status || '-'}</span></td>
+                        <td>
+                          <div className="btn-group btn-group-sm">
+                            <button className="btn btn-outline-info" title="Visualizar" onClick={() => {
+                              if (!c._tipo) navigate(`/comercial/contratos/${c.id}`);
+                              else setViewingContrato(c);
+                            }}>
+                              <i className="bi bi-eye"></i>
+                            </button>
+                            <button className="btn btn-outline-warning" title="Editar" onClick={() => {
+                              if (!c._tipo) navigate(`/comercial/contratos/${c.id}`);
+                              else setEditingContrato(c);
+                            }}>
+                              <i className="bi bi-pencil"></i>
+                            </button>
+                            <button className="btn btn-outline-danger" title="Deletar" onClick={() => {
+                              const tipoMap: Record<string, string> = { Compra: 'contrato-compra', Venda: 'contrato-venda', Financeiro: 'contrato-financeiro' };
+                              const tipo = c._tipo ? (tipoMap[c._tipo] || 'contrato') : 'contrato';
+                              setDeleteConfirm({ id: c.id, tipo, nome: c.titulo || c.numero_contrato || `Contrato #${c.id}` });
+                            }}>
+                              <i className="bi bi-trash"></i>
+                            </button>
+                          </div>
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -372,6 +458,7 @@ const Comercial: React.FC = () => {
                       <th>Cidade/UF</th>
                       <th>Contato</th>
                       <th>Status</th>
+                      <th>Ações</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -386,6 +473,19 @@ const Comercial: React.FC = () => {
                           <span className={`badge bg-${c.status === 'ativo' ? 'success' : c.status === 'bloqueado' ? 'danger' : 'secondary'}`}>
                             {c.status === 'ativo' ? 'Ativo' : c.status === 'bloqueado' ? 'Bloqueado' : 'Inativo'}
                           </span>
+                        </td>
+                        <td>
+                          <div className="btn-group btn-group-sm">
+                            <button className="btn btn-outline-info" title="Visualizar" onClick={() => setViewingCliente(c)}>
+                              <i className="bi bi-eye"></i>
+                            </button>
+                            <button className="btn btn-outline-warning" title="Editar" onClick={() => setEditingCliente(c)}>
+                              <i className="bi bi-pencil"></i>
+                            </button>
+                            <button className="btn btn-outline-danger" title="Deletar" onClick={() => setDeleteConfirm({ id: c.id, tipo: 'cliente', nome: c.nome || `Cliente #${c.id}` })}>
+                              <i className="bi bi-trash"></i>
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -499,13 +599,180 @@ const Comercial: React.FC = () => {
         <VendaCreate onSuccess={(data: any) => { setShowVendaModal(false); navigate(`/comercial/vendas/${data.id}`); }} onCancel={() => setShowVendaModal(false)} />
       </ModalForm>
 
-      <ModalForm isOpen={showContratoModal} onClose={() => setShowContratoModal(false)} title="Novo Contrato" size="lg">
-        <ContratoCreate onSuccess={(data: any) => { setShowContratoModal(false); navigate(`/comercial/contratos/${data.id}`); }} onCancel={() => setShowContratoModal(false)} />
+      <ContratoTypeSelector 
+        isOpen={showContratoTypeSelector}
+        onClose={() => setShowContratoTypeSelector(false)}
+        onSelectCompra={() => {
+          setShowContratoTypeSelector(false);
+          setShowContratoCompra(true);
+        }}
+        onSelectVenda={() => {
+          setShowContratoTypeSelector(false);
+          setShowContratoVenda(true);
+        }}
+        onSelectFinanceiro={() => {
+          setShowContratoTypeSelector(false);
+          setShowContratoFinanceiro(true);
+        }}
+      />
+
+      <ContratoCompraForm
+        isOpen={showContratoCompra || editingContrato?._tipo === 'Compra'}
+        onClose={() => { setShowContratoCompra(false); setEditingContrato(null); }}
+        initialData={editingContrato?._tipo === 'Compra' ? editingContrato : undefined}
+        onSubmit={async (data: any) => {
+          try {
+            if (editingContrato?._tipo === 'Compra') {
+              await ComercialService.updateContratoCompra(editingContrato.id, data);
+              setEditingContrato(null);
+            } else {
+              await ComercialService.createContratoCompra(data);
+            }
+            setShowContratoCompra(false);
+          } catch (err) {
+            console.error('Erro ao salvar contrato de compra:', err);
+          }
+        }}
+      />
+
+      <ContratoVendaForm
+        isOpen={showContratoVenda || editingContrato?._tipo === 'Venda'}
+        onClose={() => { setShowContratoVenda(false); setEditingContrato(null); }}
+        initialData={editingContrato?._tipo === 'Venda' ? editingContrato : undefined}
+        onSubmit={async (data: any) => {
+          try {
+            if (editingContrato?._tipo === 'Venda') {
+              await ComercialService.updateContratoVenda(editingContrato.id, data);
+              setEditingContrato(null);
+            } else {
+              await ComercialService.createContratoVenda(data);
+            }
+            setShowContratoVenda(false);
+          } catch (err) {
+            console.error('Erro ao salvar contrato de venda:', err);
+          }
+        }}
+      />
+
+      <ContratoFinanceiroForm
+        isOpen={showContratoFinanceiro || editingContrato?._tipo === 'Financeiro'}
+        onClose={() => { setShowContratoFinanceiro(false); setEditingContrato(null); }}
+        initialData={editingContrato?._tipo === 'Financeiro' ? editingContrato : undefined}
+        onSubmit={async (data: any) => {
+          try {
+            if (editingContrato?._tipo === 'Financeiro') {
+              await ComercialService.updateContratoFinanceiro(editingContrato.id, data);
+              setEditingContrato(null);
+            } else {
+              await ComercialService.createContratoFinanceiro(data);
+            }
+            setShowContratoFinanceiro(false);
+          } catch (err) {
+            console.error('Erro ao salvar contrato financeiro:', err);
+          }
+        }}
+      />
+
+      <ModalForm isOpen={showClienteModal} onClose={() => setShowClienteModal(false)} title="Novo Cliente" size="xl">
+        <ClienteCreate onSuccess={(data: any) => { setShowClienteModal(false); }} onCancel={() => setShowClienteModal(false)} />
       </ModalForm>
 
-      <ModalForm isOpen={showClienteModal} onClose={() => setShowClienteModal(false)} title="Novo Cliente">
-        <ClienteCreate onSuccess={(data: any) => { setShowClienteModal(false); navigate(`/comercial/clientes/${data.id}`); }} onCancel={() => setShowClienteModal(false)} />
+      {/* Modal editar cliente */}
+      <ModalForm isOpen={!!editingCliente} onClose={() => setEditingCliente(null)} title="Editar Cliente" size="xl">
+        <ClienteCreate initialData={editingCliente} onSuccess={() => { setEditingCliente(null); }} onCancel={() => setEditingCliente(null)} />
       </ModalForm>
+
+      {/* Modal visualizar cliente */}
+      {viewingCliente && (
+        <div className="modal d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }} tabIndex={-1}>
+          <div className="modal-dialog modal-dialog-centered modal-lg">
+            <div className="modal-content">
+              <div className="modal-header">
+                <h5 className="modal-title"><i className="bi bi-person-circle me-2"></i>{viewingCliente.nome || `Cliente #${viewingCliente.id}`}</h5>
+                <button type="button" className="btn-close" onClick={() => setViewingCliente(null)}></button>
+              </div>
+              <div className="modal-body">
+                <div className="row g-3">
+                  <div className="col-md-6"><strong>Tipo:</strong> {viewingCliente.tipo_pessoa === 'pf' ? 'Pessoa Física' : 'Pessoa Jurídica'}</div>
+                  <div className="col-md-6"><strong>CPF/CNPJ:</strong> {viewingCliente.cpf_cnpj || '-'}</div>
+                  <div className="col-md-6"><strong>Status:</strong> <span className={`badge bg-${viewingCliente.status === 'ativo' ? 'success' : viewingCliente.status === 'bloqueado' ? 'danger' : 'secondary'}`}>{viewingCliente.status || '-'}</span></div>
+                  {viewingCliente.email && <div className="col-md-6"><strong>E-mail:</strong> {viewingCliente.email}</div>}
+                  {viewingCliente.telefone && <div className="col-md-6"><strong>Telefone:</strong> {viewingCliente.telefone}</div>}
+                  {viewingCliente.celular && <div className="col-md-6"><strong>Celular:</strong> {viewingCliente.celular}</div>}
+                  {viewingCliente.cidade && <div className="col-md-6"><strong>Cidade/UF:</strong> {viewingCliente.cidade}{viewingCliente.estado ? `/${viewingCliente.estado}` : ''}</div>}
+                  {viewingCliente.endereco && <div className="col-12"><strong>Endereço:</strong> {viewingCliente.endereco}{viewingCliente.numero ? `, ${viewingCliente.numero}` : ''}{viewingCliente.bairro ? ` - ${viewingCliente.bairro}` : ''}</div>}
+                  {viewingCliente.observacoes && <div className="col-12"><strong>Observações:</strong> {viewingCliente.observacoes}</div>}
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button className="btn btn-outline-warning" onClick={() => { setEditingCliente(viewingCliente); setViewingCliente(null); }}><i className="bi bi-pencil me-1"></i>Editar</button>
+                <button className="btn btn-secondary" onClick={() => setViewingCliente(null)}>Fechar</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Contrato split view modal */}
+      {viewingContrato && (
+        <div className="modal d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }} tabIndex={-1}>
+          <div className="modal-dialog modal-dialog-centered modal-lg">
+            <div className="modal-content">
+              <div className="modal-header">
+                <h5 className="modal-title">
+                  <span className="badge bg-secondary me-2">{viewingContrato._tipo}</span>
+                  {viewingContrato.titulo || viewingContrato.numero_contrato || `Contrato #${viewingContrato.id}`}
+                </h5>
+                <button type="button" className="btn-close" onClick={() => setViewingContrato(null)}></button>
+              </div>
+              <div className="modal-body">
+                <div className="row g-3">
+                  <div className="col-md-6"><strong>Número:</strong> {viewingContrato.numero_contrato || '-'}</div>
+                  <div className="col-md-6"><strong>Tipo:</strong> {viewingContrato._tipo || 'Legado'}</div>
+                  <div className="col-md-6"><strong>Status:</strong> <span className={`badge bg-${viewingContrato.status === 'ativo' || viewingContrato.status === 'assinado' ? 'success' : viewingContrato.status === 'rascunho' ? 'secondary' : 'warning'}`}>{viewingContrato.status_display || viewingContrato.status || '-'}</span></div>
+                  <div className="col-md-6"><strong>Valor Total:</strong> R$ {Number(viewingContrato.valor_total || 0).toFixed(2)}</div>
+                  <div className="col-md-6"><strong>Data Início:</strong> {viewingContrato.data_inicio || viewingContrato.data_contratacao || '-'}</div>
+                  <div className="col-md-6"><strong>Data Fim:</strong> {viewingContrato.data_fim || viewingContrato.data_vigencia || '-'}</div>
+                  {(viewingContrato.cliente_nome || viewingContrato.fornecedor_nome) && (
+                    <div className="col-md-6"><strong>Parte:</strong> {viewingContrato.cliente_nome || viewingContrato.fornecedor_nome}</div>
+                  )}
+                  {viewingContrato.produto && <div className="col-md-6"><strong>Produto/Cultura:</strong> {viewingContrato.produto || viewingContrato.cultura || '-'}</div>}
+                  {viewingContrato.quantidade && <div className="col-md-6"><strong>Quantidade:</strong> {viewingContrato.quantidade} {viewingContrato.unidade_medida || ''}</div>}
+                  {viewingContrato.observacoes && <div className="col-12"><strong>Observações:</strong> {viewingContrato.observacoes}</div>}
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button className="btn btn-secondary" onClick={() => setViewingContrato(null)}>Fechar</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete confirmation modal */}
+      {deleteConfirm && (
+        <div className="modal d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }} tabIndex={-1}>
+          <div className="modal-dialog modal-dialog-centered">
+            <div className="modal-content">
+              <div className="modal-header">
+                <h5 className="modal-title text-danger"><i className="bi bi-exclamation-triangle me-2"></i>Confirmar exclusão</h5>
+                <button type="button" className="btn-close" onClick={() => setDeleteConfirm(null)} disabled={deleteLoading}></button>
+              </div>
+              <div className="modal-body">
+                <p>Tem certeza que deseja excluir <strong>{deleteConfirm.nome}</strong>?</p>
+                <p className="text-muted small mb-0">Esta ação não pode ser desfeita.</p>
+              </div>
+              <div className="modal-footer">
+                <button className="btn btn-secondary" onClick={() => setDeleteConfirm(null)} disabled={deleteLoading}>Cancelar</button>
+                <button className="btn btn-danger" onClick={handleConfirmDelete} disabled={deleteLoading}>
+                  {deleteLoading ? <span className="spinner-border spinner-border-sm me-1"></span> : <i className="bi bi-trash me-1"></i>}
+                  Deletar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 };

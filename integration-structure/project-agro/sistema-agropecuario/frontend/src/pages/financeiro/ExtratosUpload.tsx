@@ -100,8 +100,7 @@ const ExtratosUpload: React.FC = () => {
         `Conciliação concluída!\n\n` +
         `Itens criados: ${result.itens_criados}\n` +
         `Duplicados: ${result.itens_duplicados}\n` +
-        `Matches automáticos: ${result.matches_automaticos?.conciliados || 0}\n` +
-        `Sugestões: ${result.matches_automaticos?.sugestoes?.length || 0}`
+        `Erros: ${result.erros?.length || 0}`
       );
     } catch (e: any) {
       console.error('Conciliação falhou', e);

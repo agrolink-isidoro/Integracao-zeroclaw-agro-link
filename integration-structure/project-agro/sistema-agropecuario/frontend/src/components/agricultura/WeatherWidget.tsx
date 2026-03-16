@@ -128,7 +128,7 @@ const WeatherWidget: React.FC<WeatherWidgetProps> = ({ talhaoId }) => {
                 display_name: fav.display_name,
               });
             }}
-            selectedCity={selectedCity}
+            selectedCity={selectedCity ?? undefined}
             onClearCity={() => setSelectedCity(null)}
           />
         </div>

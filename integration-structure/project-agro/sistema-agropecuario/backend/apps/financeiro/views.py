@@ -770,7 +770,7 @@ class ItemEmprestimoViewSet(TenantQuerySetMixin, viewsets.ModelViewSet):
     queryset = ItemEmprestimo.objects.select_related('emprestimo', 'produto')
     serializer_class = ItemEmprestimoSerializer
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
-    filterset_fields = ['emprestimo', 'produto', 'status']
+    filterset_fields = ['emprestimo', 'produto']
     search_fields = ['produto__nome', 'emprestimo__titulo']
     ordering_fields = ['criado_em', 'quantidade', 'valor_total']
     ordering = ['-criado_em']

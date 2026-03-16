@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
 import financeiroService from '@/services/financeiro';
 import type { Emprestimo } from '@/types/financeiro';
 import EmprestimoCreate from '@/pages/financeiro/EmprestimoCreate';
@@ -9,7 +10,10 @@ import { useToast } from '@/hooks/useToast';
 
 const EmprestimosList: React.FC = () => {
   const qc = useQueryClient();
+  const navigate = useNavigate();
   const [showForm, setShowForm] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState<{ id: number; nome: string } | null>(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
   const { showSuccess, showError } = useToast();
   const { data, isLoading, error } = useQuery<Emprestimo[]>({
     queryKey: ['financeiro', 'emprestimos'],
@@ -59,6 +63,22 @@ const EmprestimosList: React.FC = () => {
     }
   };
 
+  const handleDelete = async () => {
+    if (!deleteConfirm) return;
+    setDeleteLoading(true);
+    try {
+      await financeiroService.deleteEmprestimo(deleteConfirm.id);
+      showSuccess('Empréstimo excluído');
+      qc.invalidateQueries({ queryKey: ['financeiro', 'emprestimos'] });
+      setDeleteConfirm(null);
+    } catch (e) {
+      console.error('Erro ao deletar empréstimo:', e);
+      showError('Erro ao excluir empréstimo');
+    } finally {
+      setDeleteLoading(false);
+    }
+  };
+
   return (
     <div className="container-fluid py-4">
       <div className="d-flex justify-content-between align-items-center mb-3">
@@ -84,14 +104,41 @@ const EmprestimosList: React.FC = () => {
               <strong>{e.descricao || `#${e.id}`}</strong>
               <div><small>R$ {e.valor_emprestimo ?? 0} — {e.numero_parcelas ?? 0} parcelas</small></div>
             </div>
-            <div>
-              <a className="btn btn-sm btn-outline-primary me-2" href={`/financeiro/emprestimos/${e.id}`}>Ver</a>
+            <div className="d-flex gap-1">
+              <button className="btn btn-sm btn-outline-primary" onClick={() => navigate(`/financeiro/emprestimos/${e.id}`)}>Ver</button>
               <button className="btn btn-sm btn-outline-secondary" disabled={(gerarMutation as any).isLoading} onClick={() => handleGerarParcelas(e.id)}>Gerar Parcelas</button>
+              <button className="btn btn-sm btn-outline-danger" title="Deletar" onClick={() => setDeleteConfirm({ id: e.id, nome: e.descricao || `#${e.id}` })}>
+                <i className="bi bi-trash"></i>
+              </button>
             </div>
           </div>
         ))}
         {!data || data.length === 0 ? <div className="text-muted mt-2">Nenhum empréstimo encontrado.</div> : null}
       </div>
+
+      {deleteConfirm && (
+        <div className="modal d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
+          <div className="modal-dialog modal-dialog-centered">
+            <div className="modal-content">
+              <div className="modal-header">
+                <h5 className="modal-title text-danger"><i className="bi bi-exclamation-triangle me-2"></i>Confirmar exclusão</h5>
+                <button className="btn-close" onClick={() => setDeleteConfirm(null)} disabled={deleteLoading}></button>
+              </div>
+              <div className="modal-body">
+                <p>Excluir empréstimo <strong>{deleteConfirm.nome}</strong>?</p>
+                <p className="text-muted small mb-0">Esta ação não pode ser desfeita.</p>
+              </div>
+              <div className="modal-footer">
+                <button className="btn btn-secondary" onClick={() => setDeleteConfirm(null)} disabled={deleteLoading}>Cancelar</button>
+                <button className="btn btn-danger" onClick={handleDelete} disabled={deleteLoading}>
+                  {deleteLoading ? <span className="spinner-border spinner-border-sm me-1"></span> : <i className="bi bi-trash me-1"></i>}
+                  Deletar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

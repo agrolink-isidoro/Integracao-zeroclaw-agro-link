@@ -37,13 +37,13 @@ const VencimentosList: React.FC = () => {
   const [deleteVencimentoId, setDeleteVencimentoId] = React.useState<number | null>(null);
 
   // permissions (fetch core permissions and check if the user can delete in financeiro)
-  const { data: permissions } = useApiQuery<unknown[], Error>(['permissions'], '/core/permissions/');
+  const { data: permissions } = useApiQuery<unknown[]>(['permissions'], '/core/permissions/');
   const { user } = useAuthContext();
   const canDeleteVencimento = React.useMemo(() => {
     // Admin users (is_staff) can always delete
     if (user?.is_staff) return true;
     if (!permissions) return false;
-    return permissions.some(p => p.module && p.module.includes('financeiro') && Array.isArray(p.permissions) && p.permissions.includes('delete'));
+    return permissions.some((p: any) => p.module && p.module.includes('financeiro') && Array.isArray(p.permissions) && p.permissions.includes('delete'));
   }, [permissions, user]);
 
   // compute memoized values *before* any early returns to keep hook order stable

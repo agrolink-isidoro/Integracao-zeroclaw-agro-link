@@ -14,7 +14,7 @@ interface MovimentacaoEstoque {
 
 const Abastecimentos: React.FC = () => {
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ equipamento: 0, quantidade_litros: 0, valor_unitario: 0, data_abastecimento: '', horimetro_km: '', produto_estoque: null });
+  const [form, setForm] = useState({ equipamento: 0, quantidade_litros: 0, valor_unitario: 0, data_abastecimento: '', horimetro_km: '', produto_estoque: null as number | null });
 
   const { data: abastecimentos = [], isLoading } = useApiQuery<Abastecimento[]>(['abastecimentos'], '/maquinas/abastecimentos/');
   const { data: equipamentos = [] } = useApiQuery<Equipamento[]>(['equipamentos'], '/maquinas/equipamentos/');
@@ -44,7 +44,7 @@ const Abastecimentos: React.FC = () => {
     async function fillPrice() {
       // 1) Prefer usar movimentacoesDiesel (busca por 'diesel')
       if (movimentacoesDiesel.length > 0 && movimentacoesDiesel[0].valor_unitario) {
-        setForm(prev => ({ ...prev, valor_unitario: Number(movimentacoesDiesel[0].valor_unitario), produto_estoque: movimentacoesDiesel[0].produto || prev.produto_estoque }));
+        setForm((prev: any) => ({ ...prev, valor_unitario: Number(movimentacoesDiesel[0].valor_unitario), produto_estoque: movimentacoesDiesel[0].produto || prev.produto_estoque }));
         return;
       }
 
@@ -57,10 +57,10 @@ const Abastecimentos: React.FC = () => {
           const p = await fetch(`/api/estoque/produto-ultimo-preco/?produto_id=${first.id}`);
           const pr = await p.json();
           if (pr && pr.valor_unitario) {
-            setForm(prev => ({ ...prev, valor_unitario: Number(pr.valor_unitario), produto_estoque: first.id }));
+            setForm((prev: any) => ({ ...prev, valor_unitario: Number(pr.valor_unitario), produto_estoque: first.id }));
           } else {
             // Even if there's no price, we set produto_estoque so the Abastecimento explicitly links the product
-            setForm(prev => ({ ...prev, produto_estoque: first.id }));
+            setForm((prev: any) => ({ ...prev, produto_estoque: first.id }));
           }
         }
       } catch (e) {
@@ -75,12 +75,12 @@ const Abastecimentos: React.FC = () => {
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     if (name === 'quantidade_litros' || name === 'valor_unitario' || name === 'horimetro_km') {
-      setForm(prev => ({ ...prev, [name]: Number(value) }));
+      setForm((prev: any) => ({ ...prev, [name]: Number(value) }));
     } else if (name === 'produto_estoque') {
       // produto_estoque is numeric id
-      setForm(prev => ({ ...prev, produto_estoque: value ? Number(value) : null }));
+      setForm((prev: any) => ({ ...prev, produto_estoque: value ? Number(value) : null }));
     } else {
-      setForm(prev => ({ ...prev, [name]: value }));
+      setForm((prev: any) => ({ ...prev, [name]: value }));
     }
   };
 

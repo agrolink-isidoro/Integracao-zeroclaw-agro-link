@@ -96,7 +96,10 @@ const FornecedorForm: React.FC<FornecedorFormProps> = ({
     if (fornecedor) {
       Object.keys(fornecedor).forEach(key => {
         if (key !== 'documentos') {
-          setValue(key as keyof Fornecedor, fornecedor[key as keyof Fornecedor]);
+          const raw = fornecedor[key as keyof Fornecedor];
+          // Coerce null to empty string so controlled inputs don't receive null
+          const value = raw === null ? '' : raw;
+          setValue(key as keyof Fornecedor, value as any);
         }
       });
       setDocumentos(fornecedor.documentos || []);

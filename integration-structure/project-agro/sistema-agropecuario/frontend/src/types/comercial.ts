@@ -157,7 +157,7 @@ export interface ContratoComercial {
   id?: number;
   numero_contrato: string;
   titulo: string;
-  tipo_contrato: 'compra' | 'venda' | 'venda_futura' | 'venda_spot' | 'bater' | 'servico' | 'fornecimento' | 'parceria' | 'outros';
+  tipo_contrato: 'compra' | 'venda' | 'venda_futura' | 'venda_spot' | 'bater' | 'servico' | 'fornecimento' | 'parceria' | 'financiamento' | 'outros';
   categoria: 'insumos' | 'maquinas' | 'servicos' | 'financiamento' | 'arrendamento' | 'outros';
   status: 'rascunho' | 'em_negociacao' | 'assinado' | 'em_execucao' | 'concluido' | 'cancelado' | 'suspenso';
 

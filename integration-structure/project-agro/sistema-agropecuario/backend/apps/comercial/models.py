@@ -934,4 +934,552 @@ class ParcelaContrato(models.Model):
         verbose_name_plural = "Parcelas de Contrato"
     
     def __str__(self):
+        return f"Parcela {self.numero_parcela}/{self.contrato.numero_parcelas} - {self.contrato.numero_contrato}"# ========================================
+# MODELOS DE CONTRATOS - COMPRA, VENDA, FINANCEIRO
+# ========================================
+
+from django.db import models
+from apps.core.models import TenantModel
+from django.contrib.auth import get_user_model
+from django.core.validators import MinValueValidator, MaxValueValidator
+from decimal import Decimal
+
+User = get_user_model()
+
+
+class ContratoCompra(TenantModel):
+    """Modelo para Contrato de Compra"""
+    
+    STATUS_CHOICES = [
+        ('rascunho', 'Rascunho'),
+        ('pendente', 'Pendente Assinatura'),
+        ('ativo', 'Ativo'),
+        ('finalizado', 'Finalizado'),
+        ('cancelado', 'Cancelado'),
+    ]
+    
+    # Informações Gerais
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='rascunho', verbose_name="Status")
+    valor_total = models.DecimalField(max_digits=15, decimal_places=2, default=0, verbose_name="Valor Total")
+    titulo = models.CharField(max_length=200, verbose_name="Título")
+    numero_contrato = models.CharField(max_length=50, unique=True, null=True, blank=True, verbose_name="Número do Contrato")
+    
+    # Datas
+    data_inicio = models.DateField(null=True, blank=True, verbose_name="Data de Início")
+    data_fim = models.DateField(null=True, blank=True, verbose_name="Data de Fim")
+    
+    # Relacionamentos
+    fornecedor = models.ForeignKey(
+        'comercial.Fornecedor',
+        on_delete=models.PROTECT,
+        related_name='contratos_compra',
+        verbose_name="Fornecedor"
+    )
+    empresa = models.ForeignKey(
+        'comercial.Empresa',
+        on_delete=models.PROTECT,
+        related_name='contratos_compra',
+        verbose_name="Empresa"
+    )
+    
+    # Metadados
+    criado_por = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='contratos_compra_criados', verbose_name="Criado por")
+    criado_em = models.DateTimeField(auto_now_add=True, verbose_name="Criado em")
+    atualizado_em = models.DateTimeField(auto_now=True, verbose_name="Atualizado em")
+    
+    class Meta:
+        verbose_name = "Contrato de Compra"
+        verbose_name_plural = "Contratos de Compra"
+        ordering = ['-criado_em']
+    
+    def __str__(self):
+        return f"Compra {self.numero_contrato or self.id} - {self.titulo}"
+    
+    def calcular_valor_total(self):
+        """Calcula o valor total a partir dos itens"""
+        total = self.itens_compra.aggregate(
+            models.Sum(
+                models.F('quantidade') * models.F('preco_unitario'),
+                output_field=models.DecimalField()
+            )
+        )['quantidade__sum'] or Decimal('0.00')
+        self.valor_total = total
+        return total
+
+
+class ItemCompra(models.Model):
+    """Itens que compõem um Contrato de Compra"""
+    
+    contrato = models.ForeignKey(ContratoCompra, on_delete=models.CASCADE, related_name='itens_compra', verbose_name="Contrato")
+    
+    # Descrição do Item
+    descricao_item = models.CharField(max_length=500, verbose_name="Descrição")
+    quantidade = models.DecimalField(max_digits=12, decimal_places=4, validators=[MinValueValidator(Decimal('0.01'))], verbose_name="Quantidade")
+    unidade_medida = models.CharField(max_length=20, default='un', verbose_name="Unidade de Medida")
+    preco_unitario = models.DecimalField(max_digits=15, decimal_places=2, validators=[MinValueValidator(Decimal('0.00'))], verbose_name="Preço Unitário")
+    
+    # Cálculos
+    subtotal = models.DecimalField(max_digits=15, decimal_places=2, editable=False, verbose_name="Subtotal")
+    desconto_percentual = models.DecimalField(max_digits=5, decimal_places=2, default=0, validators=[MinValueValidator(0), MaxValueValidator(100)], verbose_name="Desconto %")
+    desconto_valor = models.DecimalField(max_digits=15, decimal_places=2, default=0, verbose_name="Desconto R$")
+    
+    # Opcional: referência a produto
+    produto = models.ForeignKey('estoque.Produto', on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Produto")
+    
+    criado_em = models.DateTimeField(auto_now_add=True, verbose_name="Criado em")
+    
+    class Meta:
+        ordering = ['criado_em']
+        verbose_name = "Item de Compra"
+        verbose_name_plural = "Itens de Compra"
+    
+    def save(self, *args, **kwargs):
+        self.subtotal = (self.quantidade * self.preco_unitario) - self.desconto_valor
+        super().save(*args, **kwargs)
+        self.contrato.calcular_valor_total()
+        self.contrato.save()
+    
+    def __str__(self):
+        return f"{self.descricao_item} - {self.quantidade} {self.unidade_medida}"
+
+
+class CondicaoCompra(models.Model):
+    """Condições comerciais de um Contrato de Compra"""
+    
+    TIPO_CONDICAO_CHOICES = [
+        ('pagamento', 'Condição de Pagamento'),
+        ('entrega', 'Condição de Entrega'),
+        ('garantia', 'Garantia'),
+        ('rescisao', 'Cláusula de Rescisão'),
+        ('multa', 'Multa/Penalidade'),
+        ('outra', 'Outra Condição'),
+    ]
+    
+    contrato = models.ForeignKey(ContratoCompra, on_delete=models.CASCADE, related_name='condicoes_compra', verbose_name="Contrato")
+    tipo_condicao = models.CharField(max_length=20, choices=TIPO_CONDICAO_CHOICES, verbose_name="Tipo de Condição")
+    descricao = models.TextField(verbose_name="Descrição")
+    valor = models.DecimalField(max_digits=15, decimal_places=2, null=True, blank=True, verbose_name="Valor (se aplicável)")
+    data_vigencia = models.DateField(null=True, blank=True, verbose_name="Data de Vigência")
+    
+    criado_em = models.DateTimeField(auto_now_add=True, verbose_name="Criado em")
+    
+    class Meta:
+        ordering = ['tipo_condicao']
+        verbose_name = "Condição de Compra"
+        verbose_name_plural = "Condições de Compra"
+    
+    def __str__(self):
+        return f"{self.get_tipo_condicao_display()} - {self.contrato.numero_contrato}"
+
+
+# ========================================
+# CONTRATO DE VENDA
+# ========================================
+
+
+class ContratoVenda(TenantModel):
+    """Modelo para Contrato de Venda"""
+    
+    STATUS_CHOICES = [
+        ('rascunho', 'Rascunho'),
+        ('pendente', 'Pendente Assinatura'),
+        ('ativo', 'Ativo'),
+        ('finalizado', 'Finalizado'),
+        ('cancelado', 'Cancelado'),
+    ]
+    
+    # Informações Gerais
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='rascunho', verbose_name="Status")
+    valor_total = models.DecimalField(max_digits=15, decimal_places=2, default=0, verbose_name="Valor Total")
+    titulo = models.CharField(max_length=200, verbose_name="Título")
+    numero_contrato = models.CharField(max_length=50, unique=True, null=True, blank=True, verbose_name="Número do Contrato")
+    numero_parcelas = models.PositiveIntegerField(default=1, verbose_name="Número de Parcelas")
+    
+    # Datas
+    data_inicio = models.DateField(null=True, blank=True, verbose_name="Data de Início")
+    data_fim = models.DateField(null=True, blank=True, verbose_name="Data de Fim")
+    
+    # Relacionamentos
+    cliente = models.ForeignKey(
+        'comercial.Cliente',
+        on_delete=models.PROTECT,
+        related_name='contratos_venda',
+        verbose_name="Cliente"
+    )
+    empresa = models.ForeignKey(
+        'comercial.Empresa',
+        on_delete=models.PROTECT,
+        related_name='contratos_venda',
+        verbose_name="Empresa"
+    )
+    
+    # Rastreamento de comissões
+    rastrear_comissao = models.BooleanField(default=True, verbose_name="Rastrear Comissão")
+    percentual_comissao = models.DecimalField(
+        max_digits=5, decimal_places=2, default=0,
+        validators=[MinValueValidator(0), MaxValueValidator(100)],
+        verbose_name="Percentual de Comissão"
+    )
+    
+    # Metadados
+    criado_por = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='contratos_venda_criados', verbose_name="Criado por")
+    criado_em = models.DateTimeField(auto_now_add=True, verbose_name="Criado em")
+    atualizado_em = models.DateTimeField(auto_now=True, verbose_name="Atualizado em")
+    
+    class Meta:
+        verbose_name = "Contrato de Venda"
+        verbose_name_plural = "Contratos de Venda"
+        ordering = ['-criado_em']
+    
+    def __str__(self):
+        return f"Venda {self.numero_contrato or self.id} - {self.titulo}"
+    
+    def calcular_valor_total(self):
+        """Calcula o valor total a partir dos itens"""
+        total = self.itens_venda.aggregate(
+            models.Sum(
+                models.F('quantidade') * models.F('preco_unitario') - models.F('desconto_valor'),
+                output_field=models.DecimalField()
+            )
+        )['quantidade__sum'] or Decimal('0.00')
+        self.valor_total = total
+        return total
+
+
+class ItemVenda(models.Model):
+    """Itens que compõem um Contrato de Venda"""
+    
+    contrato = models.ForeignKey(ContratoVenda, on_delete=models.CASCADE, related_name='itens_venda', verbose_name="Contrato")
+    
+    # Descrição do Produto/Serviço
+    descricao_produto = models.CharField(max_length=500, verbose_name="Descrição")
+    quantidade = models.DecimalField(max_digits=12, decimal_places=4, validators=[MinValueValidator(Decimal('0.01'))], verbose_name="Quantidade")
+    unidade_medida = models.CharField(max_length=20, default='un', verbose_name="Unidade de Medida")
+    preco_unitario = models.DecimalField(max_digits=15, decimal_places=2, validators=[MinValueValidator(Decimal('0.00'))], verbose_name="Preço Unitário")
+    
+    # Descontos
+    desconto_item_percentual = models.DecimalField(
+        max_digits=5, decimal_places=2, default=0,
+        validators=[MinValueValidator(0), MaxValueValidator(100)],
+        verbose_name="Desconto %"
+    )
+    desconto_item_valor = models.DecimalField(max_digits=15, decimal_places=2, default=0, verbose_name="Desconto R$")
+    
+    # Referência a produto
+    produto = models.ForeignKey('estoque.Produto', on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Produto")
+    
+    criado_em = models.DateTimeField(auto_now_add=True, verbose_name="Criado em")
+    
+    class Meta:
+        ordering = ['criado_em']
+        verbose_name = "Item de Venda"
+        verbose_name_plural = "Itens de Venda"
+    
+    def __str__(self):
+        return f"{self.descricao_produto} - {self.quantidade} {self.unidade_medida}"
+
+
+class ParcelaVenda(models.Model):
+    """Parcelas de um Contrato de Venda"""
+    
+    STATUS_CHOICES = [
+        ('pendente', 'Pendente'),
+        ('paga', 'Paga'),
+        ('vencida', 'Vencida'),
+        ('cancelada', 'Cancelada'),
+    ]
+    
+    contrato = models.ForeignKey(ContratoVenda, on_delete=models.CASCADE, related_name='parcelas_venda', verbose_name="Contrato")
+    numero_parcela = models.PositiveIntegerField(verbose_name="Número da Parcela")
+    valor_parcela = models.DecimalField(max_digits=15, decimal_places=2, validators=[MinValueValidator(Decimal('0.00'))], verbose_name="Valor da Parcela")
+    data_vencimento = models.DateField(verbose_name="Data de Vencimento")
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pendente', verbose_name="Status")
+    data_pagamento = models.DateField(null=True, blank=True, verbose_name="Data de Pagamento")
+    valor_pago = models.DecimalField(max_digits=15, decimal_places=2, default=0, verbose_name="Valor Pago")
+    
+    # Link com Financeiro
+    vencimento = models.OneToOneField(
+        'financeiro.Vencimento',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='parcela_venda',
+        verbose_name="Vencimento"
+    )
+    
+    criado_em = models.DateTimeField(auto_now_add=True, verbose_name="Criado em")
+    
+    class Meta:
+        unique_together = ['contrato', 'numero_parcela']
+        ordering = ['numero_parcela']
+        verbose_name = "Parcela de Venda"
+        verbose_name_plural = "Parcelas de Venda"
+    
+    def __str__(self):
         return f"Parcela {self.numero_parcela}/{self.contrato.numero_parcelas} - {self.contrato.numero_contrato}"
+
+
+class CondicaoVenda(models.Model):
+    """Condições de um Contrato de Venda"""
+    
+    TIPO_CONDICAO_CHOICES = [
+        ('pagamento', 'Condição de Pagamento'),
+        ('entrega', 'Condição de Entrega'),
+        ('garantia', 'Garantia'),
+        ('cancelamento', 'Cláusula de Cancelamento'),
+        ('multa', 'Multa/Penalidade'),
+        ('outra', 'Outra Condição'),
+    ]
+    
+    contrato = models.ForeignKey(ContratoVenda, on_delete=models.CASCADE, related_name='condicoes_venda', verbose_name="Contrato")
+    tipo_condicao = models.CharField(max_length=20, choices=TIPO_CONDICAO_CHOICES, verbose_name="Tipo de Condição")
+    descricao = models.TextField(verbose_name="Descrição")
+    valor = models.DecimalField(max_digits=15, decimal_places=2, null=True, blank=True, verbose_name="Valor (se aplicável)")
+    
+    criado_em = models.DateTimeField(auto_now_add=True, verbose_name="Criado em")
+    
+    class Meta:
+        ordering = ['tipo_condicao']
+        verbose_name = "Condição de Venda"
+        verbose_name_plural = "Condições de Venda"
+    
+    def __str__(self):
+        return f"{self.get_tipo_condicao_display()} - {self.contrato.numero_contrato}"
+
+
+# ========================================
+# CONTRATO FINANCEIRO
+# ========================================
+
+
+class ContratoFinanceiro(TenantModel):
+    """Modelo para Contrato Financeiro (Empréstimos, Consórcios, Seguros, Aplicações Financeiras)"""
+    
+    STATUS_CHOICES = [
+        ('rascunho', 'Rascunho'),
+        ('proposta', 'Proposta'),
+        ('ativo', 'Ativo'),
+        ('finalizado', 'Finalizado'),
+        ('cancelado', 'Cancelado'),
+    ]
+    
+    PRODUTO_FINANCEIRO_CHOICES = [
+        ('emprestimo', 'Empréstimo'),
+        ('consorcio', 'Consórcio'),
+        ('seguro', 'Seguro'),
+        ('aplicacao', 'Aplicação Financeira'),
+    ]
+    
+    # Informações Gerais
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='rascunho', verbose_name="Status")
+    produto_financeiro = models.CharField(max_length=20, choices=PRODUTO_FINANCEIRO_CHOICES, verbose_name="Produto Financeiro")
+    valor_total = models.DecimalField(max_digits=15, decimal_places=2, default=0, verbose_name="Valor Total")
+    valor_entrada = models.DecimalField(max_digits=15, decimal_places=2, default=0, verbose_name="Valor de Entrada")
+    titulo = models.CharField(max_length=200, verbose_name="Título")
+    numero_contrato = models.CharField(max_length=50, unique=True, null=True, blank=True, verbose_name="Número do Contrato")
+    
+    # Datas
+    data_vigencia_inicial = models.DateField(null=True, blank=True, verbose_name="Data de Vigência Inicial")
+    data_vigencia_final = models.DateField(null=True, blank=True, verbose_name="Data de Vigência Final")
+    data_assinatura = models.DateField(null=True, blank=True, verbose_name="Data de Assinatura")
+    assinado_em = models.DateField(null=True, blank=True, verbose_name="Assinado em")
+    
+    # URLs / Documentação
+    url_documento = models.URLField(max_length=500, null=True, blank=True, verbose_name="URL do Documento")
+    
+    # Relacionamentos
+    beneficiario = models.ForeignKey(
+        'comercial.Cliente',
+        on_delete=models.PROTECT,
+        related_name='contratos_financeiros',
+        verbose_name="Beneficiário"
+    )
+    instituicao_financeira = models.ForeignKey(
+        'comercial.InstituicaoFinanceira',
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name='contratos_financeiros',
+        verbose_name="Instituição Financeira"
+    )
+    empresa = models.ForeignKey(
+        'comercial.Empresa',
+        on_delete=models.PROTECT,
+        related_name='contratos_financeiros',
+        verbose_name="Empresa"
+    )
+    
+    # Metadados
+    criado_por = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='contratos_financeiros_criados', verbose_name="Criado por")
+    criado_em = models.DateTimeField(auto_now_add=True, verbose_name="Criado em")
+    atualizado_em = models.DateTimeField(auto_now=True, verbose_name="Atualizado em")
+    
+    class Meta:
+        verbose_name = "Contrato Financeiro"
+        verbose_name_plural = "Contratos Financeiros"
+        ordering = ['-criado_em']
+    
+    def __str__(self):
+        return f"{self.get_produto_financeiro_display()} - {self.numero_contrato or self.id} - {self.titulo}"
+
+
+# Dados específicos por tipo de produto financeiro
+
+
+class DadosEmprestimo(models.Model):
+    """Dados específicos de Empréstimo"""
+    
+    TIPO_TAXA_CHOICES = [
+        ('fixa', 'Taxa Fixa'),
+        ('variavel', 'Taxa Variável'),
+    ]
+    
+    contrato = models.OneToOneField(ContratoFinanceiro, on_delete=models.CASCADE, related_name='dados_emprestimo', verbose_name="Contrato")
+    
+    taxa_juros = models.DecimalField(max_digits=5, decimal_places=2, verbose_name="Taxa de Juros (%)")
+    tipo_taxa = models.CharField(max_length=20, choices=TIPO_TAXA_CHOICES, default='fixa', verbose_name="Tipo de Taxa")
+    prazo_meses = models.PositiveIntegerField(verbose_name="Prazo (meses)")
+    numero_parcelas = models.PositiveIntegerField(verbose_name="Número de Parcelas")
+    valor_parcela = models.DecimalField(max_digits=15, decimal_places=2, verbose_name="Valor da Parcela")
+    data_primeira_parcela = models.DateField(verbose_name="Data da Primeira Parcela")
+    data_ultima_parcela = models.DateField(verbose_name="Data da Última Parcela")
+    
+    criado_em = models.DateTimeField(auto_now_add=True, verbose_name="Criado em")
+    
+    class Meta:
+        verbose_name = "Dados de Empréstimo"
+        verbose_name_plural = "Dados de Empréstimos"
+    
+    def __str__(self):
+        return f"Empréstimo - {self.contrato.numero_contrato}"
+
+
+class DadosConsorcio(models.Model):
+    """Dados específicos de Consórcio"""
+    
+    contrato = models.OneToOneField(ContratoFinanceiro, on_delete=models.CASCADE, related_name='dados_consorcio', verbose_name="Contrato")
+    
+    numero_cotas = models.PositiveIntegerField(verbose_name="Número de Cotas")
+    valor_cota = models.DecimalField(max_digits=15, decimal_places=2, verbose_name="Valor da Cota")
+    numero_participantes = models.PositiveIntegerField(verbose_name="Número de Participantes")
+    data_contemplacao = models.DateField(null=True, blank=True, verbose_name="Data de Contemplação")
+    taxa_administracao = models.DecimalField(max_digits=5, decimal_places=2, default=0, verbose_name="Taxa de Administração (%)")
+    
+    criado_em = models.DateTimeField(auto_now_add=True, verbose_name="Criado em")
+    
+    class Meta:
+        verbose_name = "Dados de Consórcio"
+        verbose_name_plural = "Dados de Consórcios"
+    
+    def __str__(self):
+        return f"Consórcio - {self.contrato.numero_contrato}"
+
+
+class DadosSeguro(models.Model):
+    """Dados específicos de Seguro"""
+    
+    contrato = models.OneToOneField(ContratoFinanceiro, on_delete=models.CASCADE, related_name='dados_seguro', verbose_name="Contrato")
+    
+    tipo_seguro = models.CharField(max_length=100, verbose_name="Tipo de Seguro")
+    premio_anual = models.DecimalField(max_digits=15, decimal_places=2, verbose_name="Prêmio Anual")
+    franquia = models.DecimalField(max_digits=15, decimal_places=2, null=True, blank=True, verbose_name="Franquia")
+    cobertura_maxima = models.DecimalField(max_digits=15, decimal_places=2, verbose_name="Cobertura Máxima")
+    vigencia_inicio = models.DateField(verbose_name="Vigência - Início")
+    vigencia_fim = models.DateField(verbose_name="Vigência - Fim")
+    
+    criado_em = models.DateTimeField(auto_now_add=True, verbose_name="Criado em")
+    
+    class Meta:
+        verbose_name = "Dados de Seguro"
+        verbose_name_plural = "Dados de Seguros"
+    
+    def __str__(self):
+        return f"Seguro {self.tipo_seguro} - {self.contrato.numero_contrato}"
+
+
+class DadosAplicacaoFinanceira(models.Model):
+    """Dados específicos de Aplicação Financeira"""
+    
+    TIPO_APLICACAO_CHOICES = [
+        ('cdb', 'CDB'),
+        ('lci', 'LCI'),
+        ('lca', 'LCA'),
+        ('poupanca', 'Poupança'),
+        ('fundos', 'Fundos'),
+        ('tesouro', 'Tesouro Direto'),
+        ('outro', 'Outro'),
+    ]
+    
+    contrato = models.OneToOneField(ContratoFinanceiro, on_delete=models.CASCADE, related_name='dados_aplicacao_financeira', verbose_name="Contrato")
+    
+    tipo_aplicacao = models.CharField(max_length=20, choices=TIPO_APLICACAO_CHOICES, verbose_name="Tipo de Aplicação")
+    valor_aplicado = models.DecimalField(max_digits=15, decimal_places=2, verbose_name="Valor Aplicado")
+    taxa_retorno = models.DecimalField(max_digits=5, decimal_places=2, verbose_name="Taxa de Retorno (%)")
+    data_aplicacao = models.DateField(verbose_name="Data da Aplicação")
+    data_vencimento = models.DateField(verbose_name="Data de Vencimento")
+    data_resgate = models.DateField(null=True, blank=True, verbose_name="Data de Resgate")
+    valor_resgate = models.DecimalField(max_digits=15, decimal_places=2, null=True, blank=True, verbose_name="Valor de Resgate")
+    
+    criado_em = models.DateTimeField(auto_now_add=True, verbose_name="Criado em")
+    
+    class Meta:
+        verbose_name = "Dados de Aplicação Financeira"
+        verbose_name_plural = "Dados de Aplicações Financeiras"
+    
+    def __str__(self):
+        return f"{self.get_tipo_aplicacao_display()} - {self.contrato.numero_contrato}"
+
+
+class DocumentoAdicionalFinanceiro(models.Model):
+    """Documentos adicionais para Contratos Financeiros"""
+    
+    TIPO_DOCUMENTO_CHOICES = [
+        ('comprovante', 'Comprovante'),
+        ('aditivo', 'Aditivo'),
+        ('rescisao', 'Rescisão'),
+        ('outro', 'Outro'),
+    ]
+    
+    contrato = models.ForeignKey(ContratoFinanceiro, on_delete=models.CASCADE, related_name='documentos_adicionais', verbose_name="Contrato")
+    
+    tipo_documento = models.CharField(max_length=20, choices=TIPO_DOCUMENTO_CHOICES, verbose_name="Tipo de Documento")
+    descricao = models.CharField(max_length=300, verbose_name="Descrição")
+    url_documento = models.URLField(max_length=500, verbose_name="URL do Documento")
+    data_upload = models.DateTimeField(auto_now_add=True, verbose_name="Data de Upload")
+    
+    class Meta:
+        ordering = ['-data_upload']
+        verbose_name = "Documento Adicional"
+        verbose_name_plural = "Documentos Adicionais"
+    
+    def __str__(self):
+        return f"{self.get_tipo_documento_display()} - {self.contrato.numero_contrato}"
+
+
+class CondicaoFinanceira(models.Model):
+    """Condições específicas de um Contrato Financeiro"""
+    
+    TIPO_CONDICAO_CHOICES = [
+        ('carencia', 'Período de Carência'),
+        ('penalidade', 'Penalidade'),
+        ('indexacao', 'Indexação'),
+        ('atualizacao', 'Clausula de Atualização'),
+        ('outra', 'Outra Condição'),
+    ]
+    
+    contrato = models.ForeignKey(ContratoFinanceiro, on_delete=models.CASCADE, related_name='condicoes_financeiras', verbose_name="Contrato")
+    
+    tipo_condicao = models.CharField(max_length=20, choices=TIPO_CONDICAO_CHOICES, verbose_name="Tipo de Condição")
+    descricao = models.TextField(verbose_name="Descrição")
+    valor_percentual = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True, verbose_name="Valor %")
+    valor_absoluto = models.DecimalField(max_digits=15, decimal_places=2, null=True, blank=True, verbose_name="Valor R$")
+    
+    criado_em = models.DateTimeField(auto_now_add=True, verbose_name="Criado em")
+    
+    class Meta:
+        ordering = ['tipo_condicao']
+        verbose_name = "Condição Financeira"
+        verbose_name_plural = "Condições Financeiras"
+    
+    def __str__(self):
+        return f"{self.get_tipo_condicao_display()} - {self.contrato.numero_contrato}"

@@ -95,7 +95,7 @@ const getManifestacaoChip = (nfe: any) => {
     default:
       return {
         icon: <WarningIcon sx={{ fontSize: '1rem' }} />,
-        label: manifestacaoEnviada.tipo,
+        label: tipoManifestacao,
         color: 'error' as const,
       };
   }

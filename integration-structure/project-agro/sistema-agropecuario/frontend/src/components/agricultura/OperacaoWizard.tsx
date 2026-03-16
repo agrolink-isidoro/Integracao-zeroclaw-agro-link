@@ -818,7 +818,7 @@ export const OperacaoWizard: React.FC<OperacaoWizardProps> = ({ onSuccess }) => 
                 <button
                   onClick={() => {
                     const current = formData.produtos_input || [];
-                    current.push({ produto_id: undefined, dosagem: undefined, unidade_dosagem: '', quantidade_total: undefined });
+                    current.push({ produto_id: undefined, dosagem: undefined, unidade_dosagem: '', quantidade_total: undefined } as ProdutoInputUI);
                     updateFormData('produtos_input', [...current]);
                   }}
                   className="px-4 py-2 bg-green-100 text-green-700 rounded"

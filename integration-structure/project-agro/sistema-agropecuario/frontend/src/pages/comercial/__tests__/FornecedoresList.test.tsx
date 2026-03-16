@@ -30,6 +30,7 @@ describe('Fornecedores page', () => {
 
     // Open modal and ensure Dados Bancários tab exposes Banco selector
     const { act, fireEvent } = await import('@testing-library/react');
+    const novoBtn = screen.getByRole('button', { name: /novo fornecedor/i });
     act(() => fireEvent.click(novoBtn));
     const dadosBancariosTab = screen.getByRole('button', { name: /Dados Bancários/i });
     act(() => fireEvent.click(dadosBancariosTab));

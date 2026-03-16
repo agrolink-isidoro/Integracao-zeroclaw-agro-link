@@ -1,13 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import contratosService from '../../services/contratos';
+import ComercialService from '../../services/comercial';
 import type { VendaContrato, StatusContrato, TipoContrato } from '../../types/estoque_maquinas';
+import ContratoFormModal from '../../components/comercial/ContratoFormModal';
 
 const ContratosList: React.FC = () => {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [contratos, setContratos] = useState<VendaContrato[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [showContratoModal, setShowContratoModal] = useState(false);
   
   // Filtros
   const [filtros, setFiltros] = useState({
@@ -92,6 +95,20 @@ const ContratosList: React.FC = () => {
   };
 
   return (
+    <>
+    <ContratoFormModal
+      isOpen={showContratoModal}
+      onClose={() => setShowContratoModal(false)}
+      onSubmit={async (data: any) => {
+        try {
+          const result = await ComercialService.createContrato(data);
+          setShowContratoModal(false);
+          carregarContratos();
+        } catch (err) {
+          console.error('Erro ao criar contrato:', err);
+        }
+      }}
+    />
     <div className="container-fluid">
       <div className="row">
         <div className="col-12">
@@ -102,13 +119,22 @@ const ContratosList: React.FC = () => {
                   <i className="bi bi-file-earmark-text me-2"></i>
                   Contratos de Venda
                 </h3>
-                <button
-                  className="btn btn-primary"
-                  onClick={() => navigate('/comercial/contratos/novo')}
-                >
-                  <i className="bi bi-plus-circle me-2"></i>
-                  Novo Contrato
-                </button>
+                <div className="d-flex gap-2">
+                  <button
+                    className="btn btn-primary"
+                    onClick={() => navigate('/comercial/contratos/novo')}
+                  >
+                    <i className="bi bi-plus-circle me-2"></i>
+                    Novo Contrato
+                  </button>
+                  <button
+                    className="btn btn-success"
+                    onClick={() => setShowContratoModal(true)}
+                  >
+                    <i className="bi bi-lightning me-2"></i>
+                    Novo Contrato (M)
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -296,6 +322,7 @@ const ContratosList: React.FC = () => {
         </div>
       </div>
     </div>
+    </>
   );
 };
 
