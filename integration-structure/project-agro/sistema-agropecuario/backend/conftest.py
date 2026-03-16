@@ -243,7 +243,8 @@ def authenticated_user_with_tenant():
             # middleware vai permitir access (não 403)
     """
     from django.contrib.auth import get_user_model
-    from apps.fazendas.models import Proprietario, Fazenda, Tenant
+    from apps.core.models import Tenant
+    from apps.fazendas.models import Proprietario, Fazenda
     
     User = get_user_model()
     
@@ -337,7 +338,8 @@ def user_with_tenant():
     em vez de (user, fazenda).
     """
     from django.contrib.auth import get_user_model
-    from apps.fazendas.models import Proprietario, Fazenda, Tenant
+    from apps.core.models import Tenant
+    from apps.fazendas.models import Proprietario, Fazenda
     
     User = get_user_model()
     
