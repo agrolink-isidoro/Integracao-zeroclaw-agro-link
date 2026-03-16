@@ -7,15 +7,48 @@ User = get_user_model()
 BASE = '/api/administrativo/folha-pagamento/'
 
 
-def create_user_client():
-    user = User.objects.create_user(username='u2', password='p')
+@pytest.fixture
+def user_with_tenant():
+    """User autenticado com tenant para testes (resolve 403)"""
+    from apps.fazendas.models import Proprietario, Fazenda, Tenant
+    
+    # 1. Criar tenant
+    tenant, _ = Tenant.objects.get_or_create(
+        nome="test_tenant_administrativo",
+        defaults={"descricao": "Tenant para testes"}
+    )
+    
+    # 2. Criar proprietario
+    proprietario, _ = Proprietario.objects.get_or_create(
+        tenant=tenant,
+        nome="Test Owner",
+        cpf="00000000000",
+        defaults={"email": "owner@test.local", "telefone": "11999999999"}
+    )
+    
+    # 3. Criar fazenda
+    fazenda, _ = Fazenda.objects.get_or_create(
+        tenant=tenant,
+        nome="Test Farm",
+        proprietario=proprietario,
+        defaults={
+            "localizacao": "POINT(-48.123 -15.456)",
+            "area_total": 100.0,
+        }
+    )
+    
+    # 4. Criar user com tenant
+    user = User.objects.create_user(username='u2', password='p', tenant=tenant)
+    
+    # 5. Criar client autenticado
     client = APIClient()
     client.force_authenticate(user=user)
-    return client
+    
+    return client, tenant, user
 
 
-def test_create_preview_and_run_folha():
-    client = create_user_client()
+def test_create_preview_and_run_folha(user_with_tenant):
+    client, tenant, user = user_with_tenant
     # create two funcionarios
     f1 = client.post('/api/administrativo/funcionarios/', {'nome': 'F1', 'salario_bruto': '1000.00'}, format='json')
     f2 = client.post('/api/administrativo/funcionarios/', {'nome': 'F2', 'salario_bruto': '1500.00'}, format='json')
@@ -82,8 +115,8 @@ def test_create_preview_and_run_folha():
     assert float(it3['descontos_outro']) == 5.5
 
 
-def test_temporario_uses_diaria_and_no_taxes_or_overtime():
-    client = create_user_client()
+def test_temporario_uses_diaria_and_no_taxes_or_overtime(user_with_tenant):
+    client, tenant, user = user_with_tenant
     # create a temporario with daily wage
     f = client.post('/api/administrativo/funcionarios/', {'nome': 'Temp1', 'tipo': 'temporario', 'diaria_valor': '100.00'}, format='json')
     assert f.status_code == 201
@@ -116,16 +149,16 @@ def test_temporario_uses_diaria_and_no_taxes_or_overtime():
     assert get.json().get('executado') is True
 
 
-def test_temporario_requires_diaria():
-    client = create_user_client()
+def test_temporario_requires_diaria(user_with_tenant):
+    client, tenant, user = user_with_tenant
     # attempt to create temporario without diaria_valor should fail
     res = client.post('/api/administrativo/funcionarios/', {'nome': 'TempFail', 'tipo': 'temporario'}, format='json')
     assert res.status_code == 400
     assert 'diaria_valor' in res.json()
 
 
-def test_per_employee_overrides_are_used():
-    client = create_user_client()
+def test_per_employee_overrides_are_used(user_with_tenant):
+    client, tenant, user = user_with_tenant
     f1 = client.post('/api/administrativo/funcionarios/', {'nome': 'F3', 'salario_bruto': '2000.00'}, format='json')
     assert f1.status_code == 201
 
@@ -152,8 +185,8 @@ def test_per_employee_overrides_are_used():
     assert float(persisted['ir']) == 3.0
 
 
-def test_summary_endpoint_returns_aggregates():
-    client = create_user_client()
+def test_summary_endpoint_returns_aggregates(user_with_tenant):
+    client, tenant, user = user_with_tenant
     # create two funcionarios
     f1 = client.post('/api/administrativo/funcionarios/', {'nome': 'S1', 'salario_bruto': '2000.00'}, format='json')
     f2 = client.post('/api/administrativo/funcionarios/', {'nome': 'S2', 'salario_bruto': '3000.00'}, format='json')
@@ -188,11 +221,11 @@ def test_summary_endpoint_returns_aggregates():
     assert float(data['total_inss']) == pytest.approx(expected_inss_sum, rel=1e-6)
 
 
-def test_run_creates_vencimentos_and_aggregate_despesa():
+def test_run_creates_vencimentos_and_aggregate_despesa(user_with_tenant):
     """When a folha is executed it should create Vencimento entries for each item
     and an aggregate DespesaAdministrativa (centro 'ADM' if present) for reporting/rateio.
     """
-    client = create_user_client()
+    client, tenant, user = user_with_tenant
     f1 = client.post('/api/administrativo/funcionarios/', {'nome': 'V1', 'salario_bruto': '1200.00'}, format='json')
     assert f1.status_code == 201
 
