@@ -2,21 +2,43 @@ from django.test import TestCase
 from django.contrib.auth import get_user_model
 from rest_framework.test import APIClient
 from apps.agricultura.models import Colheita, ColheitaItem, HarvestTransfer
-from apps.fazendas.models import Fazenda, Area, Talhao
+from apps.fazendas.models import Fazenda, Area, Talhao, Tenant, Proprietario
 from apps.agricultura.models import Plantio, Cultura
 
 User = get_user_model()
 
 
-class ColheitaTransferTests(TestCase):
+class TenantTestCase(TestCase):
+    """Base para testes com multi-tenancy"""
     def setUp(self):
-        self.user = User.objects.create_user(username='tester')
-        self.client = APIClient()
-        self.client.force_authenticate(self.user)
+        super().setUp()
+        self.tenant, _ = Tenant.objects.get_or_create(
+            nome="test_tenant_" + self.__class__.__name__,
+            defaults={"descricao": "Tenant para testes"}
+        )
+        self.proprietario, _ = Proprietario.objects.get_or_create(
+            tenant=self.tenant,
+            nome="Test Owner",
+            cpf="00000000000",
+            defaults={"email": "owner@test.local", "telefone": "11999999999"}
+        )
+        self.user = User.objects.create(
+            username=f'user_{self.__class__.__name__}',
+            email='user@test.local',
+            tenant=self.tenant
+        )
+        self.fazenda, _ = Fazenda.objects.get_or_create(
+            tenant=self.tenant,
+            nome="Test Farm",
+            proprietario=self.proprietario,
+            defaults={"descricao": "Fazenda para testes"}
+        )
+        self.client.force_login(self.user)
 
-        from apps.fazendas.models import Proprietario
-        self.proprietario = Proprietario.objects.create(nome='Produtor Test', cpf_cnpj='000000000')
-        self.fazenda = Fazenda.objects.create(proprietario=self.proprietario, name='F', matricula='M1')
+
+class ColheitaTransferTests(TenantTestCase):
+    def setUp(self):
+        super().setUp()
         self.cultura = Cultura.objects.create(nome='Soja')
         self.plantio = Plantio.objects.create(fazenda=self.fazenda, cultura=self.cultura, data_plantio='2025-01-01')
         self.area = Area.objects.create(proprietario=self.proprietario, fazenda=self.fazenda, name='Area')
