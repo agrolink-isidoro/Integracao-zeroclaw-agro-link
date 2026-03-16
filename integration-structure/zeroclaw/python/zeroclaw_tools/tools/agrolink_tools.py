@@ -492,8 +492,9 @@ def get_agrolink_tools(base_url: str, jwt_token: str, tenant_id: str = "") -> li
     @tool
     def criar_fazenda(
         name: str,
-        matricula: str,
         proprietario: str,
+        matricula: str = "",
+        matriculas: str = "",
     ) -> str:
         """
         Cadastra uma nova fazenda vinculada a um proprietário.
@@ -501,27 +502,39 @@ def get_agrolink_tools(base_url: str, jwt_token: str, tenant_id: str = "") -> li
         ⚠️ SEGUNDO PASSO DA SEQUÊNCIA OBRIGATÓRIA:
         Proprietário → Fazenda → Área → Talhão
         
+        🔑 NOVO: Aceita MÚLTIPLAS MATRÍCULAS!
+        ─────────────────────────────────────
+        Uma fazenda pode ter vários registros/matrículas de terra.
+        - **matricula**: uma única matrícula, ex: "MAT-2024-001"
+        - **matriculas**: múltiplas matrículas separadas por vírgula, ex: "MAT-2024-001, MAT-2024-002, MAT-2024-003"
+        
+        Forneça UM dos dois campos. Se ambos forem preenchidos, **matriculas** tem prioridade.
+
         OBRIGATÓRIO: O PROPRIETÁRIO DEVE EXISTIR PREVIAMENTE!
         Se não existir, ofereça criar primeiro (criar_proprietario).
         
-        SEMPRE pergunte os 3 campos obrigatórios (name*, matricula*, proprietario*) antes de chamar.
+        SEMPRE pergunte os campos obrigatórios (name*, proprietario*, matriz/matrículas*) antes de chamar.
         Ao usuário CONFIRMAR — chame IMEDIATAMENTE. Não repita resumos. Não faça mais perguntas.
 
         Args:
             name: Nome da fazenda(*obrigatório) — ex: "Fazenda Santa Maria"
-            matricula: Registro/matrícula da fazenda(*obrigatório) — deve ser único, ex: "MAT-2024-001"
             proprietario: Nome do proprietário existente(*obrigatório) — será procurado no sistema
+            matricula: Uma única matrícula(*opcional se fornecido matriculas) — ex: "MAT-2024-001"
+            matriculas: Múltiplas matrículas separadas por vírgula (*opcional se fornecido matricula) — ex: "MAT-2024-001, MAT-2024-002"
             
         ⚠️ Após criar: próximo passo é SEMPRE criar_area (que depende desta fazenda)
         """
+        # Determinar qual campo têm dados (matriculas tem prioridade)
+        final_matricula = matriculas if matriculas.strip() else matricula
+        
         return _post_action(
             base_url, jwt_token, tenant_id,
             module="fazendas",
             action_type="criar_fazenda",
             draft_data={
                 "name": name,
-                "matricula": matricula,
                 "proprietario": proprietario,
+                "matriculas": [m.strip() for m in final_matricula.split(",") if m.strip()],
             },
         )
 
@@ -530,6 +543,7 @@ def get_agrolink_tools(base_url: str, jwt_token: str, tenant_id: str = "") -> li
         name: str,
         fazenda: str,
         proprietario: str,
+        area_hectares: float = 0.0,
         tipo: str = "propria",
         custo_arrendamento: float = 0.0,
         observacoes: str = "",
@@ -543,11 +557,12 @@ def get_agrolink_tools(base_url: str, jwt_token: str, tenant_id: str = "") -> li
         OBRIGATÓRIO: A FAZENDA DEVE EXISTIR PREVIAMENTE!
         Se não existir, ofereça criar primeiro (criar_fazenda).
         
-        SEMPRE pergunte os campos obrigatórios (name*, fazenda*, proprietario*, tipo*) antes de chamar:
+        SEMPRE pergunte os campos obrigatórios (name*, fazenda*, proprietario*, area_hectares*) antes de chamar:
         1. Nome da área
         2. Qual fazenda (valide se existe)
         3. Qual proprietário (valide se existe)
-        4. Tipo de posse: 'propria' (padrão) ou 'arrendada'?
+        4. Qual a área em hectares? (ex: 50.5)
+        5. Tipo de posse: 'propria' (padrão) ou 'arrendada'?
         
         Se tipo='arrendada', pergunte também: "Qual o custo em sacas/hectare?"
         
@@ -557,6 +572,7 @@ def get_agrolink_tools(base_url: str, jwt_token: str, tenant_id: str = "") -> li
             name: Nome da área(*obrigatório) — ex: "Gleba Norte", "Sede"
             fazenda: Nome da fazenda à qual a área pertence(*obrigatório)
             proprietario: Nome do proprietário(*obrigatório)
+            area_hectares: Área em hectares(*obrigatório) — ex: 50.5
             tipo: Tipo de posse(*obrigatório): 'propria' (padrão) ou 'arrendada'
             custo_arrendamento: Custo em sacas/hectare — obrigatório APENAS se tipo='arrendada'
             observacoes: Observações adicionais
@@ -571,6 +587,7 @@ def get_agrolink_tools(base_url: str, jwt_token: str, tenant_id: str = "") -> li
                 "name": name,
                 "fazenda": fazenda,
                 "proprietario": proprietario,
+                "area_hectares": area_hectares,
                 "tipo": tipo,
                 "custo_arrendamento": custo_arrendamento,
                 "observacoes": observacoes,

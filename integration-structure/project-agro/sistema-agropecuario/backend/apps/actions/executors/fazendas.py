@@ -116,8 +116,13 @@ def execute_criar_proprietario(action) -> None:
 # ─── Criar Fazenda ───────────────────────────────────────────────────────────
 
 def execute_criar_fazenda(action) -> None:
-    """Cria uma Fazenda a partir do draft_data."""
-    from apps.fazendas.models import Fazenda, Proprietario
+    """Cria uma Fazenda a partir do draft_data.
+    
+    Suporta:
+    - matricula: string simples (única)
+    - matriculas: lista de strings (múltiplas)
+    """
+    from apps.fazendas.models import Fazenda, Proprietario, MatriculaFazenda
 
     data = action.draft_data
     tenant = action.tenant
@@ -125,12 +130,31 @@ def execute_criar_fazenda(action) -> None:
     # Tenta "name" primeiro (campo real do modelo), depois "nome" (compatibilidade)
     nome = data.get("name") or data.get("nome", "")
     nome = nome.strip() if isinstance(nome, str) else ""
-    matricula = data.get("matricula", "").strip()
 
     if not nome:
         raise ValueError("Nome da fazenda é obrigatório.")
-    if not matricula:
-        raise ValueError("Matrícula da fazenda é obrigatória.")
+
+    # Processar matrículas (singular ou plural)
+    matriculas_list = []
+    
+    # Tenta campo singular "matricula" (string ou lista)
+    matricula = data.get("matricula")
+    if matricula:
+        if isinstance(matricula, str):
+            matriculas_list = [m.strip() for m in matricula.split(",") if m.strip()]
+        elif isinstance(matricula, list):
+            matriculas_list = [m.strip() for m in matricula if m and isinstance(m, str)]
+    
+    # Tenta campo "matriculas" (lista)
+    matriculas = data.get("matriculas")
+    if matriculas and isinstance(matriculas, list):
+        matriculas_list.extend([m.strip() for m in matriculas if m and isinstance(m, str)])
+    
+    # Remove duplicatas
+    matriculas_list = list(dict.fromkeys(matriculas_list))
+    
+    if not matriculas_list:
+        raise ValueError("Matrícula da fazenda é obrigatória. Forneça pelo menos uma matrícula.")
 
     with transaction.atomic():
         # Resolve proprietário
@@ -144,32 +168,46 @@ def execute_criar_fazenda(action) -> None:
         if not prop:
             raise ValueError(f"Proprietário '{prop_nome}' não encontrado. Cadastre-o primeiro.")
 
-        # Verificar duplicata
-        existing = Fazenda.objects.filter(matricula=matricula).first()
-        if existing:
-            action.mark_executed({
-                "fazenda_id": existing.pk,
-                "nome": existing.name,
-                "mensagem": "Fazenda já existente com essa matrícula.",
-                "ja_existia": True,
-            })
-            return
+        # Verificar se já existe fazenda com qualquer uma das matrículas
+        for mat in matriculas_list:
+            from apps.fazendas.models import MatriculaFazenda
+            existing_mat = MatriculaFazenda.objects.filter(matricula=mat).first()
+            if existing_mat:
+                action.mark_executed({
+                    "fazenda_id": existing_mat.fazenda.pk,
+                    "nome": existing_mat.fazenda.name,
+                    "mensagem": f"Matrícula '{mat}' já está associada a outra fazenda.",
+                    "ja_existia": True,
+                })
+                return
 
+        # Criar fazenda com a primeira matrícula como principal
         fazenda = Fazenda(
             tenant=tenant,
             proprietario=prop,
             name=nome,
-            matricula=matricula,
+            matricula=matriculas_list[0],  # Primeira como principal
         )
         fazenda.save()
+
+        # Registrar todas as matrículas na tabela adicional
+        for mat in matriculas_list:
+            MatriculaFazenda.objects.create(
+                tenant=tenant,
+                fazenda=fazenda,
+                matricula=mat,
+                ativa=True,
+            )
 
     action.mark_executed({
         "fazenda_id": fazenda.pk,
         "nome": fazenda.name,
         "proprietario": prop.nome,
-        "matricula": fazenda.matricula,
+        "matricula_principal": fazenda.matricula,
+        "todas_matriculas": matriculas_list,
+        "quantidade_matriculas": len(matriculas_list),
     })
-    logger.info("execute_criar_fazenda OK: action=%s fazenda=%s", action.id, fazenda.pk)
+    logger.info("execute_criar_fazenda OK: action=%s fazenda=%s matriculas=%s", action.id, fazenda.pk, matriculas_list)
 
 
 # ─── Criar Área ──────────────────────────────────────────────────────────────
@@ -181,7 +219,8 @@ def execute_criar_area(action) -> None:
     data = action.draft_data
     tenant = action.tenant
 
-    nome = data.get("nome", "").strip()
+    # Aceita tanto "name" (enviado pelo tool) quanto "nome" (backup)
+    nome = (data.get("name") or data.get("nome") or "").strip()
     if not nome:
         raise ValueError("Nome da área é obrigatório.")
 
@@ -202,12 +241,19 @@ def execute_criar_area(action) -> None:
             tipo = "propria"
 
         custo_arrendamento = _parse_decimal(data.get("custo_arrendamento"), "0") or None
+        
+        # Processar área em hectares
+        area_hectares = _parse_decimal(
+            data.get("area_hectares") or data.get("area_ha") or data.get("area_size"), 
+            "0"
+        ) or None
 
         area = Area(
             proprietario=fazenda.proprietario,
             fazenda=fazenda,
             name=nome,
             tipo=tipo,
+            area_size=area_hectares,  # Armazena o tamanho da área
             custo_arrendamento=custo_arrendamento if tipo == "arrendada" else None,
         )
         area.save()
@@ -216,9 +262,10 @@ def execute_criar_area(action) -> None:
         "area_id": area.pk,
         "nome": area.name,
         "fazenda": fazenda.name,
+        "area_hectares": float(area_hectares) if area_hectares else 0,
         "tipo": tipo,
     })
-    logger.info("execute_criar_area OK: action=%s area=%s", action.id, area.pk)
+    logger.info("execute_criar_area OK: action=%s area=%s area_hectares=%s", action.id, area.pk, area_hectares)
 
 
 # ─── Criar Talhão ────────────────────────────────────────────────────────────

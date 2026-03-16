@@ -23,7 +23,7 @@ class Fazenda(TenantModel):
     proprietario = models.ForeignKey(Proprietario, related_name="fazendas", on_delete=models.CASCADE)
     name = models.CharField(max_length=200)
     matricula = models.CharField(
-        max_length=100, unique=True, help_text="Registro/matrícula da fazenda"
+        max_length=100, blank=True, help_text="Matrícula principal (pode deixar vazio e usar múltiplas)"
     )
 
     class Meta:
@@ -31,7 +31,33 @@ class Fazenda(TenantModel):
         verbose_name_plural = "Fazendas"
 
     def __str__(self) -> str:
-        return f"{self.name} ({self.matricula}) - {self.proprietario.nome}"
+        matrículas = self.get_matriculas_display()
+        return f"{self.name} ({matrículas}) - {self.proprietario.nome}"
+
+    def get_matriculas_display(self):
+        """Retorna todas as matrículas (principal + adicionais)"""
+        matriculas = []
+        if self.matricula:
+            matriculas.append(self.matricula)
+        matriculas.extend(m.matricula for m in self.matriculas_adicionais.all())
+        return ", ".join(matriculas) if matriculas else "(sem matrícula)"
+
+
+class MatriculaFazenda(TenantModel):
+    """Armazena múltiplas matrículas para uma fazenda"""
+    fazenda = models.ForeignKey(Fazenda, related_name="matriculas_adicionais", on_delete=models.CASCADE)
+    matricula = models.CharField(max_length=100, unique=True, help_text="Número da matrícula/registro")
+    ativa = models.BooleanField(default=True, help_text="Se esta matrícula está ativa")
+    data_registro = models.DateField(auto_now_add=True, help_text="Data do registro desta matrícula")
+
+    class Meta:
+        verbose_name = "Matrícula Adicional"
+        verbose_name_plural = "Matrículas Adicionais"
+        ordering = ["-data_registro"]
+
+    def __str__(self) -> str:
+        status = "Ativa" if self.ativa else "Inativa"
+        return f"{self.matricula} - {self.fazenda.name} ({status})"
 
 
 class Area(models.Model):
