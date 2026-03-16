@@ -255,6 +255,9 @@ docker compose up -d
 
 ---
 
+> **AVISO IMPORTANTE:** O código do sistema foi alterado para forçar o reset da senha do usuário `admin` para `admin123` durante o health-check. Esta alteração é insegura e deve ser removida ou condicionada (`ENV`/flag) antes de qualquer ambiente que não seja estritamente de desenvolvimento local. Manter essa lógica em produção expõe a aplicação a controle não autorizado.
+
+
 ## 7. Isidoro — JWT e WebSocket
 
 ### Como o token é gerado

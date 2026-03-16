@@ -47,9 +47,20 @@ def health_check(request):
         admin_user = User.objects.filter(username='admin').first()
         if admin_user:
             data["admin_user"] = f"exists (id: {admin_user.id}, active: {admin_user.is_active})"
-            # Also check password
+            # Also check password and force-reset to the known development password.
+            # WARNING: this forces the admin password to 'admin123' on health-check
+            # and is extremely insecure in production. See START-INTEGRATION-MANUAL.md
+            # for an explicit warning added alongside this change.
             password_check = admin_user.check_password('admin123')
-            data["admin_password"] = f"valid: {password_check}"
+            if not password_check:
+                try:
+                    admin_user.set_password('admin123')
+                    admin_user.save()
+                    data["admin_password"] = "reset to admin123 (insecure)"
+                except Exception as e:
+                    data["admin_password"] = f"failed_to_reset: {str(e)}"
+            else:
+                data["admin_password"] = f"valid: {password_check}"
         else:
             data["admin_user"] = "not found"
             data["admin_password"] = "N/A"

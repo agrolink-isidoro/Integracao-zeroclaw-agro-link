@@ -37,6 +37,9 @@ err()  { echo -e "${RED}❌${RESET} $*" >&2; }
 info() { echo -e "${BLUE}ℹ️ ${RESET} $*"; }
 step() { echo -e "\n${BOLD}${CYAN}── $* ${RESET}"; }
 
+# ALERTA GLOBAL: lembrar de verificar senha admin antes de produção
+echo -e "${YELLOW}⚠️  AVISO: Certifique a senha global de admin antes de entrar em produção (backend/apps/core/health.py)${RESET}" >&2
+
 # ─── --down: derruba o stack ─────────────────────────────────────────────────
 if [ "${1:-}" = "--down" ]; then
   step "Derrubando stack..."
