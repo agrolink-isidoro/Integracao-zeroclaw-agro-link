@@ -1,239 +1,126 @@
-// ========================================
-// SELETOR DE TIPO DE CONTRATO
-// ========================================
-
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from '@/components/ui/dialog';
-import { ShoppingCart, TrendingUp, DollarSign, ArrowRight, Package, Briefcase, PiggyBank } from 'lucide-react';
-
-interface ContratoTypeOption {
-  id: string;
-  label: string;
-  description: string;
-  icon: React.ReactNode;
-  color: string;
-  route: string;
-  examples: string[];
-  features: string[];
-}
-
-const CONTRATO_TYPES: ContratoTypeOption[] = [
-  {
-    id: 'compra',
-    label: 'Contrato de Compra',
-    description: 'Compra de matérias-primas, insumos e produtos agropecuários',
-    icon: <ShoppingCart className="h-8 w-8" />,
-    color: 'from-blue-500 to-blue-600',
-    route: '/comercial/contratos/compra/criar',
-    examples: ['Compra de sementes', 'Fertilizantes', 'Máquinas usadas', 'Serviços agrícolas'],
-    features: [
-      'Múltiplos itens com desconto',
-      'Fornecedor com representante legal',
-      'Condições de pagamento e garantia',
-      'Suporte a Barter (troca)',
-      'Frete incluído ou separado',
-    ],
-  },
-  {
-    id: 'venda',
-    label: 'Contrato de Venda',
-    description: 'Venda de produtos agrícolas, commodities e derivados',
-    icon: <TrendingUp className="h-8 w-8" />,
-    color: 'from-green-500 to-green-600',
-    route: '/comercial/contratos/venda/criar',
-    examples: [
-      'Venda de soja',
-      'Grãos futuros',
-      'Produtos processados',
-      'Contratos parcelados',
-      'Venda com antecipação',
-    ],
-    features: [
-      'Diversos tipos: à vista, parcelado, futuro, spot',
-      'Geração automática de parcelas',
-      'Rastreamento: lote, colheita, certificações',
-      'Histórico de cliente',
-      'Suporte a Barter',
-      'Entrega e transportadora',
-    ],
-  },
-  {
-    id: 'financeiro',
-    label: 'Produtos Financeiros',
-    description: 'Contratos de investimento, seguros e aplicações financeiras',
-    icon: <DollarSign className="h-8 w-8" />,
-    color: 'from-amber-500 to-amber-600',
-    route: '/comercial/contratos/financeiro/criar',
-    examples: [
-      'Consórcio imobiliário',
-      'Seguro de safra',
-      'Aplicações financeiras',
-      'Investimentos',
-      'Seguros agrícolas',
-    ],
-    features: [
-      'Consórcio: cotas, sorteios, rateio',
-      'Seguro: apólice, cobertura, franquia',
-      'Aplicação: taxa prefixada/pospixada/flutuante',
-      'Cálculo automático de rendimentos',
-      'Múltiplos documentos',
-      'Resumo executivo',
-    ],
-  },
-];
+import React from 'react';
+import ModalForm from '../common/ModalForm';
 
 interface ContratoTypeSelectorProps {
-  onSelect?: (type: string) => void;
-  showDialog?: boolean;
-  trigger?: React.ReactNode;
+  isOpen: boolean;
+  onClose: () => void;
+  onSelectCompra: () => void;
+  onSelectVenda: () => void;
+  onSelectFinanceiro: () => void;
 }
 
-export const ContratoTypeSelector: React.FC<ContratoTypeSelectorProps> = ({
-  onSelect,
-  showDialog = false,
-  trigger,
+const ContratoTypeSelector: React.FC<ContratoTypeSelectorProps> = ({
+  isOpen,
+  onClose,
+  onSelectCompra,
+  onSelectVenda,
+  onSelectFinanceiro,
 }) => {
-  const navigate = useNavigate();
-  const [selectedType, setSelectedType] = useState<string | null>(null);
-  const [openDialog, setOpenDialog] = useState(showDialog);
-
-  const handleSelect = (typeId: string, route: string) => {
-    setSelectedType(typeId);
-    if (onSelect) {
-      onSelect(typeId);
-    } else {
-      navigate(route);
-    }
-    setOpenDialog(false);
-  };
-
-  const content = (
-    <div className="w-full max-w-6xl mx-auto py-8 px-4">
-      {/* Header */}
-      <div className="mb-10 text-center">
-        <h1 className="text-4xl font-bold mb-2">Criar Novo Contrato</h1>
-        <p className="text-xl text-muted-foreground">
-          Selecione o tipo de contrato que deseja criar
-        </p>
-      </div>
-
-      {/* Grid de Tipos */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
-        {CONTRATO_TYPES.map((type) => (
-          <Card
-            key={type.id}
-            className={`cursor-pointer transition-all duration-300 hover:shadow-lg ${
-              selectedType === type.id ? 'ring-2 ring-primary' : ''
-            }`}
-            onClick={() => handleSelect(type.id, type.route)}
+  return (
+    <ModalForm isOpen={isOpen} title="Selecione o Tipo de Contrato" onClose={onClose} size="lg">
+      <div className="row g-3">
+        {/* COMPRA */}
+        <div className="col-12 col-md-6 col-lg-4">
+          <button
+            className="btn btn-outline-info w-100 h-100 d-flex flex-column align-items-center justify-content-center p-4"
+            onClick={onSelectCompra}
+            style={{ minHeight: '250px' }}
           >
-            <CardHeader>
-              <div className={`w-12 h-12 rounded-lg bg-gradient-to-br ${type.color} flex items-center justify-center text-white mb-4`}>
-                {type.icon}
-              </div>
-              <CardTitle>{type.label}</CardTitle>
-              <CardDescription>{type.description}</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {/* Exemplos */}
-              <div>
-                <h4 className="text-sm font-semibold mb-2">Exemplos:</h4>
-                <ul className="text-sm space-y-1">
-                  {type.examples.map((example, idx) => (
-                    <li key={idx} className="flex items-start gap-2 text-muted-foreground">
-                      <span className="text-primary mt-1">•</span>
-                      <span>{example}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
+            <i className="bi bi-bag text-info mb-3" style={{ fontSize: '3rem' }}></i>
+            <h6 className="mb-2">Contrato de Compra</h6>
+            <small className="text-muted text-center mb-3">
+              Compra de matérias-primas, insumos e produtos
+            </small>
+            <div className="text-start w-100 small">
+              <ul className="list-unstyled mb-0">
+                <li className="mb-1">
+                  <i className="bi bi-check text-info me-2"></i>
+                  Múltiplos itens
+                </li>
+                <li className="mb-1">
+                  <i className="bi bi-check text-info me-2"></i>
+                  Fornecedor e representante
+                </li>
+                <li>
+                  <i className="bi bi-check text-info me-2"></i>
+                  Condições de pagamento
+                </li>
+              </ul>
+            </div>
+          </button>
+        </div>
 
-              {/* Recursos */}
-              <div className="border-t pt-4">
-                <h4 className="text-sm font-semibold mb-2">Recursos:</h4>
-                <ul className="text-xs space-y-1">
-                  {type.features.map((feature, idx) => (
-                    <li key={idx} className="flex items-start gap-2 text-muted-foreground">
-                      <span className="text-primary mt-0.5">✓</span>
-                      <span>{feature}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
+        {/* VENDA */}
+        <div className="col-12 col-md-6 col-lg-4">
+          <button
+            className="btn btn-outline-success w-100 h-100 d-flex flex-column align-items-center justify-content-center p-4"
+            onClick={onSelectVenda}
+            style={{ minHeight: '250px' }}
+          >
+            <i className="bi bi-graph-up text-success mb-3" style={{ fontSize: '3rem' }}></i>
+            <h6 className="mb-2">Contrato de Venda</h6>
+            <small className="text-muted text-center mb-3">
+              Venda de produtos agrícolas e commodities
+            </small>
+            <div className="text-start w-100 small">
+              <ul className="list-unstyled mb-0">
+                <li className="mb-1">
+                  <i className="bi bi-check text-success me-2"></i>
+                  Qualquer cultura
+                </li>
+                <li className="mb-1">
+                  <i className="bi bi-check text-success me-2"></i>
+                  Parcelado/À vista
+                </li>
+                <li>
+                  <i className="bi bi-check text-success me-2"></i>
+                  Rastreamento
+                </li>
+              </ul>
+            </div>
+          </button>
+        </div>
 
-              {/* Botão */}
-              <Button
-                className="w-full mt-4 group"
-                onClick={() => handleSelect(type.id, type.route)}
-              >
-                Criar {type.label}
-                <ArrowRight className="h-4 w-4 ml-2 group-hover:translate-x-1 transition-transform" />
-              </Button>
-            </CardContent>
-          </Card>
-        ))}
+        {/* FINANCEIRO */}
+        <div className="col-12 col-md-6 col-lg-4">
+          <button
+            className="btn btn-outline-warning w-100 h-100 d-flex flex-column align-items-center justify-content-center p-4"
+            onClick={onSelectFinanceiro}
+            style={{ minHeight: '250px' }}
+          >
+            <i className="bi bi-bank2 text-warning mb-3" style={{ fontSize: '3rem' }}></i>
+            <h6 className="mb-2">Produtos Financeiros</h6>
+            <small className="text-muted text-center mb-3">
+              Seguros, aplicações e consórcios
+            </small>
+            <div className="text-start w-100 small">
+              <ul className="list-unstyled mb-0">
+                <li className="mb-1">
+                  <i className="bi bi-check text-warning me-2"></i>
+                  Seguros agrícolas
+                </li>
+                <li className="mb-1">
+                  <i className="bi bi-check text-warning me-2"></i>
+                  Aplicações financeiras
+                </li>
+                <li>
+                  <i className="bi bi-check text-warning me-2"></i>
+                  Consórcios
+                </li>
+              </ul>
+            </div>
+          </button>
+        </div>
       </div>
 
-      {/* Info */}
-      <Alert className="bg-blue-50 border-blue-200">
-        <Package className="h-4 w-4" />
-        <AlertDescription>
-          <strong>Dica:</strong> Todos os contratos podem ser salvos como rascunho e editados posteriormente. Não serão enviados para a produção até que você aprovação.
-        </AlertDescription>
-      </Alert>
-    </div>
+      {/* Info Alert */}
+      <div className="alert alert-info mt-4 mb-0">
+        <i className="bi bi-info-circle me-2"></i>
+        <strong>Dica:</strong> Cada tipo de contrato tem campos específicos para suas necessidades.
+        Você pode salvar como rascunho e editar depois.
+      </div>
+    </ModalForm>
   );
-
-  // Se for modal dialog
-  if (showDialog) {
-    return (
-      <Dialog open={openDialog} onOpenChange={setOpenDialog}>
-        {trigger && <DialogTrigger asChild>{trigger}</DialogTrigger>}
-        <DialogContent className="max-w-4xl">
-          <DialogHeader>
-            <DialogTitle>Criar Novo Contrato</DialogTitle>
-            <DialogDescription>Selecione o tipo de contrato que deseja criar</DialogDescription>
-          </DialogHeader>
-          <div className="grid grid-cols-3 gap-4 mt-4">
-            {CONTRATO_TYPES.map((type) => (
-              <Card
-                key={type.id}
-                className="cursor-pointer hover:shadow-lg transition-all"
-                onClick={() => handleSelect(type.id, type.route)}
-              >
-                <CardHeader>
-                  <div className={`w-10 h-10 rounded-lg bg-gradient-to-br ${type.color} flex items-center justify-center text-white mb-2`}>
-                    {type.icon}
-                  </div>
-                  <CardTitle className="text-base">{type.label}</CardTitle>
-                  <CardDescription className="text-xs">{type.description}</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <Button size="sm" className="w-full">
-                    Criar
-                  </Button>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        </DialogContent>
-      </Dialog>
-    );
-  }
-
-  // Se for página
-  return content;
 };
 
 export default ContratoTypeSelector;

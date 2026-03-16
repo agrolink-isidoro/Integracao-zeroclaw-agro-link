@@ -3,7 +3,6 @@
 // ========================================
 
 import * as yup from 'yup';
-import { ContratoFinanceiro, DadosBeneficiario, DadosConsorcio, DadosSeguro, DadosAplicacaoFinanceira, CondicaoFinanceira } from '../types/contratosSplit';
 
 // ============ Schema para Beneficiário ============
 
@@ -14,16 +13,16 @@ export const schemaDadosBeneficiario = yup.object().shape({
   cpf_beneficiario: yup.string()
     .optional()
     .when('tipo_beneficiario', {
-      is: (val) => val === 'pessoa_fisica' || val === 'ambas',
-      then: (schema) => schema.required('CPF é obrigatório').matches(/^\d{3}\.\d{3}\.\d{3}\-\d{2}$/, 'CPF inválido'),
-      otherwise: (schema) => schema.optional(),
+      is: (val: string | undefined) => val === 'pessoa_fisica' || val === 'ambas',
+      then: (_) => yup.string().required('CPF é obrigatório').matches(/^\d{3}\.\d{3}\.\d{3}\-\d{2}$/, 'CPF inválido'),
+      otherwise: (_) => yup.string().optional(),
     }),
   cnpj_beneficiario: yup.string()
     .optional()
     .when('tipo_beneficiario', {
-      is: (val) => val === 'pessoa_juridica' || val === 'ambas',
-      then: (schema) => schema.required('CNPJ é obrigatório').matches(/^\d{2}\.\d{3}\.\d{3}\/\d{4}\-\d{2}$/, 'CNPJ inválido'),
-      otherwise: (schema) => schema.optional(),
+      is: (val: string | undefined) => val === 'pessoa_juridica' || val === 'ambas',
+      then: (_) => yup.string().required('CNPJ é obrigatório').matches(/^\d{2}\.\d{3}\.\d{3}\/\d{4}\-\d{2}$/, 'CNPJ inválido'),
+      otherwise: (_) => yup.string().optional(),
     }),
   nome_beneficiario: yup.string()
     .required('Nome do beneficiário é obrigatório')
@@ -178,9 +177,9 @@ export const schemaDadosAplicacaoFinanceira = yup.object().shape({
   percentual_indice: yup.number()
     .optional()
     .when('indice_correcao', {
-      is: (val) => val !== 'NENHUM',
-      then: (schema) => schema.required('Percentual do índice é obrigatório').positive().max(100),
-      otherwise: (schema) => schema.optional(),
+      is: (val: string | undefined) => val !== 'NENHUM',
+      then: (_) => yup.number().required('Percentual do índice é obrigatório').positive().max(100),
+      otherwise: (_) => yup.number().optional(),
     }),
   data_resgate_prevista: yup.string().required('Data de resgate prevista é obrigatória'),
   prazo_minimo_dias: yup.number()
@@ -288,22 +287,22 @@ export const schemaContratoFinanceiro = yup.object().shape({
     .optional()
     .when('tipo_produto_financeiro', {
       is: 'CONSORCIO',
-      then: (schema) => schemaDadosConsorcio.required('Dados do consórcio são obrigatórios'),
-      otherwise: (schema) => schema.optional(),
+      then: (_) => schemaDadosConsorcio.required('Dados do consórcio são obrigatórios'),
+      otherwise: (_) => yup.object().optional(),
     }),
   dados_seguro: yup.object()
     .optional()
     .when('tipo_produto_financeiro', {
       is: 'SEGURO',
-      then: (schema) => schemaDadosSeguro.required('Dados do seguro são obrigatórios'),
-      otherwise: (schema) => schema.optional(),
+      then: (_) => schemaDadosSeguro.required('Dados do seguro são obrigatórios'),
+      otherwise: (_) => yup.object().optional(),
     }),
   dados_aplicacao_financeira: yup.object()
     .optional()
     .when('tipo_produto_financeiro', {
       is: 'APLICACAO_FINANCEIRA',
-      then: (schema) => schemaDadosAplicacaoFinanceira.required('Dados da aplicação são obrigatórios'),
-      otherwise: (schema) => schema.optional(),
+      then: (_) => schemaDadosAplicacaoFinanceira.required('Dados da aplicação são obrigatórios'),
+      otherwise: (_) => yup.object().optional(),
     }),
   
   // Condições

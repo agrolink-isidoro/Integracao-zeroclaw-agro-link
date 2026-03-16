@@ -337,8 +337,10 @@ export interface DadosAplicacaoFinanceira {
   observacoes_investimento?: string;
 }
 
-export interface CondicaoFinanceira extends CondicaoGeneral {
+export interface CondicaoFinanceira {
+  id?: string;
   tipo_condicao: 'pagamento' | 'rescisao' | 'penalidade' | 'outras';
+  descricao: string;
   forma_pagamento: 'BOLETO' | 'DEBITO_AUTOMATICO' | 'TRANSFERENCIA' | 'CARTAO_CREDITO' | 'DINHEIRO' | 'CHEQUE';
   banco_agencia_cc?: string;
   taxa_atraso_percentual?: number;

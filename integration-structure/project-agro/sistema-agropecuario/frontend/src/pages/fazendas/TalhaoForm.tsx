@@ -118,11 +118,11 @@ const TalhaoForm: React.FC<TalhaoFormProps> = ({
       // Use mutations (supporting FormData) to keep behavior consistent
       if (talhao) {
         // useApiUpdate expects { id, ...data } and supports formData via data.formData
-        await updateMutation.mutateAsync({ id: talhao.id, formData: submitFormData });
+        await updateMutation.mutateAsync({ id: talhao.id, formData: submitFormData as any });
         toast.showSuccess('Talhão atualizado com sucesso');
       } else {
         // For create, pass FormData directly
-        await createMutation.mutateAsync(submitFormData);
+        await createMutation.mutateAsync(submitFormData as any);
         toast.showSuccess('Talhão criado com sucesso');
       }
 

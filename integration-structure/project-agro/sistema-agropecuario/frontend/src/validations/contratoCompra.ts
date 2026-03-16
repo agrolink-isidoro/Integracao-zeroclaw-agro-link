@@ -3,7 +3,6 @@
 // ========================================
 
 import * as yup from 'yup';
-import { ContratoCompra, ItemCompra, CondicaoCompra, DadosBarter } from '../types/contratosSplit';
 
 // ============ Schema para Item ============
 
@@ -143,8 +142,8 @@ export const schemaContratoCompra = yup.object().shape({
   dados_barter: yup.object()
     .when('tipo_operacao', {
       is: 'COMPRA_BARTER',
-      then: (schema) => schemaDadosBarter.required('Dados do barter são obrigatórios para compra com barter'),
-      otherwise: (schema) => schema.optional(),
+      then: (_) => schemaDadosBarter.required('Dados do barter são obrigatórios para compra com barter'),
+      otherwise: (_) => yup.object().optional(),
     }),
   
   // Entrega

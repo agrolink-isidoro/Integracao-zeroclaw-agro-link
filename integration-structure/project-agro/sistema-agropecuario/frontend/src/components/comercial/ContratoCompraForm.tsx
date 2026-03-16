@@ -1,995 +1,429 @@
-// ========================================
-// CONTRATO DE COMPRA - COMPONENTE FORM
-// ========================================
-
-import React, { useState } from 'react';
-import { useForm, Controller, FieldArray } from 'react-hook-form';
-import { yupResolver } from '@hookform/resolvers/yup';
-import { ContratoCompra, ItemCompra, CondicaoCompra } from '@/types/contratosSplit';
-import { schemaContratoCompra } from '@/validations/contratoCompra';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Checkbox } from '@/components/ui/checkbox';
-import { AlertCircle, Plus, Trash2, DollarSign, Calendar, FileUp } from 'lucide-react';
-import { formatCPF, formatCNPJ, formatCurrency } from '@/lib/formatters';
-import { calcularPrazoExecucao } from '@/lib/dateUtils';
+import React, { useState, useEffect } from 'react';
+import ModalForm from '../common/ModalForm';
+import comercialService from '../../services/comercial';
+import type { Fornecedor } from '../../types/comercial';
 
 interface ContratoCompraFormProps {
-  initialData?: ContratoCompra;
-  onSubmit: (data: ContratoCompra) => Promise<void>;
-  onCancel?: () => void;
-  mode?: 'create' | 'edit' | 'view';
+  isOpen: boolean;
+  onClose: () => void;
+  onSubmit: (data: any) => Promise<void>;
+  initialData?: any;
 }
 
-export const ContratoCompraForm: React.FC<ContratoCompraFormProps> = ({
-  initialData,
-  onSubmit,
-  onCancel,
-  mode = 'create',
-}) => {
+const ContratoCompraForm: React.FC<ContratoCompraFormProps> = ({ isOpen, onClose, onSubmit, initialData }) => {
   const [loading, setLoading] = useState(false);
-  const [submitError, setSubmitError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState('geral');
+  const [activeTab, setActiveTab] = useState('identificacao');
 
-  const {
-    control,
-    register,
-    handleSubmit,
-    watch,
-    formState: { errors },
-    setValue,
-    getValues,
-    reset,
-  } = useForm<ContratoCompra>({
-    resolver: yupResolver(schemaContratoCompra),
-    defaultValues: initialData,
-    mode: 'onChange',
+  const [formData, setFormData] = useState({
+    // TAB 1: Identificação
+    numero_contrato: '',
+    titulo: '',
+    fornecedor_id: '',
+    status: 'ativo',
+    data_inicio: '',
+    data_fim: '',
+    observacoes: '',
+
+    // TAB 2: Produto
+    produto: '',
+    quantidade: '',
+    unidade_medida: 'sc',
+    preco_unitario: '',
+    valor_total: '',
+    qualidade_especificacao: '',
+
+    // TAB 3: Condições de Compra
+    condicao_pagamento: 'dinheiro',
+    prazo_entrega_dias: '',
+    desconto_global_percentual: '',
+    taxa_juros: '',
+    barter: false,
+    barter_descricao: '',
+
+    // TAB 4: Documentos
+    nfe_numero: '',
+    nfe_chave: '',
   });
 
-  const tipoOperacao = watch('tipo_operacao');
-  const dataInicio = watch('data_inicio');
-  const dataFim = watch('data_fim');
-  const itens = watch('itens');
-  const condicoesPagamento = watch('condicoes_pagamento');
+  const [documentos, setDocumentos] = useState<File[]>([]);
+  const [fornecedores, setFornecedores] = useState<Fornecedor[]>([]);
+  const [fornecedoresSearchQuery, setFornecedoresSearchQuery] = useState('');
 
-  // Auto-calcular prazo
-  React.useEffect(() => {
-    if (dataInicio && dataFim) {
-      const prazo = calcularPrazoExecucao(dataInicio, dataFim);
-      setValue('prazo_execucao_dias', prazo);
+  useEffect(() => {
+    if (initialData) {
+      setFormData(prev => ({
+        ...prev,
+        numero_contrato: initialData.numero_contrato || '',
+        titulo: initialData.titulo || '',
+        fornecedor_id: String(initialData.fornecedor || initialData.fornecedor_id || ''),
+        status: initialData.status || 'ativo',
+        data_inicio: initialData.data_inicio || '',
+        data_fim: initialData.data_fim || '',
+        observacoes: initialData.observacoes || '',
+        produto: initialData.produto || '',
+        quantidade: String(initialData.quantidade || ''),
+        unidade_medida: initialData.unidade_medida || 'sc',
+        preco_unitario: String(initialData.preco_unitario || ''),
+        valor_total: String(initialData.valor_total || ''),
+        qualidade_especificacao: initialData.qualidade_especificacao || '',
+        condicao_pagamento: initialData.condicao_pagamento || 'dinheiro',
+        prazo_entrega_dias: String(initialData.prazo_entrega_dias || ''),
+        desconto_global_percentual: String(initialData.desconto_global_percentual || ''),
+        taxa_juros: String(initialData.taxa_juros || ''),
+      }));
     }
-  }, [dataInicio, dataFim, setValue]);
+  }, [initialData]);
 
-  // Auto-calcular valores dos itens
-  React.useEffect(() => {
-    if (itens && itens.length > 0) {
-      const total = itens.reduce((acc, item) => {
-        const desconto = item.valor_unitario * item.quantidade * (item.desconto_percentual || 0) / 100;
-        const comDesconto = item.valor_unitario * item.quantidade - desconto;
-        return acc + comDesconto;
-      }, 0);
-      setValue('valor_total', Number(total.toFixed(2)));
-    }
-  }, [itens, setValue]);
+  // Carregar fornecedores ao abrir o modal ou quando a busca muda
+  useEffect(() => {
+    if (!isOpen) return;
+    
+    const carregarFornecedores = async () => {
+      try {
+        const dados = await comercialService.getFornecedores(
+          fornecedoresSearchQuery ? { busca: fornecedoresSearchQuery } : undefined
+        );
+        setFornecedores(Array.isArray(dados) ? dados : []);
+      } catch (error) {
+        console.error('Erro ao carregar fornecedores:', error);
+        setFornecedores([]);
+      }
+    };
 
-  const handleFormSubmit = async (data: ContratoCompra) => {
+    // Fazemos debounce na busca para não fazer muitas requisições
+    const timeoutId = setTimeout(carregarFornecedores, 300);
+    return () => clearTimeout(timeoutId);
+  }, [isOpen, fornecedoresSearchQuery]);
+
+  const set = (field: string, value: any) => setFormData(prev => ({ ...prev, [field]: value }));
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) setDocumentos(prev => [...prev, ...Array.from(e.target.files!)]);
+  };
+
+  const removeDocumento = (index: number) => setDocumentos(prev => prev.filter((_, i) => i !== index));
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
     try {
-      setSubmitError(null);
-      setLoading(true);
-      await onSubmit(data);
+      const submitData = {
+        ...formData,
+        valor_total: parseFloat(formData.valor_total) || 0,
+        partes: [{ tipo_parte: 'fornecedor', entidade_id: 1, papel_contrato: 'vendedor' }],
+        itens: [],
+        documento: documentos.length > 0 ? documentos[0] : null,
+      };
+      await onSubmit(submitData);
+      onClose();
     } catch (error) {
-      setSubmitError(error instanceof Error ? error.message : 'Erro ao salvar contrato');
+      console.error('Erro ao salvar compra:', error);
     } finally {
       setLoading(false);
     }
   };
 
-  const isBarter = tipoOperacao === 'COMPRA_BARTER';
-  const isParcelado = condicoesPagamento === 'PARCELADO_CUSTOMIZADO';
-  const isEditable = mode !== 'view';
+  const tabs = [
+    { id: 'identificacao', label: 'Identificação', icon: 'bi-file-earmark-text' },
+    { id: 'produto', label: 'Produto', icon: 'bi-box-seam' },
+    { id: 'condicoes', label: 'Condições de Compra', icon: 'bi-handshake' },
+    { id: 'documentos', label: 'Documentos', icon: 'bi-paperclip' },
+  ];
 
   return (
-    <div className="w-full max-w-6xl mx-auto p-6 space-y-6">
-      {/* Header */}
-      <div className="space-y-2">
-        <h1 className="text-3xl font-bold">Contrato de Compra</h1>
-        <p className="text-muted-foreground">
-          {mode === 'create' ? 'Criar novo contrato de compra' : `Editar contrato ${initialData?.numero_contrato}`}
-        </p>
-      </div>
+    <ModalForm isOpen={isOpen} title="Novo Contrato - Compra" onClose={onClose} size="lg">
+      <form onSubmit={handleSubmit}>
+        {/* Tabs */}
+        <div className="border-bottom mb-3">
+          <nav className="d-flex overflow-auto">
+            {tabs.map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setActiveTab(tab.id)}
+                className={`py-2 px-3 border-bottom border-2 fw-medium text-nowrap me-1 btn btn-link text-decoration-none ${
+                  activeTab === tab.id ? 'border-primary text-primary' : 'border-transparent text-muted'
+                }`}
+                style={{ background: 'none' }}
+              >
+                <i className={`bi ${tab.icon} me-2`}></i>
+                {tab.label}
+              </button>
+            ))}
+          </nav>
+        </div>
 
-      {/* Erro */}
-      {submitError && (
-        <Alert variant="destructive">
-          <AlertCircle className="h-4 w-4" />
-          <AlertDescription>{submitError}</AlertDescription>
-        </Alert>
-      )}
+        <div style={{ minHeight: '350px' }}>
 
-      <form onSubmit={handleSubmit(handleFormSubmit)}>
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-5">
-            <TabsTrigger value="geral">Geral</TabsTrigger>
-            <TabsTrigger value="fornecedor">Fornecedor</TabsTrigger>
-            <TabsTrigger value="itens">Itens</TabsTrigger>
-            <TabsTrigger value="condicoes">Condições</TabsTrigger>
-            <TabsTrigger value="documentacao">Documentação</TabsTrigger>
-          </TabsList>
+          {/* ═══ TAB 1: IDENTIFICAÇÃO ═══ */}
+          {activeTab === 'identificacao' && (
+            <div>
+              <h6 className="text-primary mb-3">
+                <i className="bi bi-file-earmark-text me-2"></i>
+                Identificação da Compra
+              </h6>
+              <div className="row g-2 g-md-3">
+                <div className="col-12 col-sm-6 col-md-3">
+                  <label className="form-label">Número do Contrato *</label>
+                  <input type="text" className="form-control" value={formData.numero_contrato}
+                    onChange={e => set('numero_contrato', e.target.value)} required />
+                </div>
+                <div className="col-12 col-md-6">
+                  <label className="form-label">Título *</label>
+                  <input type="text" className="form-control" placeholder="Ex: Compra de Sementes de Soja"
+                    value={formData.titulo} onChange={e => set('titulo', e.target.value)} required />
+                </div>
+                <div className="col-12 col-sm-6 col-md-3">
+                  <label className="form-label">Status</label>
+                  <select className="form-select" value={formData.status} onChange={e => set('status', e.target.value)}>
+                    <option value="rascunho">Rascunho</option>
+                    <option value="ativo">Ativo</option>
+                    <option value="cancelado">Cancelado</option>
+                    <option value="encerrado">Encerrado</option>
+                  </select>
+                </div>
 
-          {/* ABA 1: DADOS GERAIS */}
-          <TabsContent value="geral" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Dados Gerais do Contrato</CardTitle>
-                <CardDescription>Informações básicas e tipo de operação</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                {/* Número e Título */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">Número do Contrato *</label>
-                    <Input
-                      {...register('numero_contrato')}
-                      placeholder="CMP-2026-001"
-                      readOnly={mode !== 'create'}
-                      disabled={!isEditable}
-                    />
-                    {errors.numero_contrato && (
-                      <p className="text-sm text-red-500">{errors.numero_contrato.message}</p>
-                    )}
-                  </div>
+                <div className="col-12 col-md-6">
+                  <label className="form-label">Fornecedor *</label>
+                  <input type="text" className="form-control" placeholder="Buscar fornecedor cadastrado..."
+                    value={formData.fornecedor_id} 
+                    onChange={e => {
+                      set('fornecedor_id', e.target.value);
+                      setFornecedoresSearchQuery(e.target.value);
+                    }} 
+                    required
+                    list="fornecedores-list" />
+                  <datalist id="fornecedores-list">
+                    {fornecedores.map((f) => (
+                      <option key={f.id} value={f.nome_fantasia || f.razao_social || ''}>
+                        {f.nome_fantasia || f.razao_social}
+                      </option>
+                    ))}
+                  </datalist>
+                  <small className="text-muted">Digite para buscar fornecedor no sistema</small>
+                </div>
 
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">Título *</label>
-                    <Input
-                      {...register('titulo')}
-                      placeholder="Ex: Compra de Adubo NPK 20-05-20"
-                      disabled={!isEditable}
-                    />
-                    {errors.titulo && (
-                      <p className="text-sm text-red-500">{errors.titulo.message}</p>
-                    )}
+                <div className="col-12 col-sm-6 col-md-3">
+                  <label className="form-label">Data de Início *</label>
+                  <input type="date" className="form-control" value={formData.data_inicio}
+                    onChange={e => set('data_inicio', e.target.value)} required />
+                </div>
+
+                <div className="col-12 col-md-6">
+                  <label className="form-label">Data de Término</label>
+                  <input type="date" className="form-control" value={formData.data_fim}
+                    onChange={e => set('data_fim', e.target.value)} />
+                </div>
+
+                <div className="col-12 col-md-6">
+                  <label className="form-label">Observações</label>
+                  <textarea className="form-control" rows={2} placeholder="Notas sobre a compra..."
+                    value={formData.observacoes} onChange={e => set('observacoes', e.target.value)} />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ═══ TAB 2: PRODUTO ═══ */}
+          {activeTab === 'produto' && (
+            <div>
+              <h6 className="text-primary mb-3">
+                <i className="bi bi-box-seam me-2"></i>
+                Especificações do Produto
+              </h6>
+              <div className="row g-2 g-md-3">
+                <div className="col-12 col-md-6">
+                  <label className="form-label">Produto *</label>
+                  <input type="text" className="form-control" placeholder="Ex: Sementes de Soja, Fertilizante NPK"
+                    value={formData.produto} onChange={e => set('produto', e.target.value)} required />
+                </div>
+
+                <div className="col-12 col-sm-6 col-md-4">
+                  <label className="form-label">Quantidade *</label>
+                  <input type="number" className="form-control" step="0.001" placeholder="Ex: 1000"
+                    value={formData.quantidade} onChange={e => set('quantidade', e.target.value)} required />
+                </div>
+
+                <div className="col-12 col-sm-6 col-md-3">
+                  <label className="form-label">Unidade *</label>
+                  <select className="form-select" value={formData.unidade_medida}
+                    onChange={e => set('unidade_medida', e.target.value)} required>
+                    <option value="sc">Sacas (60kg)</option>
+                    <option value="ton">Toneladas</option>
+                    <option value="kg">Quilogramas</option>
+                    <option value="litros">Litros</option>
+                    <option value="unidade">Unidades</option>
+                  </select>
+                </div>
+
+                <div className="col-12 col-sm-6 col-md-3">
+                  <label className="form-label">Preço Unitário (R$)</label>
+                  <input type="number" className="form-control" step="0.01" placeholder="Ex: 125.50"
+                    value={formData.preco_unitario} onChange={e => set('preco_unitario', e.target.value)} />
+                </div>
+
+                <div className="col-12 col-sm-6 col-md-3">
+                  <label className="form-label">Valor Total (R$) *</label>
+                  <input type="number" className="form-control" step="0.01"
+                    value={formData.valor_total} onChange={e => set('valor_total', e.target.value)} required />
+                </div>
+
+                <div className="col-12">
+                  <label className="form-label">Especificação de Qualidade</label>
+                  <input type="text" className="form-control"
+                    placeholder="Ex: Pureza mínima 99%, Germinação mínima 90%"
+                    value={formData.qualidade_especificacao} onChange={e => set('qualidade_especificacao', e.target.value)} />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ═══ TAB 3: CONDIÇÕES DE COMPRA ═══ */}
+          {activeTab === 'condicoes' && (
+            <div>
+              <h6 className="text-primary mb-3">
+                <i className="bi bi-handshake me-2"></i>
+                Condições de Compra
+              </h6>
+              <div className="row g-2 g-md-3">
+                <div className="col-12 col-sm-6 col-md-4">
+                  <label className="form-label">Condição de Pagamento *</label>
+                  <select className="form-select" value={formData.condicao_pagamento}
+                    onChange={e => set('condicao_pagamento', e.target.value)} required>
+                    <option value="dinheiro">Dinheiro</option>
+                    <option value="credito_30">Crédito 30 dias</option>
+                    <option value="credito_60">Crédito 60 dias</option>
+                    <option value="credito_90">Crédito 90 dias</option>
+                    <option value="parcelado">Parcelado</option>
+                  </select>
+                </div>
+
+                <div className="col-12 col-sm-6 col-md-4">
+                  <label className="form-label">Prazo de Entrega (dias)</label>
+                  <input type="number" className="form-control" placeholder="Ex: 15"
+                    value={formData.prazo_entrega_dias}
+                    onChange={e => set('prazo_entrega_dias', e.target.value)} />
+                </div>
+
+                <div className="col-12 col-sm-6 col-md-4">
+                  <label className="form-label">Desconto Global (%)</label>
+                  <input type="number" className="form-control" step="0.01" placeholder="Ex: 5.00"
+                    value={formData.desconto_global_percentual}
+                    onChange={e => set('desconto_global_percentual', e.target.value)} />
+                </div>
+
+                <div className="col-12 col-md-6">
+                  <label className="form-label">Taxa de Juros (% a.m.)</label>
+                  <input type="number" className="form-control" step="0.01" placeholder="Ex: 2.00"
+                    value={formData.taxa_juros}
+                    onChange={e => set('taxa_juros', e.target.value)} />
+                </div>
+
+                <div className="col-12">
+                  <div className="form-check">
+                    <input className="form-check-input" type="checkbox" id="barter-check"
+                      checked={formData.barter} onChange={e => set('barter', e.target.checked)} />
+                    <label className="form-check-label" htmlFor="barter-check">
+                      Esta é uma compra com Barter (troca)
+                    </label>
                   </div>
                 </div>
 
-                {/* Tipo de Operação */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">Tipo de Operação *</label>
-                    <Controller
-                      name="tipo_operacao"
-                      control={control}
-                      render={({ field }) => (
-                        <Select value={field.value} onValueChange={field.onChange} disabled={!isEditable}>
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="COMPRA_DINHEIRO">Compra à Vista</SelectItem>
-                            <SelectItem value="COMPRA_ANTECIPADO">Compra com Antecipação</SelectItem>
-                            <SelectItem value="COMPRA_BARTER">Compra com Barter</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      )}
-                    />
-                    {errors.tipo_operacao && (
-                      <p className="text-sm text-red-500">{errors.tipo_operacao.message}</p>
-                    )}
-                  </div>
-
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">Categoria *</label>
-                    <Controller
-                      name="categoria_compra"
-                      control={control}
-                      render={({ field }) => (
-                        <Select value={field.value} onValueChange={field.onChange} disabled={!isEditable}>
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="insumos">Insumos</SelectItem>
-                            <SelectItem value="maquinas">Máquinas</SelectItem>
-                            <SelectItem value="sementes">Sementes</SelectItem>
-                            <SelectItem value="defensivos">Defensivos</SelectItem>
-                            <SelectItem value="servicos_agricolas">Serviços Agrícolas</SelectItem>
-                            <SelectItem value="outros">Outros</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      )}
-                    />
-                    {errors.categoria_compra && (
-                      <p className="text-sm text-red-500">{errors.categoria_compra.message}</p>
-                    )}
-                  </div>
-                </div>
-
-                {/* Status e Valor */}
-                <div className="grid grid-cols-3 gap-4">
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">Status *</label>
-                    <Controller
-                      name="status"
-                      control={control}
-                      render={({ field }) => (
-                        <Select value={field.value} onValueChange={field.onChange} disabled={!isEditable}>
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="rascunho">Rascunho</SelectItem>
-                            <SelectItem value="em_negociacao">Em Negociação</SelectItem>
-                            <SelectItem value="em_aprovacao">Em Aprovação</SelectItem>
-                            <SelectItem value="assinado">Assinado</SelectItem>
-                            <SelectItem value="em_execucao">Em Execução</SelectItem>
-                            <SelectItem value="recebido">Recebido</SelectItem>
-                            <SelectItem value="finalizado">Finalizado</SelectItem>
-                            <SelectItem value="cancelado">Cancelado</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      )}
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">Valor Total *</label>
-                    <div className="flex items-center gap-2 p-2 bg-muted rounded">
-                      <DollarSign className="h-4 w-4" />
-                      <span className="font-semibold">{formatCurrency(getValues('valor_total') || 0)}</span>
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">Prazo (dias)</label>
-                    <Input
-                      type="number"
-                      {...register('prazo_execucao_dias')}
-                      readOnly
-                      disabled
-                      className="bg-muted"
-                    />
-                  </div>
-                </div>
-
-                {/* Datas */}
-                <div className="grid grid-cols-3 gap-4">
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">Data de Emissão *</label>
-                    <Input
-                      type="date"
-                      {...register('data_emissao')}
-                      disabled={!isEditable}
-                    />
-                    {errors.data_emissao && (
-                      <p className="text-sm text-red-500">{errors.data_emissao.message}</p>
-                    )}
-                  </div>
-
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">Data de Início *</label>
-                    <Input
-                      type="date"
-                      {...register('data_inicio')}
-                      disabled={!isEditable}
-                    />
-                    {errors.data_inicio && (
-                      <p className="text-sm text-red-500">{errors.data_inicio.message}</p>
-                    )}
-                  </div>
-
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">Data Final *</label>
-                    <Input
-                      type="date"
-                      {...register('data_fim')}
-                      disabled={!isEditable}
-                    />
-                    {errors.data_fim && (
-                      <p className="text-sm text-red-500">{errors.data_fim.message}</p>
-                    )}
-                  </div>
-                </div>
-
-                {/* Observações */}
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Observações Gerais</label>
-                  <Textarea
-                    {...register('observacoes_gerais')}
-                    placeholder="Notas adicionais sobre o contrato..."
-                    rows={3}
-                    disabled={!isEditable}
-                  />
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* ABA 2: FORNECEDOR */}
-          <TabsContent value="fornecedor" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Dados do Fornecedor</CardTitle>
-                <CardDescription>Informações de contato e representante</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                {/* Fornecedor */}
-                <div className="grid grid-cols-3 gap-4">
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">Fornecedor *</label>
-                    <Input
-                      {...register('fornecedor_nome')}
-                      placeholder="Nome do fornecedor"
-                      disabled={!isEditable}
-                    />
-                    {errors.fornecedor_nome && (
-                      <p className="text-sm text-red-500">{errors.fornecedor_nome.message}</p>
-                    )}
-                  </div>
-
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">CNPJ *</label>
-                    <Input
-                      {...register('fornecedor_cnpj')}
-                      placeholder="00.000.000/0000-00"
-                      disabled={!isEditable}
-                    />
-                    {errors.fornecedor_cnpj && (
-                      <p className="text-sm text-red-500">{errors.fornecedor_cnpj.message}</p>
-                    )}
-                  </div>
-
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">Telefone</label>
-                    <Input
-                      {...register('telefone_fornecedor')}
-                      placeholder="(00) 00000-0000"
-                      disabled={!isEditable}
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Email</label>
-                  <Input
-                    type="email"
-                    {...register('email_fornecedor')}
-                    placeholder="contato@fornecedor.com"
-                    disabled={!isEditable}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Endereço Completo</label>
-                  <Textarea
-                    {...register('endereco_completo')}
-                    placeholder="Rua, número, complemento, bairro, cidade, estado, CEP"
-                    rows={2}
-                    disabled={!isEditable}
-                  />
-                </div>
-
-                {/* Representante Legal */}
-                <div className="border-t pt-6">
-                  <h3 className="text-sm font-semibold mb-4">Representante Legal</h3>
-                  <div className="grid grid-cols-3 gap-4">
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium">Nome *</label>
-                      <Input
-                        {...register('representante_legal.nome')}
-                        placeholder="Nome completo"
-                        disabled={!isEditable}
-                      />
-                      {errors.representante_legal?.nome && (
-                        <p className="text-sm text-red-500">{errors.representante_legal.nome.message}</p>
-                      )}
-                    </div>
-
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium">CPF *</label>
-                      <Input
-                        {...register('representante_legal.cpf')}
-                        placeholder="000.000.000-00"
-                        disabled={!isEditable}
-                      />
-                      {errors.representante_legal?.cpf && (
-                        <p className="text-sm text-red-500">{errors.representante_legal.cpf.message}</p>
-                      )}
-                    </div>
-
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium">Cargo *</label>
-                      <Input
-                        {...register('representante_legal.cargo')}
-                        placeholder="Ex: Gerente de Vendas"
-                        disabled={!isEditable}
-                      />
-                      {errors.representante_legal?.cargo && (
-                        <p className="text-sm text-red-500">{errors.representante_legal.cargo.message}</p>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Condições de Pagamento */}
-                <div className="border-t pt-6 space-y-4">
-                  <h3 className="text-sm font-semibold">Condições de Pagamento</h3>
-                  
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">Prazo de Pagamento *</label>
-                    <Controller
-                      name="condicoes_pagamento"
-                      control={control}
-                      render={({ field }) => (
-                        <Select value={field.value} onValueChange={field.onChange} disabled={!isEditable}>
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="A_VISTA">À Vista</SelectItem>
-                            <SelectItem value="30_DIAS">30 dias</SelectItem>
-                            <SelectItem value="60_DIAS">60 dias</SelectItem>
-                            <SelectItem value="90_DIAS">90 dias</SelectItem>
-                            <SelectItem value="PARCELADO_CUSTOMIZADO">Parcelado Customizado</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      )}
-                    />
-                  </div>
-
-                  {isParcelado && (
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium">Número de Parcelas (1-12) *</label>
-                      <Input
-                        type="number"
-                        {...register('numero_parcelas')}
-                        min={1}
-                        max={12}
-                        disabled={!isEditable}
-                      />
-                      {errors.numero_parcelas && (
-                        <p className="text-sm text-red-500">{errors.numero_parcelas.message}</p>
-                      )}
-                    </div>
-                  )}
-                </div>
-
-                {/* Frete */}
-                <div className="border-t pt-6 space-y-2">
-                  <label className="text-sm font-medium">Condição de Frete *</label>
-                  <Controller
-                    name="condicoes_frete"
-                    control={control}
-                    render={({ field }) => (
-                      <Select value={field.value} onValueChange={field.onChange} disabled={!isEditable}>
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="CIF">CIF (Custo, Seguro e Frete Inclusos)</SelectItem>
-                          <SelectItem value="FOB">FOB (Livre a Bordo)</SelectItem>
-                          <SelectItem value="GRATIS">Frete Grátis</SelectItem>
-                          <SelectItem value="A_COMBINAR">A Combinar</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    )}
-                  />
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* ABA 3: ITENS */}
-          <TabsContent value="itens" className="space-y-6">
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between">
-                <div>
-                  <CardTitle>Itens da Compra</CardTitle>
-                  <CardDescription>Produtos e serviços inclusos no contrato</CardDescription>
-                </div>
-                {isEditable && (
-                  <Button
-                    type="button"
-                    onClick={() => {
-                      const currentItens = getValues('itens') || [];
-                      setValue('itens', [
-                        ...currentItens,
-                        {
-                          id: Math.random().toString(),
-                          descricao_item: '',
-                          categoria_item: 'insumo',
-                          quantidade: 1,
-                          unidade: 'kg',
-                          valor_unitario: 0,
-                          valor_total_item: 0,
-                        } as ItemCompra,
-                      ]);
-                    }}
-                  >
-                    <Plus className="h-4 w-4 mr-2" />
-                    Adicionar Item
-                  </Button>
-                )}
-              </CardHeader>
-              <CardContent>
-                {itens && itens.length > 0 ? (
-                  <FieldArray name="itens" control={control}>
-                    {({ fields, append, remove }) => (
-                      <div className="space-y-4">
-                        {fields.map((field, index) => (
-                          <Card key={field.id} className="p-4">
-                            <div className="grid grid-cols-3 gap-4 mb-4">
-                              <div className="space-y-2">
-                                <label className="text-sm font-medium">Descrição *</label>
-                                <Input
-                                  {...register(`itens.${index}.descricao_item`)}
-                                  placeholder="Ex: Adubo NPK 20-05-20"
-                                  disabled={!isEditable}
-                                />
-                                {errors.itens?.[index]?.descricao_item && (
-                                  <p className="text-sm text-red-500">
-                                    {errors.itens[index]?.descricao_item?.message}
-                                  </p>
-                                )}
-                              </div>
-
-                              <div className="space-y-2">
-                                <label className="text-sm font-medium">Categoria *</label>
-                                <Controller
-                                  name={`itens.${index}.categoria_item`}
-                                  control={control}
-                                  render={({ field }) => (
-                                    <Select value={field.value} onValueChange={field.onChange} disabled={!isEditable}>
-                                      <SelectTrigger>
-                                        <SelectValue />
-                                      </SelectTrigger>
-                                      <SelectContent>
-                                        <SelectItem value="insumo">Insumo</SelectItem>
-                                        <SelectItem value="maquina">Máquina</SelectItem>
-                                        <SelectItem value="servico">Serviço</SelectItem>
-                                        <SelectItem value="outro">Outro</SelectItem>
-                                      </SelectContent>
-                                    </Select>
-                                  )}
-                                />
-                              </div>
-
-                              <div className="space-y-2">
-                                <label className="text-sm font-medium">Especificações Técnicas</label>
-                                <Input
-                                  {...register(`itens.${index}.especificacoes_tecnicas`)}
-                                  placeholder="Marca, modelo, composição..."
-                                  disabled={!isEditable}
-                                />
-                              </div>
-                            </div>
-
-                            <div className="grid grid-cols-5 gap-4 mb-4">
-                              <div className="space-y-2">
-                                <label className="text-sm font-medium">Quantidade *</label>
-                                <Input
-                                  type="number"
-                                  {...register(`itens.${index}.quantidade`)}
-                                  step="0.01"
-                                  disabled={!isEditable}
-                                />
-                              </div>
-
-                              <div className="space-y-2">
-                                <label className="text-sm font-medium">Unidade *</label>
-                                <Controller
-                                  name={`itens.${index}.unidade`}
-                                  control={control}
-                                  render={({ field }) => (
-                                    <Select value={field.value} onValueChange={field.onChange} disabled={!isEditable}>
-                                      <SelectTrigger>
-                                        <SelectValue />
-                                      </SelectTrigger>
-                                      <SelectContent>
-                                        <SelectItem value="kg">kg</SelectItem>
-                                        <SelectItem value="L">Litro</SelectItem>
-                                        <SelectItem value="un">Unidade</SelectItem>
-                                        <SelectItem value="tonelada">Tonelada</SelectItem>
-                                        <SelectItem value="metro">Metro</SelectItem>
-                                        <SelectItem value="hora">Hora</SelectItem>
-                                      </SelectContent>
-                                    </Select>
-                                  )}
-                                />
-                              </div>
-
-                              <div className="space-y-2">
-                                <label className="text-sm font-medium">Valor Unitário *</label>
-                                <Input
-                                  type="number"
-                                  {...register(`itens.${index}.valor_unitario`)}
-                                  step="0.01"
-                                  disabled={!isEditable}
-                                />
-                              </div>
-
-                              <div className="space-y-2">
-                                <label className="text-sm font-medium">Desconto %</label>
-                                <Input
-                                  type="number"
-                                  {...register(`itens.${index}.desconto_percentual`)}
-                                  min={0}
-                                  max={100}
-                                  step="0.01"
-                                  disabled={!isEditable}
-                                />
-                              </div>
-
-                              <div className="space-y-2">
-                                <label className="text-sm font-medium">Total</label>
-                                <div className="p-2 bg-muted rounded font-semibold">
-                                  {formatCurrency(
-                                    (itens[index]?.valor_unitario || 0) *
-                                    (itens[index]?.quantidade || 0) *
-                                    (1 - (itens[index]?.desconto_percentual || 0) / 100)
-                                  )}
-                                </div>
-                              </div>
-                            </div>
-
-                            <div className="space-y-2 mb-4">
-                              <label className="text-sm font-medium">Prazo de Entrega</label>
-                              <Input
-                                type="date"
-                                {...register(`itens.${index}.prazo_entrega_item`)}
-                                disabled={!isEditable}
-                              />
-                            </div>
-
-                            <div className="space-y-2 mb-4">
-                              <label className="text-sm font-medium">Observações</label>
-                              <Textarea
-                                {...register(`itens.${index}.observacoes_item`)}
-                                placeholder="Notas específicas para este item"
-                                rows={2}
-                                disabled={!isEditable}
-                              />
-                            </div>
-
-                            {isEditable && (
-                              <Button
-                                type="button"
-                                variant="destructive"
-                                size="sm"
-                                onClick={() => remove(index)}
-                              >
-                                <Trash2 className="h-4 w-4 mr-2" />
-                                Remover
-                              </Button>
-                            )}
-                          </Card>
-                        ))}
-                      </div>
-                    )}
-                  </FieldArray>
-                ) : (
-                  <div className="text-center py-8 text-muted-foreground">
-                    <p>Nenhum item adicionado. Clique em "Adicionar Item" para começar.</p>
+                {formData.barter && (
+                  <div className="col-12">
+                    <label className="form-label">Descrição do Barter</label>
+                    <textarea className="form-control" rows={2} placeholder="Descreva o que está sendo trocado..."
+                      value={formData.barter_descricao}
+                      onChange={e => set('barter_descricao', e.target.value)} />
                   </div>
                 )}
-              </CardContent>
-            </Card>
-          </TabsContent>
+              </div>
+            </div>
+          )}
 
-          {/* ABA 4: CONDIÇÕES */}
-          <TabsContent value="condicoes" className="space-y-6">
-            {/* Barter Section */}
-            {isBarter && (
-              <Card>
-                <CardHeader>
-                  <CardTitle>Dados do Barter</CardTitle>
-                  <CardDescription>Informações sobre a troca de produtos</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium">Produto Fornecido *</label>
-                      <Input
-                        {...register('dados_barter.produto_fornecido_descricao')}
-                        placeholder="Descrição do produto a ser fornecido"
-                        disabled={!isEditable}
-                      />
-                    </div>
+          {/* ═══ TAB 4: DOCUMENTOS ═══ */}
+          {activeTab === 'documentos' && (
+            <div>
+              <h6 className="text-primary mb-3">
+                <i className="bi bi-paperclip me-2"></i>
+                Documentação
+              </h6>
 
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium">Produto em Troca *</label>
-                      <Input
-                        {...register('dados_barter.produto_barter_descricao')}
-                        placeholder="Produto que você oferece"
-                        disabled={!isEditable}
-                      />
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-3 gap-4">
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium">Quantidade *</label>
-                      <Input
-                        type="number"
-                        {...register('dados_barter.quantidade_barter')}
-                        step="0.01"
-                        disabled={!isEditable}
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium">Valor do Produto *</label>
-                      <Input
-                        type="number"
-                        {...register('dados_barter.valor_produto_barter')}
-                        step="0.01"
-                        disabled={!isEditable}
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium">Data de Entrega *</label>
-                      <Input
-                        type="date"
-                        {...register('dados_barter.data_entrega_barter')}
-                        disabled={!isEditable}
-                      />
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium">Ajuste Financeiro (R$)</label>
-                      <Input
-                        type="number"
-                        {...register('dados_barter.taxa_ajuste_financeira')}
-                        step="0.01"
-                        placeholder="Positivo = crédito | Negativo = desconto"
-                        disabled={!isEditable}
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium">Tipo de Ajuste *</label>
-                      <Controller
-                        name="dados_barter.tipo_ajuste"
-                        control={control}
-                        render={({ field }) => (
-                          <Select value={field.value} onValueChange={field.onChange} disabled={!isEditable}>
-                            <SelectTrigger>
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="SEM_AJUSTE">Sem Ajuste</SelectItem>
-                              <SelectItem value="DINHEIRO_AGORA">Dinheiro Agora</SelectItem>
-                              <SelectItem value="DESCONTO_PROXIMA">Desconto na Próxima</SelectItem>
-                              <SelectItem value="CREDITO_FUTURO">Crédito Futuro</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        )}
-                      />
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">Observações do Barter</label>
-                    <Textarea
-                      {...register('dados_barter.observacoes_barter')}
-                      placeholder="Detalhes da operação de troca"
-                      rows={3}
-                      disabled={!isEditable}
-                    />
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
-            {/* Condições */}
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between">
-                <div>
-                  <CardTitle>Condições do Contrato</CardTitle>
-                  <CardDescription>Regras, garantias e penalidades</CardDescription>
+              {/* Seção NFe */}
+              <div className="row g-2 g-md-3 mb-4 pb-3 border-bottom">
+                <div className="col-12">
+                  <h6 className="text-secondary mb-3">
+                    <i className="bi bi-receipt me-2"></i>
+                    Vincular NFe
+                  </h6>
                 </div>
-                {isEditable && (
-                  <Button
-                    type="button"
-                    onClick={() => {
-                      const currentCondicoes = getValues('condicoes') || [];
-                      setValue('condicoes', [
-                        ...currentCondicoes,
-                        {
-                          id: Math.random().toString(),
-                          tipo_condicao: 'pagamento',
-                          descricao: '',
-                          obrigatoria: false,
-                        } as CondicaoCompra,
-                      ]);
-                    }}
-                  >
-                    <Plus className="h-4 w-4 mr-2" />
-                    Adicionar Condição
-                  </Button>
-                )}
-              </CardHeader>
-              <CardContent>
-                {getValues('condicoes') && getValues('condicoes')!.length > 0 ? (
-                  <FieldArray name="condicoes" control={control}>
-                    {({ fields, remove }) => (
-                      <div className="space-y-4">
-                        {fields.map((field, index) => (
-                          <Card key={field.id} className="p-4">
-                            <div className="space-y-4">
-                              <div className="grid grid-cols-2 gap-4">
-                                <div className="space-y-2">
-                                  <label className="text-sm font-medium">Tipo de Condição *</label>
-                                  <Controller
-                                    name={`condicoes.${index}.tipo_condicao`}
-                                    control={control}
-                                    render={({ field }) => (
-                                      <Select value={field.value} onValueChange={field.onChange} disabled={!isEditable}>
-                                        <SelectTrigger>
-                                          <SelectValue />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                          <SelectItem value="pagamento">Pagamento</SelectItem>
-                                          <SelectItem value="entrega">Entrega</SelectItem>
-                                          <SelectItem value="garantia">Garantia</SelectItem>
-                                          <SelectItem value="devolucao">Devolução</SelectItem>
-                                          <SelectItem value="multa">Multa</SelectItem>
-                                          <SelectItem value="outras">Outras</SelectItem>
-                                        </SelectContent>
-                                      </Select>
-                                    )}
-                                  />
-                                </div>
+                <div className="col-12 col-md-6">
+                  <label className="form-label">Número da NFe</label>
+                  <input type="text" className="form-control" placeholder="Ex: 123456"
+                    value={formData.nfe_numero}
+                    onChange={e => set('nfe_numero', e.target.value)} />
+                </div>
+                <div className="col-12 col-md-6">
+                  <label className="form-label">Chave de Acesso NFe</label>
+                  <input type="text" className="form-control" placeholder="Ex: 35210412345678901234567890123456789012345678"
+                    value={formData.nfe_chave}
+                    onChange={e => set('nfe_chave', e.target.value)} />
+                </div>
+              </div>
 
-                                <div className="flex items-center space-x-2 pt-8">
-                                  <Checkbox
-                                    {...register(`condicoes.${index}.obrigatoria`)}
-                                    id={`condicoes.${index}.obrigatoria`}
-                                    disabled={!isEditable}
-                                  />
-                                  <label htmlFor={`condicoes.${index}.obrigatoria`} className="text-sm font-medium">
-                                    Obrigatória
-                                  </label>
-                                </div>
-                              </div>
-
-                              <div className="space-y-2">
-                                <label className="text-sm font-medium">Descrição *</label>
-                                <Textarea
-                                  {...register(`condicoes.${index}.descricao`)}
-                                  placeholder="Descreva a condição..."
-                                  rows={2}
-                                  disabled={!isEditable}
-                                />
-                              </div>
-
-                              <div className="grid grid-cols-4 gap-4">
-                                <div className="space-y-2">
-                                  <label className="text-sm font-medium">Valor (R$)</label>
-                                  <Input
-                                    type="number"
-                                    {...register(`condicoes.${index}.valor_referencia`)}
-                                    step="0.01"
-                                    disabled={!isEditable}
-                                  />
-                                </div>
-
-                                <div className="space-y-2">
-                                  <label className="text-sm font-medium">Percentual (%)</label>
-                                  <Input
-                                    type="number"
-                                    {...register(`condicoes.${index}.percentual_referencia`)}
-                                    min={0}
-                                    max={100}
-                                    disabled={!isEditable}
-                                  />
-                                </div>
-
-                                <div className="space-y-2">
-                                  <label className="text-sm font-medium">Prazo (dias)</label>
-                                  <Input
-                                    type="number"
-                                    {...register(`condicoes.${index}.prazo_dias`)}
-                                    disabled={!isEditable}
-                                  />
-                                </div>
-
-                                <div className="space-y-2">
-                                  <label className="text-sm font-medium">Garantia (meses)</label>
-                                  <Input
-                                    type="number"
-                                    {...register(`condicoes.${index}.garantia_produto_meses`)}
-                                    disabled={!isEditable}
-                                  />
-                                </div>
-                              </div>
-
-                              {isEditable && (
-                                <Button
-                                  type="button"
-                                  variant="destructive"
-                                  size="sm"
-                                  onClick={() => remove(index)}
-                                >
-                                  <Trash2 className="h-4 w-4 mr-2" />
-                                  Remover
-                                </Button>
-                              )}
+              {/* Upload de Arquivos */}
+              <div className="row g-3">
+                <div className="col-12">
+                  <div className="border border-dashed rounded p-3 bg-light text-center">
+                    <label htmlFor="compra-file-upload" className="btn btn-outline-primary mb-2" style={{ cursor: 'pointer' }}>
+                      <i className="bi bi-cloud-upload me-2"></i>
+                      Selecionar Arquivos
+                    </label>
+                    <input id="compra-file-upload" type="file" multiple onChange={handleFileChange}
+                      className="d-none" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png" />
+                    <p className="text-muted mb-0 small">
+                      NF-e, Contrato, Anexos (PDF, DOC, DOCX, JPG, PNG)
+                    </p>
+                  </div>
+                </div>
+                {documentos.length > 0 && (
+                  <div className="col-12">
+                    <div className="list-group">
+                      {documentos.map((doc, index) => (
+                        <div key={index} className="list-group-item d-flex justify-content-between align-items-center">
+                          <div className="d-flex align-items-center">
+                            <i className="bi bi-file-earmark-text text-primary me-2 fs-5"></i>
+                            <div>
+                              <div className="fw-medium">{doc.name}</div>
+                              <small className="text-muted">{(doc.size / 1024).toFixed(1)} KB</small>
                             </div>
-                          </Card>
-                        ))}
-                      </div>
-                    )}
-                  </FieldArray>
-                ) : (
-                  <div className="text-center py-8 text-muted-foreground">
-                    <p>Nenhuma condição adicionada.</p>
+                          </div>
+                          <button type="button" className="btn btn-sm btn-outline-danger"
+                            onClick={() => removeDocumento(index)}>
+                            <i className="bi bi-trash"></i>
+                          </button>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 )}
-              </CardContent>
-            </Card>
-          </TabsContent>
+              </div>
+            </div>
+          )}
+        </div>
 
-          {/* ABA 5: DOCUMENTAÇÃO */}
-          <TabsContent value="documentacao" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Documentação e Anexos</CardTitle>
-                <CardDescription>Arquivos do contrato e informações adicionais</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Documento do Contrato (PDF)</label>
-                  <div className="border-2 border-dashed rounded-lg p-6 text-center hover:bg-muted/50 cursor-pointer transition">
-                    <FileUp className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
-                    <p className="text-sm text-muted-foreground">Clique para fazer upload do PDF</p>
-                    <Input
-                      type="file"
-                      accept=".pdf"
-                      className="hidden"
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Checkbox id="nf_esperada" labelText="Esperado receber Nota Fiscal" />
-                </div>
-
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Observações sobre Documentação</label>
-                  <Textarea
-                    placeholder="Notas sobre documentos, assinantes, etc."
-                    rows={3}
-                    disabled={!isEditable}
-                  />
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-        </Tabs>
-
-        {/* Botões de Ação */}
-        {isEditable && (
-          <div className="flex gap-2 justify-end mt-8">
-            {onCancel && (
-              <Button type="button" variant="outline" onClick={onCancel} disabled={loading}>
-                Cancelar
-              </Button>
-            )}
-            <Button type="submit" disabled={loading}>
-              {loading ? 'Salvando...' : mode === 'create' ? 'Criar Contrato' : 'Salvar Alterações'}
-            </Button>
-          </div>
-        )}
+        {/* Ações */}
+        <div className="d-flex justify-content-end gap-2 pt-4 border-top mt-3">
+          <button type="button" className="btn btn-outline-secondary" onClick={onClose} disabled={loading}>
+            <i className="bi bi-x-circle me-1"></i> Cancelar
+          </button>
+          <button type="submit" className="btn btn-info" disabled={loading}>
+            <i className="bi bi-check-circle me-1"></i>
+            {loading ? 'Salvando...' : 'Salvar Compra'}
+          </button>
+        </div>
       </form>
-    </div>
+    </ModalForm>
   );
 };
 

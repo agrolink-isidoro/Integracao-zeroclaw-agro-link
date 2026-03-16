@@ -361,6 +361,31 @@ class ComercialService {
     }
   }
 
+  async getAllProdutos(): Promise<any[]> {
+    try {
+      const response = await api.get('/estoque/produtos/');
+      const data = response.data;
+      return Array.isArray(data) ? data : (data?.results ?? []);
+    } catch (error) {
+      console.error('Erro ao buscar produtos:', error);
+      return [];
+    }
+  }
+
+  // ==================== CONTAS BANCÁRIAS ====================
+
+  async getContas(search?: string): Promise<any[]> {
+    try {
+      const params = new URLSearchParams();
+      if (search) params.append('search', search);
+      const response = await api.get(`/financeiro/contas/?${params}`);
+      return response.data;
+    } catch (error) {
+      console.error('Erro ao buscar contas:', error);
+      return [];
+    }
+  }
+
   async updatePrestador(id: number, prestador: Partial<PrestadorServico>): Promise<PrestadorServico> {
     try {
       const response = await api.patch(`/comercial/prestadores-servico/${id}/`, prestador);
@@ -413,6 +438,26 @@ class ComercialService {
       throw error;
     }
   }
+
+  async updateCliente(id: number, cliente: any): Promise<any> {
+    try {
+      const response = await api.patch(`/comercial/clientes/${id}/`, cliente);
+      return response.data;
+    } catch (error) {
+      console.error('Erro ao atualizar cliente:', error);
+      throw error;
+    }
+  }
+
+  async deleteCliente(id: number): Promise<void> {
+    try {
+      await api.delete(`/comercial/clientes/${id}/`);
+    } catch (error) {
+      console.error('Erro ao deletar cliente:', error);
+      throw error;
+    }
+  }
+
   async getClienteById(id: number): Promise<any> {
     try {
       const response = await api.get(`/comercial/clientes/${id}/`);
@@ -574,6 +619,72 @@ class ComercialService {
     }
   }
 
+  async deleteVendaCompra(id: number): Promise<void> {
+    try {
+      await api.delete(`/comercial/vendas-compras/${id}/`);
+    } catch (error) {
+      console.error('Erro ao deletar venda/compra:', error);
+      throw error;
+    }
+  }
+
+  async deleteContratoCompra(id: number): Promise<void> {
+    try {
+      await api.delete(`/comercial/contratos-compra/${id}/`);
+    } catch (error) {
+      console.error('Erro ao deletar contrato de compra:', error);
+      throw error;
+    }
+  }
+
+  async deleteContratoVenda(id: number): Promise<void> {
+    try {
+      await api.delete(`/comercial/contratos-venda/${id}/`);
+    } catch (error) {
+      console.error('Erro ao deletar contrato de venda:', error);
+      throw error;
+    }
+  }
+
+  async deleteContratoFinanceiro(id: number): Promise<void> {
+    try {
+      await api.delete(`/comercial/contratos-financeiro/${id}/`);
+    } catch (error) {
+      console.error('Erro ao deletar contrato financeiro:', error);
+      throw error;
+    }
+  }
+
+  async updateContratoCompra(id: number, data: any): Promise<any> {
+    try {
+      const response = await api.patch(`/comercial/contratos-compra/${id}/`, data);
+      return response.data;
+    } catch (error) {
+      console.error('Erro ao atualizar contrato de compra:', error);
+      throw error;
+    }
+  }
+
+  async updateContratoVenda(id: number, data: any): Promise<any> {
+    try {
+      const response = await api.patch(`/comercial/contratos-venda/${id}/`, data);
+      return response.data;
+    } catch (error) {
+      console.error('Erro ao atualizar contrato de venda:', error);
+      throw error;
+    }
+  }
+
+  async updateContratoFinanceiro(id: number, data: any): Promise<any> {
+    try {
+      const response = await api.patch(`/comercial/contratos-financeiro/${id}/`, data);
+      return response.data;
+    } catch (error) {
+      console.error('Erro ao atualizar contrato financeiro:', error);
+      throw error;
+    }
+  }
+
   // ==================== EMPRESAS ====================
 
   async getEmpresas(filtros?: { busca?: string, status?: string, cnpj?: string }): Promise<any[]> {
@@ -700,6 +811,203 @@ class ComercialService {
       return response.data;
     } catch (error) {
       console.error('Erro ao buscar relatório comercial:', error);
+      throw error;
+    }
+  }
+
+  // ==================== CONTRATOS SPLIT ====================
+
+  async getContratosCompra(params?: { status?: string; search?: string }): Promise<any[]> {
+    try {
+      const response = await api.get('/comercial/contratos-compra/', { params });
+      const data = response.data;
+      return Array.isArray(data) ? data : (data?.results ?? []);
+    } catch (error) {
+      console.error('Erro ao buscar contratos de compra:', error);
+      return [];
+    }
+  }
+
+  async getContratosVenda(params?: { status?: string; search?: string }): Promise<any[]> {
+    try {
+      const response = await api.get('/comercial/contratos-venda/', { params });
+      const data = response.data;
+      return Array.isArray(data) ? data : (data?.results ?? []);
+    } catch (error) {
+      console.error('Erro ao buscar contratos de venda:', error);
+      return [];
+    }
+  }
+
+  async getContratosFinanceiro(params?: { status?: string; search?: string }): Promise<any[]> {
+    try {
+      const response = await api.get('/comercial/contratos-financeiro/', { params });
+      const data = response.data;
+      return Array.isArray(data) ? data : (data?.results ?? []);
+    } catch (error) {
+      console.error('Erro ao buscar contratos financeiros:', error);
+      return [];
+    }
+  }
+
+  async createContratoCompra(data: any): Promise<any> {
+    try {
+      const formData = new FormData();
+      
+      // Dados básicos
+      formData.append('numero_contrato', data.numero_contrato);
+      formData.append('titulo', data.titulo);
+      formData.append('fornecedor_id', data.fornecedor_id);
+      formData.append('empresa_id', data.empresa_id || '1');
+      formData.append('status', data.status || 'ativo');
+      formData.append('data_inicio', data.data_inicio);
+      if (data.data_fim) formData.append('data_fim', data.data_fim);
+      if (data.observacoes) formData.append('observacoes', data.observacoes);
+
+      // Produto
+      formData.append('produto', data.produto);
+      formData.append('quantidade', data.quantidade.toString());
+      formData.append('unidade_medida', data.unidade_medida);
+      formData.append('preco_unitario', data.preco_unitario?.toString() || '0');
+      formData.append('valor_total', data.valor_total.toString());
+      if (data.qualidade_especificacao) formData.append('qualidade_especificacao', data.qualidade_especificacao);
+
+      // Condições
+      formData.append('condicao_pagamento', data.condicao_pagamento);
+      if (data.prazo_entrega_dias) formData.append('prazo_entrega_dias', data.prazo_entrega_dias.toString());
+      if (data.desconto_global_percentual) formData.append('desconto_global_percentual', data.desconto_global_percentual.toString());
+      if (data.taxa_juros) formData.append('taxa_juros', data.taxa_juros.toString());
+
+      // Documento
+      if (data.documento) formData.append('documento', data.documento);
+
+      const response = await api.post('/contratos-compra/', formData);
+      return response.data;
+    } catch (error) {
+      console.error('Erro ao criar contrato de compra:', error);
+      throw error;
+    }
+  }
+
+  async createContratoVenda(data: any): Promise<any> {
+    try {
+      const formData = new FormData();
+      
+      // Dados básicos
+      formData.append('numero_contrato', data.numero_contrato);
+      formData.append('titulo', data.titulo);
+      formData.append('cliente_id', data.cliente_id);
+      formData.append('empresa_id', data.empresa_id || '1');
+      formData.append('status', data.status || 'ativo');
+      formData.append('data_inicio', data.data_inicio);
+      if (data.data_entrega_prevista) formData.append('data_entrega_prevista', data.data_entrega_prevista);
+      if (data.observacoes) formData.append('observacoes', data.observacoes);
+
+      // Produto
+      formData.append('cultura', data.cultura);
+      if (data.variedade_cultivar) formData.append('variedade_cultivar', data.variedade_cultivar);
+      formData.append('quantidade', data.quantidade.toString());
+      formData.append('unidade_medida', data.unidade_medida);
+      formData.append('preco_unitario', data.preco_unitario?.toString() || '0');
+      formData.append('valor_total', data.valor_total.toString());
+      if (data.qualidade_esperada) formData.append('qualidade_esperada', data.qualidade_esperada);
+      if (data.local_entrega) formData.append('local_entrega', data.local_entrega);
+
+      // Pagamento
+      formData.append('forma_pagamento', data.forma_pagamento);
+      if (data.numero_parcelas) formData.append('numero_parcelas', data.numero_parcelas.toString());
+      if (data.periodicidade_parcela) formData.append('periodicidade_parcela', data.periodicidade_parcela);
+      if (data.primeira_data_vencimento) formData.append('primeira_data_vencimento', data.primeira_data_vencimento);
+      if (data.desconto_percentual) formData.append('desconto_percentual', data.desconto_percentual.toString());
+      if (data.comissao_percentual) formData.append('comissao_percentual', data.comissao_percentual.toString());
+      if (data.rastrear_comissao) formData.append('rastrear_comissao', data.rastrear_comissao.toString());
+
+      // Entrega
+      formData.append('tipo_entrega', data.tipo_entrega);
+      if (data.fazenda_origem) formData.append('fazenda_origem', data.fazenda_origem);
+      if (data.cultura_colheita) formData.append('cultura_colheita', data.cultura_colheita);
+      if (data.tipo_colheita) formData.append('tipo_colheita', data.tipo_colheita);
+      if (data.peso_estimado) formData.append('peso_estimado', data.peso_estimado.toString());
+      if (data.custos_armazenagem) formData.append('custos_armazenagem', data.custos_armazenagem.toString());
+      if (data.custos_frete) formData.append('custos_frete', data.custos_frete.toString());
+      if (data.responsavel_frete) formData.append('responsavel_frete', data.responsavel_frete);
+
+      // Documento
+      if (data.documento) formData.append('documento', data.documento);
+
+      const response = await api.post('/contratos-venda/', formData);
+      return response.data;
+    } catch (error) {
+      console.error('Erro ao criar contrato de venda:', error);
+      throw error;
+    }
+  }
+
+  async createContratoFinanceiro(data: any): Promise<any> {
+    try {
+      const formData = new FormData();
+      
+      // Dados básicos
+      formData.append('numero_contrato', data.numero_contrato);
+      formData.append('titulo', data.titulo);
+      formData.append('status', data.status || 'ativo');
+      formData.append('data_contratacao', data.data_contratacao);
+      if (data.data_vigencia) formData.append('data_vigencia', data.data_vigencia);
+      if (data.data_termino) formData.append('data_termino', data.data_termino);
+      if (data.observacoes) formData.append('observacoes', data.observacoes);
+
+      // Produto Financeiro
+      formData.append('produto_financeiro', data.produto_financeiro);
+
+      // SEGURO
+      if (data.produto_financeiro === 'seguro') {
+        if (data.tipo_seguro) formData.append('tipo_seguro', data.tipo_seguro);
+        if (data.culturas_cobertas) formData.append('culturas_cobertas', data.culturas_cobertas);
+        if (data.cobertura_percentual) formData.append('cobertura_percentual', data.cobertura_percentual.toString());
+        if (data.premio) formData.append('premio', data.premio.toString());
+        if (data.limite_indenizacao) formData.append('limite_indenizacao', data.limite_indenizacao.toString());
+        if (data.numero_apolice) formData.append('numero_apolice', data.numero_apolice);
+        if (data.seguradora) formData.append('seguradora', data.seguradora);
+      }
+
+      // APLICAÇÃO
+      if (data.produto_financeiro === 'aplicacao') {
+        if (data.tipo_aplicacao) formData.append('tipo_aplicacao', data.tipo_aplicacao);
+        if (data.valor_aplicado) formData.append('valor_aplicado', data.valor_aplicado.toString());
+        if (data.taxa_juros) formData.append('taxa_juros', data.taxa_juros.toString());
+        if (data.prazo_meses) formData.append('prazo_meses', data.prazo_meses.toString());
+        if (data.data_resgate) formData.append('data_resgate', data.data_resgate);
+        if (data.rendimento_estimado) formData.append('rendimento_estimado', data.rendimento_estimado.toString());
+        if (data.banco) formData.append('banco', data.banco);
+      }
+
+      // CONSÓRCIO
+      if (data.produto_financeiro === 'consorcio') {
+        if (data.bem_consortiado) formData.append('bem_consortiado', data.bem_consortiado);
+        if (data.valor_carta) formData.append('valor_carta', data.valor_carta.toString());
+        if (data.numero_parcelas) formData.append('numero_parcelas', data.numero_parcelas.toString());
+        if (data.valor_parcela) formData.append('valor_parcela', data.valor_parcela.toString());
+        if (data.fundo_reserva_percentual) formData.append('fundo_reserva_percentual', data.fundo_reserva_percentual.toString());
+        if (data.numero_consorcio) formData.append('numero_consorcio', data.numero_consorcio);
+        if (data.data_saida) formData.append('data_saida', data.data_saida);
+        if (data.administradora) formData.append('administradora', data.administradora);
+      }
+
+      // Beneficiário
+      if (data.pessoa_juridica) formData.append('pessoa_juridica', data.pessoa_juridica);
+      if (data.cpf_cnpj) formData.append('cpf_cnpj', data.cpf_cnpj);
+      if (data.email) formData.append('email', data.email);
+      if (data.telefone) formData.append('telefone', data.telefone);
+      if (data.conta_deposito) formData.append('conta_deposito', data.conta_deposito);
+      if (data.responsavel_pagamento) formData.append('responsavel_pagamento', data.responsavel_pagamento);
+
+      // Documento
+      if (data.documento) formData.append('documento', data.documento);
+
+      const response = await api.post('/contratos-financeiro/', formData);
+      return response.data;
+    } catch (error) {
+      console.error('Erro ao criar contrato financeiro:', error);
       throw error;
     }
   }

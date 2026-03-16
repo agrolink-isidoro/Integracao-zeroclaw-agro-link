@@ -3,7 +3,6 @@
 // ========================================
 
 import * as yup from 'yup';
-import { ContratoVenda, ItemVenda, CondicaoVenda, DadosClienteVenda } from '../types/contratosSplit';
 
 // ============ Schema para Item Venda ============
 
