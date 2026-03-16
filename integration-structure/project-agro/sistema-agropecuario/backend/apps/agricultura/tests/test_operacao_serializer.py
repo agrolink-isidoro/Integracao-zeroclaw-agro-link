@@ -11,7 +11,7 @@ class OperacaoSerializerTests(APITestCase):
         self.client.force_authenticate(user=self.user)
         from apps.fazendas.models import Proprietario
         proprietario = Proprietario.objects.create(nome='Produtor Teste', cpf_cnpj='00011122233')
-        self.fazenda = Fazenda.objects.create(name='Fazenda Teste', proprietario=proprietario)
+        self.fazenda = Fazenda.objects.create(name='Fazenda Teste', proprietario=proprietario, matricula='TEST-001')
         from apps.fazendas.models import Area
         self.area = Area.objects.create(name='Area 1', tipo='propria', geom='', fazenda=self.fazenda, proprietario=proprietario)
         self.talhao = Talhao.objects.create(name='T1', area_size=10, area=self.area)

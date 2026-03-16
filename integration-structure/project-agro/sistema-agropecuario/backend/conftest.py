@@ -288,7 +288,7 @@ def authenticated_user_with_tenant():
         proprietario=proprietario,
         defaults={
             "localizacao": "POINT(-48.123 -15.456)",  # lon, lat (Brasília aprox)
-            "area_total": 100.0,
+            "area_total": 100.0,            "matricula": "TEST-FARM-USER",            "matricula": "TEST-FARM-001",
         }
     )
     
