@@ -9,7 +9,7 @@ import {
   Tooltip, IconButton, Card, CardContent, Paper, Chip,
   LinearProgress,
 } from '@mui/material';
-import { Add as AddIcon, Refresh as RefreshIcon, Edit as EditIcon, Delete as DeleteIcon, Inventory as InventoryIcon } from '@mui/icons-material';
+import { Add as AddIcon, Refresh as RefreshIcon, Edit as EditIcon, Delete as DeleteIcon, Inventory as InventoryIcon, History as HistoryIcon } from '@mui/icons-material';
 import localizacoesService from '../../services/localizacoes';
 import LocalizacaoForm from './LocalizacaoForm';
 import type { Localizacao, TipoLocalizacao } from '../../types/estoque_maquinas';

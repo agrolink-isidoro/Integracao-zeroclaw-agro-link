@@ -6,6 +6,13 @@ Autentica conexões WebSocket via JWT no query string:
 
 Injeta `user` e `tenant` no scope do consumer, replicando o
 comportamento do TenantMiddleware + JWT do HTTP.
+
+Para serviços de IA (isidoro_agent) sem tenant fixo, aceita o tenant
+da sessão ativa via query param:
+  ws://backend/ws/chat/?token=<jwt>&tenant_id=<uuid>
+
+Segurança: tenant_id via query param só é respeitado se o JWT não tiver
+tenant_id próprio (i.e., apenas para staff/superuser globais).
 """
 
 from __future__ import annotations
@@ -46,7 +53,9 @@ class JwtAuthMiddleware:
             from django.contrib.auth.models import AnonymousUser
             return AnonymousUser(), None
 
-        return await self._get_user_and_tenant(token)
+        # Optional explicit tenant_id from query string (for staff/AI agents)
+        explicit_tenant_id = self._extract_explicit_tenant_id(scope)
+        return await self._get_user_and_tenant(token, explicit_tenant_id)
 
     def _extract_token(self, scope) -> str | None:
         """Extrai o token JWT do query string ou header."""
@@ -67,8 +76,17 @@ class JwtAuthMiddleware:
 
         return None
 
+    def _extract_explicit_tenant_id(self, scope) -> str | None:
+        """Extrai tenant_id explícito do query string (para agentes de IA)."""
+        query_string = scope.get("query_string", b"")
+        if isinstance(query_string, bytes):
+            query_string = query_string.decode("utf-8")
+        params = parse_qs(query_string)
+        tid_list = params.get("tenant_id", [])
+        return tid_list[0] if tid_list else None
+
     @database_sync_to_async
-    def _get_user_and_tenant(self, token_str: str):
+    def _get_user_and_tenant(self, token_str: str, explicit_tenant_id: str | None = None):
         """Valida JWT, retorna (user, tenant) — roda em thread pool."""
         from django.contrib.auth.models import AnonymousUser
 
@@ -81,7 +99,7 @@ class JwtAuthMiddleware:
             token = AccessToken(token_str)
 
             user_id = token.get("user_id")
-            tenant_id = token.get("tenant_id")
+            jwt_tenant_id = token.get("tenant_id")
 
             try:
                 user = User.objects.select_related().get(id=user_id)
@@ -90,11 +108,27 @@ class JwtAuthMiddleware:
                 return AnonymousUser(), None
 
             tenant = None
-            if tenant_id:
+            # Priority 1: tenant from JWT claim (normal users — cannot be overridden)
+            if jwt_tenant_id:
                 try:
-                    tenant = Tenant.objects.get(id=tenant_id, ativo=True)
+                    tenant = Tenant.objects.get(id=jwt_tenant_id, ativo=True)
                 except Tenant.DoesNotExist:
-                    logger.warning("JWT WebSocket: tenant_id=%s não encontrado", tenant_id)
+                    logger.warning("JWT WebSocket: tenant_id=%s não encontrado", jwt_tenant_id)
+            # Priority 2: tenant from user.tenant FK (session auth fallback)
+            elif user.is_authenticated and not user.is_superuser and getattr(user, 'tenant', None):
+                tenant = user.tenant
+            # Priority 3: explicit tenant_id query param — only for staff/superuser service accounts
+            elif explicit_tenant_id and (getattr(user, 'is_staff', False) or getattr(user, 'is_superuser', False)):
+                try:
+                    tenant = Tenant.objects.get(id=explicit_tenant_id, ativo=True)
+                    logger.info(
+                        "JWT WebSocket: staff user %s resolved tenant via query param: %s",
+                        getattr(user, 'username', '?'), explicit_tenant_id,
+                    )
+                except Tenant.DoesNotExist:
+                    logger.warning(
+                        "JWT WebSocket: explicit tenant_id=%s não encontrado", explicit_tenant_id
+                    )
 
             return user, tenant
 
