@@ -326,3 +326,64 @@ def api_client_authenticated(authenticated_user_with_tenant):
     # client.default_format = 'json'
     
     return client
+
+
+@pytest.fixture
+def user_with_tenant():
+    """
+    Retorna (user, tenant) para testes que precisam de tenant.
+    
+    Alias para authenticated_user_with_tenant mas retorna (user, tenant)
+    em vez de (user, fazenda).
+    """
+    from django.contrib.auth import get_user_model
+    from apps.fazendas.models import Proprietario, Fazenda, Tenant
+    
+    User = get_user_model()
+    
+    tenant, _ = Tenant.objects.get_or_create(
+        nome="test_tenant",
+        defaults={"descricao": "Tenant para testes automatizados"}
+    )
+    
+    proprietario, _ = Proprietario.objects.get_or_create(
+        tenant=tenant,
+        nome="Test Proprietário",
+        cpf="12345678901",
+        defaults={
+            "email": "proprietario@test.local",
+            "telefone": "11999999999",
+        }
+    )
+    
+    user, _ = User.objects.get_or_create(
+        username="test_user",
+        defaults={
+            "email": "testuser@test.local",
+            "first_name": "Test",
+            "last_name": "User",
+            "tenant": tenant,
+        }
+    )
+    
+    if user.tenant_id != tenant.id:
+        user.tenant = tenant
+        user.save()
+    
+    return user, tenant
+
+
+@pytest.fixture
+def client_with_tenant_staff(user_with_tenant):
+    """
+    Retorna APIClient autenticado com user que tem tenant.
+    
+    Fixture que combina user_with_tenant com APIClient para testes
+    de API que precisam de autenticação com tenant.
+    """
+    from rest_framework.test import APIClient
+    
+    user, tenant = user_with_tenant
+    client = APIClient()
+    client.force_authenticate(user=user)
+    return client, user
