@@ -52,13 +52,15 @@ class FazendaViewSet(TenantQuerySetMixin, viewsets.ModelViewSet):
 
 class AreaViewSet(TenantQuerySetMixin, viewsets.ModelViewSet):
     rbac_module = 'fazendas'
-    queryset = Area.objects.all().order_by("name")
+    queryset = Area.objects.select_related('fazenda', 'proprietario').prefetch_related('talhoes').all().order_by("name")
     serializer_class = AreaSerializer
     permission_classes = [permissions.IsAuthenticated, RBACViewPermission]
 
     def get_queryset(self):
         # Area does not have a direct tenant field; filter via related Fazenda
-        qs = Area.objects.all().order_by("name")
+        # select_related('fazenda', 'proprietario') to optimize queries for serializer fields
+        # prefetch_related('talhoes') to optimize nested serializer
+        qs = Area.objects.select_related('fazenda', 'proprietario').prefetch_related('talhoes').all().order_by("name")
         tenant = self._get_request_tenant()
         if tenant is not None:
             qs = qs.filter(fazenda__tenant=tenant)
