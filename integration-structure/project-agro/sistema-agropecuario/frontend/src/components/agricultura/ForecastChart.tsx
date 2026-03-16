@@ -142,7 +142,7 @@ const ForecastChart: React.FC<ForecastChartProps> = ({ forecast }) => {
   return (
     <div className="card border-0 shadow-sm">
       <div className="card-body p-4">
-        <Line data={forecastData} options={options} />
+        <Line data={forecastData as any} options={options} />
 
         {/* Forecast details table */}
         <div className="table-responsive mt-4">

@@ -59,7 +59,7 @@ const FolhaPagarBatchModal: React.FC<{ folhaId: number; items: Item[]; onClose: 
     try {
       const payload = { conta_origem: contaOrigem, pagamentos: rows };
       const res = await api.post(`/administrativo/folha-pagamento/${folhaId}/pagar_por_transferencia/`, payload);
-      setResults(res.data.results || null);
+      setResults((res.data as { results?: any[] }).results || null);
       onComplete?.();
     } catch (err: unknown) {
       console.error('Erro ao enviar lote', err);
@@ -83,7 +83,7 @@ const FolhaPagarBatchModal: React.FC<{ folhaId: number; items: Item[]; onClose: 
       const res = await api.post(`/administrativo/folha-pagamento/${folhaId}/pagar_por_transferencia/`, payload);
       // merge results: replace failed with new responses
       const newResults = [...(results || [])];
-      (res.data.results || []).forEach((nr: any) => {
+      ((res.data as { results?: any[] }).results || []).forEach((nr: any) => {
         const pos = newResults.findIndex((x: any) => x.funcionario_id === nr.funcionario_id);
         if (pos >= 0) newResults[pos] = nr;
       });

@@ -902,8 +902,8 @@ const ContratoForm: React.FC<ContratoFormProps> = ({
                   Condição de Pagamento
                 </label>
                 <SelectDropdown
-                  value={compraData.condicao_pagamento}
-                  onChange={(value) => setCompraData({ ...compraData, condicao_pagamento: value })}
+                  value={compraData.condicao_pagamento?.toString() ?? ''}
+                  onChange={(value) => setCompraData({ ...compraData, condicao_pagamento: String(value) })}
                   options={[
                     { value: 'dinheiro', label: 'Dinheiro' },
                     { value: 'credito_30', label: 'Crédito 30 dias' },
@@ -966,8 +966,8 @@ const ContratoForm: React.FC<ContratoFormProps> = ({
                   Periodicidade da Parcela
                 </label>
                 <SelectDropdown
-                  value={vendaData.periodicidade_parcela}
-                  onChange={(value) => setVendaData({ ...vendaData, periodicidade_parcela: value })}
+                  value={vendaData.periodicidade_parcela?.toString() ?? ''}
+                  onChange={(value) => setVendaData({ ...vendaData, periodicidade_parcela: String(value) })}
                   options={[
                     { value: 'semanal', label: 'Semanal' },
                     { value: 'quinzenal', label: 'Quinzenal' },
@@ -1010,8 +1010,8 @@ const ContratoForm: React.FC<ContratoFormProps> = ({
                   Tipo de Produto Financeiro
                 </label>
                 <SelectDropdown
-                  value={financeiroData.produto_financeiro}
-                  onChange={(value) => setFinanceiroData({ ...financeiroData, produto_financeiro: value })}
+                  value={financeiroData.produto_financeiro?.toString() ?? ''}
+                  onChange={(value) => setFinanceiroData({ ...financeiroData, produto_financeiro: String(value) })}
                   options={[
                     { value: 'emprestimo', label: 'Empréstimo' },
                     { value: 'consorcio', label: 'Consórcio' },

@@ -4,7 +4,7 @@ import ComercialService from '@/services/comercial';
 import SelectDropdown from '@/components/common/SelectDropdown';
 import ProductSelector from '@/components/financeiro/ProductSelector';
 import ItemEmprestimoList from '@/components/financeiro/ItemEmprestimoList';
-import type { ItemEmprestimo } from '@/types/financeiro';
+import type { ItemEmprestimo, Emprestimo } from '@/types/financeiro';
 
 interface Props {
   tipo?: 'emprestimo' | 'financiamento';
@@ -91,7 +91,7 @@ const OperacaoForm: React.FC<Props> = ({ tipo: tipoProp, initialData, onClose, o
   };
 
   // create mutations (we will post to the right endpoint dynamically)
-  const createEmprestimo = useApiCreate('/financeiro/emprestimos/', [['emprestimos']]);
+  const createEmprestimo = useApiCreate<Emprestimo, Record<string, unknown>>('/financeiro/emprestimos/', [['emprestimos']]);
   const createFinanciamento = useApiCreate('/financeiro/financiamentos/', [['financiamentos']]);
 
   useEffect(() => {
@@ -396,7 +396,7 @@ const OperacaoForm: React.FC<Props> = ({ tipo: tipoProp, initialData, onClose, o
           {temItens && (
             <>
               <ProductSelector onAddItem={handleAddItem} />
-              <ItemEmprestimoList items={items} onRemoveItem={handleRemoveItem} />
+              <ItemEmprestimoList items={items as any} onRemoveItem={handleRemoveItem} />
               {items.length > 0 && (
                 <div className="alert alert-info">
                   <strong>Valor Total (baseado nos produtos):</strong> R$ {valueTotalFromItems.toFixed(2)}

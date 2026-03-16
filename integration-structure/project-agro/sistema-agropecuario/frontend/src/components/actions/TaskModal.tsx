@@ -111,7 +111,7 @@ const TaskModal: React.FC<TaskModalProps> = ({ action, onClose, onApprove, onRej
                       </option>
                     ))}
                     {/* Se o valor atual não está nas opções, manter como opção extra */}
-                    {value && !selectOptions.some((o) => o.value === String(value)) && (
+                    {!!value && !selectOptions.some((o) => o.value === String(value)) && (
                       <option value={String(value)}>
                         {String(value)} (valor atual)
                       </option>

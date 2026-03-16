@@ -25,7 +25,7 @@ const UploadHistoryPanel: React.FC<UploadHistoryPanelProps> = ({ onRetomar }) =>
   const [expanded, setExpanded] = useState(false);
 
   // Busca histórico de sessões
-  const { data: sessions = [], isLoading, refetch } = useQuery({
+  const { data: sessions = [], isLoading, refetch } = useQuery<UploadSession[]>({
     queryKey: ['upload-sessions'],
     queryFn: async () => {
       const response = await api.get('/actions/sessions/');

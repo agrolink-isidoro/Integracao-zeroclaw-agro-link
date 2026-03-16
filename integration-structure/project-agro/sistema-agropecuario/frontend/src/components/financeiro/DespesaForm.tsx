@@ -173,7 +173,7 @@ const DespesaForm: React.FC<{ onClose?: () => void }> = ({ onClose }) => {
         <label className="form-label">
           <i className="bi bi-grid-3x3 me-2"></i>Talhões
         </label>
-        <TalhoesMultiSelect talhoes={todosTalhoes} selectedIds={talhoes} onChange={(ids) => setTalhoes(ids)} />
+        <TalhoesMultiSelect talhoes={todosTalhoes as any} selectedIds={talhoes} onChange={(ids) => setTalhoes(ids)} />
       </div>
 
       {/* ── Checkboxes ── */}
