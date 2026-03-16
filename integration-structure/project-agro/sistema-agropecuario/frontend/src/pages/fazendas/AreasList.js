@@ -66,15 +66,15 @@ const AreasList = () => {
             render: (value) => (_jsxs("span", { className: "fw-semibold text-dark", children: [_jsx("i", { className: "bi bi-geo-alt-fill me-2 text-primary" }), value] }))
         },
         {
-            key: 'fazenda',
+            key: 'fazenda_nome',
             header: 'Fazenda',
-            render: (value, _item) => (_jsxs("span", { className: "badge bg-info text-dark", children: [_jsx("i", { className: "bi bi-house-door me-1" }), "Fazenda ", value] })),
+            render: (_value, item) => (_jsxs("span", { className: "badge bg-info text-dark", children: [_jsx("i", { className: "bi bi-house-door me-1" }), item.fazenda_nome || `Fazenda ${item.fazenda}`] })),
             sortable: true
         },
         {
-            key: 'proprietario',
+            key: 'proprietario_nome',
             header: 'Proprietário',
-            render: (value, _item) => (_jsxs("span", { className: "text-muted", children: [_jsx("i", { className: "bi bi-person me-1" }), "Propriet\u00E1rio ", value] })),
+            render: (_value, item) => (_jsxs("span", { className: "text-muted", children: [_jsx("i", { className: "bi bi-person me-1" }), item.proprietario_nome || `Proprietário ${item.proprietario}`] })),
             sortable: true
         },
         {

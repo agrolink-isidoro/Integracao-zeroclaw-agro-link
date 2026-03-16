@@ -43,15 +43,15 @@ const TalhaosList = () => {
             render: (value) => (_jsxs("span", { className: "fw-semibold text-dark", children: [_jsx("i", { className: "bi bi-grid-3x3-gap-fill me-2 text-primary" }), value] }))
         },
         {
-            key: 'area',
+            key: 'area_nome',
             header: 'Área',
-            render: (_value, item) => (_jsxs("span", { className: "badge bg-success-subtle text-success", children: [_jsx("i", { className: "bi bi-geo-alt me-1" }), item.area_detail?.name || `Área ${item.area}`] })),
+            render: (_value, item) => (_jsxs("span", { className: "badge bg-success-subtle text-success", children: [_jsx("i", { className: "bi bi-geo-alt me-1" }), item.area_nome || `Área ${item.area}`] })),
             sortable: true
         },
         {
-            key: 'fazenda',
+            key: 'fazenda_nome',
             header: 'Fazenda',
-            render: (_value, item) => (_jsxs("span", { className: "text-muted", children: [_jsx("i", { className: "bi bi-building me-1" }), item.area_detail?.fazenda_detail?.name || '-'] })),
+            render: (_value, item) => (_jsxs("span", { className: "text-muted", children: [_jsx("i", { className: "bi bi-building me-1" }), item.fazenda_nome || '-'] })),
         },
         {
             key: 'area_size',
