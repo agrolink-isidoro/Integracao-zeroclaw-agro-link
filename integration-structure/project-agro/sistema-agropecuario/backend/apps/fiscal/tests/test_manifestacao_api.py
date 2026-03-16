@@ -14,14 +14,66 @@ User = get_user_model()
 
 from django.test import override_settings
 
-@override_settings(FISCAL_MANIFESTACAO_ENABLED=True)
-class ManifestacaoAPITest(TestCase):
+
+class TenantTestCase(TestCase):
+    """
+    Classe base que fornece User + Tenant + Fazenda para testes de API.
+    
+    Reduz 403 Forbidden errors causados pelo middleware de multi-tenancy
+    que espera user.tenant estar setado.
+    
+    Atributos disponíveis no setUp:
+        self.user: Usuario autenticado com tenant
+        self.fazenda: Fazenda criada no tenant
+        self.client: APIClient authenticado
+    """
     def setUp(self):
+        super().setUp()
+        from apps.fazendas.models import Proprietario, Fazenda, Tenant
+        
+        # 1. Criar tenant
+        self.tenant, _ = Tenant.objects.get_or_create(
+            nome="test_tenant_" + self.__class__.__name__,
+            defaults={"descricao": "Tenant para testes"}
+        )
+        
+        # 2. Criar proprietario
+        self.proprietario, _ = Proprietario.objects.get_or_create(
+            tenant=self.tenant,
+            nome="Test Owner",
+            cpf="00000000000",
+            defaults={"email": "owner@test.local", "telefone": "11999999999"}
+        )
+        
+        # 3. Criar user com tenant (isso resolve 403!)
+        self.user = User.objects.create(
+            username=f'user_{self.__class__.__name__}',
+            email='user@test.local',
+            tenant=self.tenant
+        )
+        
+        # 4. Criar fazenda
+        self.fazenda, _ = Fazenda.objects.get_or_create(
+            tenant=self.tenant,
+            nome="Test Farm",
+            proprietario=self.proprietario,
+            defaults={
+                "localizacao": "POINT(-48.123 -15.456)",
+                "area_total": 100.0,
+            }
+        )
+        
+        # 5. Criar client autenticado
         self.client = APIClient()
+        self.client.force_authenticate(user=self.user)
+
+
+@override_settings(FISCAL_MANIFESTACAO_ENABLED=True)
+class ManifestacaoAPITest(TenantTestCase):
+    def setUp(self):
+        super().setUp()
         # Create a user representing the default authenticated API user and
         # make them the destinatário for the NFe to keep legacy tests passing
-        self.user = User.objects.create(username='apiuser', email='dest@example.com')
-        self.client.force_authenticate(user=self.user)
         self.nfe = NFe.objects.create(
             chave_acesso='9'*44,
             numero='1',
@@ -43,7 +95,8 @@ class ManifestacaoAPITest(TestCase):
             destinatario_nome='Dest',
             destinatario_email=self.user.email,
             valor_produtos='0',
-            valor_nota='0'
+            valor_nota='0',
+            tenant=self.tenant
         )
 
     def test_post_manifestacao_creates_and_enqueues(self):

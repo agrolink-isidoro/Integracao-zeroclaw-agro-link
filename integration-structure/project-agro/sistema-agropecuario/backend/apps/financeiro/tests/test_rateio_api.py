@@ -8,21 +8,69 @@ from apps.financeiro.models import RateioCusto, RateioApproval
 User = get_user_model()
 
 
-class RateioApprovalAPITests(TestCase):
+class TenantTestCase(TestCase):
+    """
+    Classe base que fornece User + Tenant + Fazenda para testes de API.
+    
+    Reduz 403 Forbidden errors causados pelo middleware de multi-tenancy
+    que espera user.tenant estar setado.
+    """
     def setUp(self):
+        super().setUp()
+        from apps.fazendas.models import Proprietario, Fazenda, Tenant
+        
+        # 1. Criar tenant
+        self.tenant, _ = Tenant.objects.get_or_create(
+            nome="test_tenant_" + self.__class__.__name__,
+            defaults={"descricao": "Tenant para testes"}
+        )
+        
+        # 2. Criar proprietario
+        self.proprietario, _ = Proprietario.objects.get_or_create(
+            tenant=self.tenant,
+            nome="Test Owner",
+            cpf="00000000000",
+            defaults={"email": "owner@test.local", "telefone": "11999999999"}
+        )
+        
+        # 3. Criar fazenda
+        self.fazenda, _ = Fazenda.objects.get_or_create(
+            tenant=self.tenant,
+            nome="Test Farm",
+            proprietario=self.proprietario,
+            defaults={
+                "localizacao": "POINT(-48.123 -15.456)",
+                "area_total": 100.0,
+            }
+        )
+
+
+class RateioApprovalAPITests(TenantTestCase):
+    def setUp(self):
+        super().setUp()
         self.client = APIClient()
-        self.creator = User.objects.create_user(username='creator')
-        self.rateio = RateioCusto.objects.create(titulo='API Rateio', descricao='', valor_total=300.00, criado_por=self.creator)
-        self.approval, _ = RateioApproval.objects.get_or_create(rateio=self.rateio, defaults={'criado_por': self.creator})
+        # Create a user representing the default authenticated API user
+        self.creator = User.objects.create_user(username='creator', tenant=self.tenant)
+        self.rateio = RateioCusto.objects.create(
+            tenant=self.tenant,
+            titulo='API Rateio',
+            descricao='',
+            valor_total=300.00,
+            criado_por=self.creator
+        )
+        self.approval, _ = RateioApproval.objects.get_or_create(
+            rateio=self.rateio,
+            defaults={'criado_por': self.creator}
+        )
 
     def test_non_approver_cannot_approve(self):
-        user = User.objects.create_user(username='user1')
+        user = User.objects.create_user(username='user1', tenant=self.tenant)
         self.client.force_authenticate(user)
         res = self.client.post(f'/api/financeiro/rateios-approvals/{self.approval.id}/approve/')
         self.assertEqual(res.status_code, 403)
 
     def test_approver_can_approve(self):
-        approver = User.objects.create_user(username='approver')
+        approver = User.objects.create_user(username='approver', tenant=self.tenant)
         group, _ = Group.objects.get_or_create(name='financeiro.rateio_approver')
         approver.groups.add(group)
         self.client.force_authenticate(approver)
@@ -33,7 +81,7 @@ class RateioApprovalAPITests(TestCase):
         self.assertEqual(self.approval.aprovado_por.username, 'approver')
 
     def test_admin_staff_can_approve(self):
-        admin = User.objects.create_user(username='admin', is_staff=True)
+        admin = User.objects.create_user(username='admin', is_staff=True, tenant=self.tenant)
         self.client.force_authenticate(admin)
         res = self.client.post(f'/api/financeiro/rateios-approvals/{self.approval.id}/approve/')
         self.assertEqual(res.status_code, 200)
@@ -42,7 +90,7 @@ class RateioApprovalAPITests(TestCase):
         self.assertEqual(self.approval.aprovado_por.username, 'admin')
 
     def test_admin_superuser_can_approve(self):
-        su = User.objects.create_superuser(username='root', email='root@example.com', password='pass')
+        su = User.objects.create_superuser(username='root', email='root@example.com', password='pass', tenant=self.tenant)
         self.client.force_authenticate(su)
         res = self.client.post(f'/api/financeiro/rateios-approvals/{self.approval.id}/approve/')
         self.assertEqual(res.status_code, 200)
@@ -51,14 +99,14 @@ class RateioApprovalAPITests(TestCase):
         self.assertEqual(self.approval.aprovado_por.username, 'root')
 
     def test_permissions_endpoint_non_approver(self):
-        user = User.objects.create_user(username='plain')
+        user = User.objects.create_user(username='plain', tenant=self.tenant)
         self.client.force_authenticate(user)
         res = self.client.get('/api/financeiro/rateios-approvals/permissions/')
         self.assertEqual(res.status_code, 200)
         self.assertEqual(res.json(), {'can_approve': False, 'can_reject': False})
 
     def test_permissions_endpoint_approver(self):
-        approver = User.objects.create_user(username='group_approver')
+        approver = User.objects.create_user(username='group_approver', tenant=self.tenant)
         group, _ = Group.objects.get_or_create(name='financeiro.rateio_approver')
         approver.groups.add(group)
         self.client.force_authenticate(approver)
@@ -67,14 +115,14 @@ class RateioApprovalAPITests(TestCase):
         self.assertEqual(res.json(), {'can_approve': True, 'can_reject': True})
 
     def test_permissions_endpoint_admin_staff(self):
-        admin = User.objects.create_user(username='admin2', is_staff=True)
+        admin = User.objects.create_user(username='admin2', is_staff=True, tenant=self.tenant)
         self.client.force_authenticate(admin)
         res = self.client.get('/api/financeiro/rateios-approvals/permissions/')
         self.assertEqual(res.status_code, 200)
         self.assertEqual(res.json(), {'can_approve': True, 'can_reject': True})
 
     def test_permissions_endpoint_admin_superuser(self):
-        su = User.objects.create_superuser(username='root2', email='root2@example.com', password='pass')
+        su = User.objects.create_superuser(username='root2', email='root2@example.com', password='pass', tenant=self.tenant)
         self.client.force_authenticate(su)
         res = self.client.get('/api/financeiro/rateios-approvals/permissions/')
         self.assertEqual(res.status_code, 200)

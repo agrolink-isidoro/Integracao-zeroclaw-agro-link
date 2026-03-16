@@ -198,3 +198,131 @@ def setup_test_environment(test_certificate):
         os.environ['FISCAL_CERT_PASSWORD'] = original_cert_password
     else:
         os.environ.pop('FISCAL_CERT_PASSWORD', None)
+
+
+# ======================================
+# MULTI-TENANCY FIXTURES
+# ======================================
+# As fixtures abaixo resolvem o problema de 403 Forbidden nos testes.
+# O middleware de multi-tenancy espera que cada User tenha uma relação
+# com Proprietario (que leva a Fazenda que seta o tenant_id).
+#
+# Padrão de uso:
+#   def test_api(authenticated_user_with_tenant):
+#       user, fazenda = authenticated_user_with_tenant
+#       # Agora user tem fazenda + tenant configurados
+#
+# Ou com client:
+#   def test_api(api_client_authenticated):
+#       response = api_client_authenticated.get('/api/proprietarios/')
+#       assert response.status_code == 200
+
+
+@pytest.fixture
+def authenticated_user_with_tenant():
+    """
+    Cria um usuário com Tenant + Fazenda para passar no middleware de multi-tenancy.
+    
+    Esta fixture resolve o erro 403 Forbidden que ocorre quando testes
+    criam usuários sem tenant. O middleware de multi-tenancy verifica:
+        user.tenant → deve estar setado e ativo
+    
+    Criador:
+        1. Tenant (objeto que representa um cliente/organização)
+        2. Proprietario (dono de fazendas dentro do tenant)
+        3. Fazenda (propriedade agrícola)
+        4. User (usuário autenticado com tenant_id setado)
+    
+    Retorna:
+        tuple: (User, Fazenda) - ambos com tenant configurado
+    
+    Exemplo:
+        def test_list_proprietarios(authenticated_user_with_tenant):
+            user, fazenda = authenticated_user_with_tenant
+            # user.tenant já éum objeto Tenant válido
+            # middleware vai permitir access (não 403)
+    """
+    from django.contrib.auth import get_user_model
+    from apps.fazendas.models import Proprietario, Fazenda, Tenant
+    
+    User = get_user_model()
+    
+    # 1. Criar Tenant (organização/cliente do sistema)
+    tenant, _ = Tenant.objects.get_or_create(
+        nome="test_tenant",
+        defaults={"descricao": "Tenant para testes automatizados"}
+    )
+    
+    # 2. Criar Proprietario (dono de fazendas)
+    proprietario, _ = Proprietario.objects.get_or_create(
+        tenant=tenant,
+        nome="Test Proprietário",
+        cpf="12345678901",
+        defaults={
+            "email": "proprietario@test.local",
+            "telefone": "11999999999",
+        }
+    )
+    
+    # 3. Criar User com tenant FK (CRÍTICO para middleware)
+    user, _ = User.objects.get_or_create(
+        username="test_user",
+        defaults={
+            "email": "testuser@test.local",
+            "first_name": "Test",
+            "last_name": "User",
+            "tenant": tenant,  # FK direto, não tenant_id
+        }
+    )
+    
+    # Garantir que User tem tenant setado (caso get retornar existente)
+    if user.tenant_id != tenant.id:
+        user.tenant = tenant
+        user.save()
+    
+    # 4. Criar Fazenda (propriedade agrícola)
+    fazenda, _ = Fazenda.objects.get_or_create(
+        tenant=tenant,
+        nome="Test Farm",
+        proprietario=proprietario,
+        defaults={
+            "localizacao": "POINT(-48.123 -15.456)",  # lon, lat (Brasília aprox)
+            "area_total": 100.0,
+        }
+    )
+    
+    return user, fazenda
+
+
+@pytest.fixture
+def api_client_authenticated(authenticated_user_with_tenant):
+    """
+    Retorna um cliente REST test authenticado com usuário e fazenda.
+    
+    Esta fixture combina:
+    - authenticated_user_with_tenant: garante que user tem tenant
+    - REST test client: cliente HTTP autenticado
+    
+    O cliente já está logado e tem as headers necessárias para contornar
+    o middleware de multi-tenancy que espera tenant_id no usuario.
+    
+    Retorna:
+        APIClient: cliente REST autenticado
+    
+    Exemplo:
+        def test_list_proprietarios(api_client_authenticated):
+            response = api_client_authenticated.get('/api/proprietarios/')
+            assert response.status_code == 200
+            assert len(response.data) > 0
+    """
+    from rest_framework.test import APIClient
+    
+    user, fazenda = authenticated_user_with_tenant
+    
+    client = APIClient()
+    client.force_authenticate(user=user)
+    
+    # Adicionar headers opcionais se necessário
+    # client.default_format = 'json'
+    
+    return client
