@@ -7,15 +7,17 @@ User = get_user_model()
 BASE = '/api/administrativo/funcionarios/'
 
 
-def create_user_client():
-    user = User.objects.create_user(username='u', password='p')
+@pytest.fixture
+def client_with_tenant(user_with_tenant):
+    """Fixture que retorna APIClient autenticado com user+tenant"""
+    user, tenant = user_with_tenant
     client = APIClient()
     client.force_authenticate(user=user)
     return client
 
 
-def test_create_and_list_funcionario():
-    client = create_user_client()
+def test_create_and_list_funcionario(client_with_tenant):
+    client = client_with_tenant
     payload = {'nome': 'João', 'cpf': '12345678901', 'cargo': 'Operador', 'salario_bruto': '2000.00'}
     r = client.post(BASE, payload, format='json')
     assert r.status_code == 201
@@ -27,8 +29,8 @@ def test_create_and_list_funcionario():
     assert any(f['nome'] == 'João' for f in r2.json())
 
 
-def test_update_and_delete_funcionario():
-    client = create_user_client()
+def test_update_and_delete_funcionario(client_with_tenant):
+    client = client_with_tenant
     r = client.post(BASE, {'nome': 'Maria'}, format='json')
     fid = r.json()['id']
 

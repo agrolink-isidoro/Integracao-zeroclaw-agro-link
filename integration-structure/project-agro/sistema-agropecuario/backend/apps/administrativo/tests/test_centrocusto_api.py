@@ -10,17 +10,17 @@ User = get_user_model()
 BASE_URL = '/api/administrativo/centros-custo/'
 
 
-def create_user_client(is_staff=False):
-    user = User.objects.create_user(username='testuser', password='pass')
-    user.is_staff = is_staff
-    user.save()
+@pytest.fixture
+def client_with_tenant_staff(user_with_tenant):
+    """APIClient com user autenticado que tem tenant (e pode ser staff)"""
+    user, tenant = user_with_tenant
     client = APIClient()
     client.force_authenticate(user=user)
     return client, user
 
 
-def test_create_centrocusto_authenticated():
-    client, user = create_user_client()
+def test_create_centrocusto_authenticated(client_with_tenant_staff):
+    client, user = client_with_tenant_staff
     payload = { 'codigo': 'C001', 'nome': 'Centro A', 'categoria': 'administrativo', 'ativo': True }
     resp = client.post(BASE_URL, payload, format='json')
     assert resp.status_code == 201
@@ -29,8 +29,8 @@ def test_create_centrocusto_authenticated():
     assert data['nome'] == 'Centro A'
 
 
-def test_list_centros():
-    client, user = create_user_client()
+def test_list_centros(client_with_tenant_staff):
+    client, user = client_with_tenant_staff
     # create two
     client.post(BASE_URL, { 'codigo': 'C001', 'nome': 'Centro A', 'categoria': 'administrativo' })
     client.post(BASE_URL, { 'codigo': 'C002', 'nome': 'Centro B', 'categoria': 'transporte' })
@@ -41,8 +41,8 @@ def test_list_centros():
     assert len(data) >= 2
 
 
-def test_update_centrocusto():
-    client, user = create_user_client()
+def test_update_centrocusto(client_with_tenant_staff):
+    client, user = client_with_tenant_staff
     r = client.post(BASE_URL, { 'codigo': 'C003', 'nome': 'Centro C', 'categoria': 'outro' })
     cid = r.json()['id']
     resp = client.patch(f'{BASE_URL}{cid}/', { 'nome': 'Centro C Updated' }, format='json')
@@ -50,8 +50,8 @@ def test_update_centrocusto():
     assert resp.json()['nome'] == 'Centro C Updated'
 
 
-def test_delete_centrocusto():
-    client, user = create_user_client()
+def test_delete_centrocusto(client_with_tenant_staff):
+    client, user = client_with_tenant_staff
     r = client.post(BASE_URL, { 'codigo': 'C004', 'nome': 'Centro D', 'categoria': 'alimentacao' })
     cid = r.json()['id']
     resp = client.delete(f'{BASE_URL}{cid}/')

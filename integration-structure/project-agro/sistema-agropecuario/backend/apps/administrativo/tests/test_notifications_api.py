@@ -4,13 +4,16 @@ from rest_framework.test import APIClient
 from rest_framework import status
 import pytest
 from apps.administrativo.models import Notificacao
+from apps.fazendas.models import Tenant
 
 User = get_user_model()
 
 @pytest.mark.django_db
-def test_nao_lidas_and_marcar_todas_lidas_endpoints():
-    user = User.objects.create_user(username='testuser', password='pass')
-    other = User.objects.create_user(username='other', password='pass')
+def test_nao_lidas_and_marcar_todas_lidas_endpoints(user_with_tenant):
+    user, tenant = user_with_tenant
+    
+    # Create another user in same tenant for isolation test
+    other = User.objects.create_user(username='other', password='pass', tenant=tenant)
 
     # create notifications
     Notificacao.objects.create(titulo='One', mensagem='First', usuario=user, lida=False)

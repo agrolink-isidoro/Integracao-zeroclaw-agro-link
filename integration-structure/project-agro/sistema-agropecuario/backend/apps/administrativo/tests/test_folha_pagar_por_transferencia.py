@@ -3,15 +3,45 @@ from decimal import Decimal
 from django.contrib.auth import get_user_model
 from apps.administrativo.models import FolhaPagamento, FolhaPagamentoItem, Funcionario
 from apps.financeiro.models import ContaBancaria, Transferencia, PaymentAllocation, Vencimento
+from apps.fazendas.models import Tenant, Proprietario, Fazenda
 
 from django.urls import reverse
 
 User = get_user_model()
 
-class FolhaPagarPorTransferenciaAPITests(TestCase):
+
+class TenantTestCase(TestCase):
+    """Base class para testes com multi-tenancy"""
     def setUp(self):
-        self.user = User.objects.create_user('paytester', 'p@example.com', 'pw')
+        super().setUp()
+        self.tenant, _ = Tenant.objects.get_or_create(
+            nome="test_tenant_" + self.__class__.__name__,
+            defaults={"descricao": "Tenant para testes"}
+        )
+        self.proprietario, _ = Proprietario.objects.get_or_create(
+            tenant=self.tenant,
+            nome="Test Owner",
+            cpf="00000000000",
+            defaults={"email": "owner@test.local", "telefone": "11999999999"}
+        )
+        self.user = User.objects.create(
+            username=f'user_{self.__class__.__name__}',
+            email='user@test.local',
+            tenant=self.tenant
+        )
+        self.fazenda, _ = Fazenda.objects.get_or_create(
+            tenant=self.tenant,
+            nome="Test Farm",
+            proprietario=self.proprietario,
+            defaults={"descricao": "Fazenda para testes"}
+        )
         self.client.force_login(self.user)
+
+
+class FolhaPagarPorTransferenciaAPITests(TenantTestCase):
+    def setUp(self):
+        super().setUp()
+        # Now self.user, self.tenant, self.fazenda are available
         self.c1 = ContaBancaria.objects.create(banco='Banco A', agencia='0001', conta='1111', saldo_inicial=Decimal('10000'))
         self.func1 = Funcionario.objects.create(nome='Alice', cpf='123', salario_bruto=Decimal('2000.00'))
         self.func2 = Funcionario.objects.create(nome='Bob', cpf='456', salario_bruto=Decimal('1500.00'))
