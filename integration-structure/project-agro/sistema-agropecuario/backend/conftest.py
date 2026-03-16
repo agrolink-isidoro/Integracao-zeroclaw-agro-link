@@ -251,7 +251,7 @@ def authenticated_user_with_tenant():
     # 1. Criar Tenant (organização/cliente do sistema)
     tenant, _ = Tenant.objects.get_or_create(
         nome="test_tenant",
-        defaults={"descricao": "Tenant para testes automatizados"}
+        defaults={"slug": "test-tenant"}
     )
     
     # 2. Criar Proprietario (dono de fazendas)
@@ -345,7 +345,7 @@ def user_with_tenant():
     
     tenant, _ = Tenant.objects.get_or_create(
         nome="test_tenant",
-        defaults={"descricao": "Tenant para testes automatizados"}
+        defaults={"slug": "test-tenant"}
     )
     
     proprietario, _ = Proprietario.objects.get_or_create(
