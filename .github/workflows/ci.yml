@@ -12,15 +12,30 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # ─────────────────────────────────────────────
-  # Job 1: Backend – pytest (SQLite, sem PostGIS)
-  # ─────────────────────────────────────────────
+  # ─────────────────────────────────────────────────────────────────────────
+  # Job 1: Backend – pytest com PostGIS real (service container)
+  # ─────────────────────────────────────────────────────────────────────────
   backend-tests:
-    name: Backend Tests (pytest)
+    name: Backend Tests (pytest + PostGIS)
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: integration-structure/project-agro/sistema-agropecuario/backend
+
+    services:
+      db:
+        image: postgis/postgis:15-3.4
+        env:
+          POSTGRES_DB: agro_db
+          POSTGRES_USER: agro_user
+          POSTGRES_PASSWORD: agro_password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U agro_user -d agro_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
 
     steps:
       - uses: actions/checkout@v4
@@ -32,8 +47,8 @@ jobs:
           cache: pip
           cache-dependency-path: integration-structure/project-agro/sistema-agropecuario/backend/requirements.txt
 
-      # Libs necessárias para xmlsec, lxml, poppler (NF-e/PDF), libpq, GDAL,
-      # pyzbar, WeasyPrint e pytesseract (espelho do Dockerfile de produção)
+      # Libs necessárias para xmlsec, lxml, poppler, GDAL, pyzbar, WeasyPrint,
+      # pytesseract – espelho exato do Dockerfile de produção
       - name: Install system dependencies
         run: |
           sudo apt-get update -qq
@@ -42,7 +57,7 @@ jobs:
             libxml2-dev libxslt1-dev \
             libxmlsec1-dev libxmlsec1-openssl xmlsec1 \
             libssl-dev libjpeg-dev poppler-utils \
-            libpq-dev \
+            libpq-dev postgresql-client \
             gdal-bin libgdal-dev libgeos-dev libproj-dev \
             libzbar0 libzbar-dev \
             tesseract-ocr libtesseract-dev libleptonica-dev \
@@ -54,15 +69,22 @@ jobs:
       - name: Install Python dependencies
         run: pip install -r requirements.txt
 
-      - name: Run pytest (SQLite in-memory, sem PostGIS)
+      - name: Run migrations
         env:
-          USE_SQLITE_FOR_TESTS: '1'
+          DATABASE_URL: postgresql://agro_user:agro_password@localhost:5432/agro_db
+          DJANGO_SETTINGS_MODULE: sistema_agropecuario.settings.test
+          SECRET_KEY: 'ci-only-insecure-key'
+          GDAL_LIBRARY_PATH: /usr/lib/x86_64-linux-gnu/
+          GDAL_CONFIG: /usr/bin/gdal-config
+        run: python manage.py migrate --noinput
+
+      - name: Run pytest (PostGIS real)
+        env:
+          DATABASE_URL: postgresql://agro_user:agro_password@localhost:5432/agro_db
           DJANGO_SETTINGS_MODULE: sistema_agropecuario.settings.test
           SECRET_KEY: 'ci-only-insecure-key'
           DEBUG: 'True'
-          # Isidoro/ZeroClaw – mocks cobertos pelos testes, não requer chave real
           ISIDORO_API_KEY: 'ci-placeholder'
-          # Paths para GDAL (necessário mesmo no modo SQLite ao importar models GIS)
           GDAL_LIBRARY_PATH: /usr/lib/x86_64-linux-gnu/
           GDAL_CONFIG: /usr/bin/gdal-config
         run: pytest --tb=short -q
