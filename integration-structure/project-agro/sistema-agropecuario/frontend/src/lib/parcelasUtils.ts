@@ -2,7 +2,7 @@
 // UTILIDADES PARA GERAÇÃO DE PARCELAS
 // ========================================
 
-import { ParcelaVenda } from '@/types/contratosSplit';
+import type { ParcelaVenda } from '@/types/contratosSplit';
 
 interface GerarParcelasParams {
   valor_total: number;
@@ -65,7 +65,6 @@ export function gerarParcelas(params: GerarParcelasParams): ParcelaVenda[] {
     const valor = i === numero_parcelas ? Number((valor_total - valorParcela * (i - 1)).toFixed(2)) : valorParcela;
 
     parcelas.push({
-      id: `parcela-${i}`,
       numero_parcela: i,
       data_vencimento: dataVencimento,
       valor,
@@ -103,7 +102,7 @@ export function formatarParcelasPadraoExibicao(parcelas: ParcelaVenda[]): Parcel
  */
 export function calcularValorPago(parcelas: ParcelaVenda[]): number {
   return parcelas
-    .filter((p) => p.status === 'pago' || p.status === 'liquidado')
+    .filter((p) => p.status === 'paga')
     .reduce((acc, p) => acc + p.valor, 0);
 }
 
@@ -112,7 +111,7 @@ export function calcularValorPago(parcelas: ParcelaVenda[]): number {
  */
 export function calcularValorPendente(parcelas: ParcelaVenda[]): number {
   return parcelas
-    .filter((p) => p.status === 'pendente' || p.status === 'vencido')
+    .filter((p) => p.status === 'pendente' || p.status === 'vencida')
     .reduce((acc, p) => acc + p.valor, 0);
 }
 
@@ -122,7 +121,7 @@ export function calcularValorPendente(parcelas: ParcelaVenda[]): number {
 export function temParcelaVencida(parcelas: ParcelaVenda[]): boolean {
   const hoje = new Date();
   return parcelas.some((p) => {
-    if (p.status === 'pago' || p.status === 'liquidado') return false;
+    if (p.status === 'paga') return false;
     const dataVencimento = new Date(p.data_vencimento);
     return dataVencimento < hoje;
   });

@@ -227,8 +227,8 @@ const ColheitasList: React.FC = () => {
   const totalSessaoFinalizada = (s: HarvestSession) =>
     (movimentacoes || []).filter(m => {
       if (!s.itens || s.itens.length === 0) return false;
-      return s.itens.some(it => {
-        const mSI = typeof m.session_item === 'object' ? (m.session_item?.id ?? null) : m.session_item;
+      return (s.itens as SessionItem[]).some((it: SessionItem) => {
+        const mSI = typeof m.session_item === 'object' ? ((m.session_item as any)?.id ?? null) : m.session_item;
         const mTal = typeof m.talhao === 'object' ? ((m.talhao as any)?.id ?? null) : m.talhao;
         return (mSI && it.id && mSI === it.id) || (mTal && it.talhao && mTal === it.talhao);
       });
@@ -327,8 +327,8 @@ const ColheitasList: React.FC = () => {
                         const sumForItem = (movimentacoes || [])
                           .filter((m: MovimentacaoCarga) => {
                             // aceitar session_item como id ou objeto, talhao como id ou objeto
-                            const mSessionItemId = typeof m.session_item === 'object' ? (m.session_item?.id ?? null) : m.session_item;
-                            const mTalhaoId = typeof m.talhao === 'object' ? (m.talhao?.id ?? null) : m.talhao;
+                            const mSessionItemId = typeof m.session_item === 'object' ? ((m.session_item as any)?.id ?? null) : m.session_item;
+                            const mTalhaoId = typeof m.talhao === 'object' ? ((m.talhao as any)?.id ?? null) : m.talhao;
                             return (mSessionItemId && itemId && mSessionItemId === itemId) || (mTalhaoId && itemTalhao && mTalhaoId === itemTalhao);
                           })
                           .reduce((acc: number, m: MovimentacaoCarga) => acc + Number(m.peso_liquido || m.peso_bruto || 0), 0);
@@ -353,7 +353,7 @@ const ColheitasList: React.FC = () => {
                               onClick={() => {
                                 const pre: FinalizeTarget = { 
                                   plantioId: s.plantio, 
-                                  talhaoId: itemTalhao, 
+                                  talhaoId: itemTalhao ?? undefined, 
                                   suggestedQuantity: sumForItem || undefined, 
                                   expected: expected || undefined, 
                                   sessionItemId: itemId ?? undefined, 
@@ -387,18 +387,18 @@ const ColheitasList: React.FC = () => {
                     const sessionMovs = (movimentacoes || []).filter(m => {
                       try {
                         if (!s.itens || s.itens.length === 0) return false;
-                        return s.itens.some(it => {
+                        return (s.itens as SessionItem[]).some((it: SessionItem) => {
                           if (!it) return false;
                           const itemId = it.id ?? null;
                           const itemTalhao = it.talhao ?? null;
 
-                          const mSessionItemId = typeof m.session_item === 'object' ? (m.session_item?.id ?? null) : m.session_item;
-                          const mTalhaoId = typeof m.talhao === 'object' ? (m.talhao?.id ?? null) : m.talhao;
+                          const mSessionItemId = typeof m.session_item === 'object' ? ((m.session_item as any)?.id ?? null) : m.session_item;
+                          const mTalhaoId = typeof m.talhao === 'object' ? ((m.talhao as any)?.id ?? null) : m.talhao;
 
                           if (mSessionItemId && itemId && mSessionItemId === itemId) return true;
                           if (mTalhaoId && itemTalhao && mTalhaoId === itemTalhao) return true;
                           // fallback: compare talhao id with itemId if model shapes differ
-                          if (itemId && (mTalhaoId === itemId || (typeof m.talhao === 'object' && m.talhao?.id === itemId))) return true;
+                          if (itemId && (mTalhaoId === itemId || (typeof m.talhao === 'object' && (m.talhao as any)?.id === itemId))) return true;
                           return false;
                         });
                       } catch (e) {
@@ -417,7 +417,7 @@ const ColheitasList: React.FC = () => {
                           {sessionMovs.map((m: MovimentacaoCarga) => (
                             <li key={m.id} className="list-group-item d-flex justify-content-between align-items-start">
                               <div>
-                                <strong>{m.talhao_name || `Talhão ${m.talhao && (m.talhao.id || m.talhao)}`}</strong>
+                                <strong>{m.talhao_name || `Talhão ${m.talhao && ((m.talhao as any).id || m.talhao)}`}</strong>
                                 <div className="small text-muted">
                                   Peso: {formatQuantity((m.peso_liquido ?? m.peso_bruto) as number | undefined)} kg • 
                                   {formatDate(m.criado_em)} • {getDestinoLabelForMov(m)}
@@ -598,8 +598,8 @@ const ColheitasList: React.FC = () => {
                       <div className="card-body text-center">
                         <h6 className="text-muted">Produtividade Média</h6>
                         <h3 className="mb-0">
-                          {colheitasFinalizadas.length > 0 && colheitasFinalizadas[0].area_total 
-                            ? (totalColheitasFinalizadas / Number(colheitasFinalizadas.reduce((acc, c) => acc + Number((c as any).area_total || 0), 0))).toFixed(2)
+                          {colheitasFinalizadas.length > 0 && colheitasFinalizadas[0].area_total
+                            ? (totalColheitasFinalizadas / Number(colheitasFinalizadas.reduce((acc, c) => acc + Number(c.area_total || 0), 0))).toFixed(2)
                             : '—'
                           }
                         </h3>

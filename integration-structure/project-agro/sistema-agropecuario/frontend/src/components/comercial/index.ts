@@ -2,6 +2,6 @@
 // CONTRATOS - BARRIL DE EXPORTAÇÃO
 // ========================================
 
-export { ContratoCompraForm } from './ContratoCompraForm';
-export { ContratoVendaForm } from './ContratoVendaForm';
-export { ContratoFinanceiroForm } from './ContratoFinanceiroForm';
+export { default as ContratoCompraForm } from './ContratoCompraForm';
+export { default as ContratoVendaForm } from './ContratoVendaForm';
+export { default as ContratoFinanceiroForm } from './ContratoFinanceiroForm';

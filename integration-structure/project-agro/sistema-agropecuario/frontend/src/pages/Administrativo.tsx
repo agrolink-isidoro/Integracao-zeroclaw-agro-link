@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import CentrosCustoList from '@/components/administrativo/CentrosCustoList';
 import CentroCustoForm from '@/components/administrativo/CentroCustoForm';
 import FuncionariosList from '@/components/administrativo/FuncionariosList';
@@ -15,6 +16,7 @@ const Administrativo: React.FC = () => {
   const [activeTab, setActiveTab] = useState('dashboard');
   const { isAdmin, isSuperuser } = useRBAC();
   const { user } = useAuthContext();
+  const navigate = useNavigate();
   // isSystemAdmin: only true Django staff users can manage tenants globally.
   // NOTE: is_superuser is synthetically set to true for proprietário (farm owner)
   // users by the RBAC serializer — do NOT use it here. Only real Django is_staff
@@ -124,9 +126,9 @@ const Administrativo: React.FC = () => {
           <div className="card-body">
             <h6>Atalhos</h6>
             <div className="d-grid gap-2">
-              <a className="btn btn-outline-primary" href="/financeiro">Ir para Financeiro</a>
-              <a className="btn btn-outline-primary" href="/fiscal">Ir para Fiscal</a>
-              <a className="btn btn-outline-primary" href="/administrativo">Configurações Administrativo</a>
+              <button className="btn btn-outline-primary" onClick={() => navigate('/financeiro')}>Ir para Financeiro</button>
+              <button className="btn btn-outline-primary" onClick={() => navigate('/fiscal')}>Ir para Fiscal</button>
+              <button className="btn btn-outline-primary" onClick={() => navigate('/administrativo')}>Configurações Administrativo</button>
             </div>
           </div>
         </div>

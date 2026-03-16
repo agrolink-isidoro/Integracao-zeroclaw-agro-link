@@ -23,6 +23,23 @@ const schema = yup.object().shape({
     descricao: yup.string().required(),
     obrigatoria: yup.boolean(),
   })).default([]),
+  // Commercial contract specific optional fields
+  modalidade_comercial: yup.string(),
+  instrumento_garantia: yup.string(),
+  produto: yup.mixed(),
+  variedade: yup.string(),
+  safra: yup.mixed(),
+  quantidade: yup.mixed(),
+  unidade_medida: yup.string(),
+  qualidade_especificacao: yup.string(),
+  preco_unitario: yup.mixed(),
+  forma_pagamento: yup.string(),
+  prazo_pagamento_dias: yup.mixed(),
+  data_entrega: yup.string(),
+  local_entrega: yup.string(),
+  produto_troca_recebido: yup.mixed(),
+  quantidade_troca_recebida: yup.mixed(),
+  unidade_troca_recebida: yup.string(),
 });
 
 interface ContratoCreateProps {
@@ -35,8 +52,8 @@ const ContratoCreate: React.FC<ContratoCreateProps> = ({ onSuccess, onCancel }) 
   const [tipoContrato, setTipoContrato] = React.useState<string>('');
   const [modalidadeComercial, setModalidadeComercial] = React.useState<string>('');
   
-  const { control, handleSubmit, watch } = useForm({ 
-    resolver: yupResolver(schema), 
+  const { control, handleSubmit, watch } = useForm<any>({ 
+    resolver: yupResolver(schema) as any, 
     defaultValues: { 
       numero_contrato: '', 
       titulo: '', 

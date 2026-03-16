@@ -63,6 +63,7 @@ const VendaCreate: React.FC<VendaCreateProps> = ({ onSuccess, onCancel }) => {
   const [produtos, setProdutos] = React.useState<Array<{ id: number; nome?: string; unidade?: string }>>([]);
   const [unidadeProduto, setUnidadeProduto] = React.useState<string>('');
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
   const mutation = useMutation({
     mutationFn: (payload: unknown) => ComercialService.createVendaCompra(payload as Parameters<typeof ComercialService.createVendaCompra>[0]),
