@@ -242,18 +242,28 @@ def execute_criar_area(action) -> None:
 
         custo_arrendamento = _parse_decimal(data.get("custo_arrendamento"), "0") or None
         
-        # Processar área em hectares
+        # Area hectares processing moved below
+        # If user provided area in hectares, create an approximate geometry
+        # so the `area_hectares` computed property on Area will report it.
         area_hectares = _parse_decimal(
-            data.get("area_hectares") or data.get("area_ha") or data.get("area_size"), 
+            data.get("area_hectares") or data.get("area_ha") or data.get("area_size"),
             "0"
         ) or None
+
+        geom_wkt = None
+        if area_hectares:
+            try:
+                from apps.fazendas.serializers import AreaSerializer
+                geom_wkt = AreaSerializer()._create_approximate_geometry_from_hectares(area_hectares)
+            except Exception:
+                geom_wkt = None
 
         area = Area(
             proprietario=fazenda.proprietario,
             fazenda=fazenda,
             name=nome,
             tipo=tipo,
-            area_size=area_hectares,  # Armazena o tamanho da área
+            geom=geom_wkt,
             custo_arrendamento=custo_arrendamento if tipo == "arrendada" else None,
         )
         area.save()
