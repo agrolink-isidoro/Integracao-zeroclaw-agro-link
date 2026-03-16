@@ -390,7 +390,7 @@ class ItemEmprestimoSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError({
                 'quantidade': f'Quantidade insuficiente no estoque. Disponível: {produto.quantidade_estoque}'
             })
-        if quantidade and quantidade <= 0:
+        if quantidade is not None and quantidade <= 0:
             raise serializers.ValidationError({'quantidade': 'Quantidade deve ser maior que zero'})
 
         return super().validate(attrs)

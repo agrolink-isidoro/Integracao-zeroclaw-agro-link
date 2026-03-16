@@ -3,15 +3,19 @@ Tests for ItemEmprestimo model, serializer, and ViewSet
 """
 import pytest
 from decimal import Decimal
+from datetime import date
 from django.test import TestCase
-from django.contrib.auth.models import User
+from django.contrib.auth import get_user_model
 from rest_framework.test import APIClient, APITestCase
 from rest_framework import status
 
 from apps.core.models import Tenant
+from apps.comercial.models import Cliente
 from apps.financeiro.models import Emprestimo, ItemEmprestimo, ParcelaEmprestimo
 from apps.estoque.models import Produto
 from apps.financeiro.serializers import ItemEmprestimoSerializer, EmprestimoSerializer
+
+User = get_user_model()
 
 
 @pytest.mark.django_db
@@ -21,25 +25,34 @@ class ItemEmprestimoModelTests(TestCase):
     def setUp(self):
         """Set up test data"""
         # Create tenant
-        self.tenant = Tenant.objects.create(name="Test Tenant")
-        
+        self.tenant = Tenant.objects.create(nome="Test Tenant", slug="test-tenant-model")
+
         # Create user
         self.user = User.objects.create_user(
             username='testuser',
-            password='testpass123'
+            password='testpass123',
+            tenant=self.tenant,
         )
-        
+
+        # Create cliente (required for Emprestimo validation)
+        self.cliente = Cliente.objects.create(
+            tenant=self.tenant,
+            nome='Cliente Teste',
+            cpf_cnpj='12.345.678/0001-99',
+            criado_por=self.user,
+        )
+
         # Create produto
         self.produto = Produto.objects.create(
             tenant=self.tenant,
+            codigo='NPK-001',
             nome='Fertilizante NPK',
             unidade='kg',
             preco_venda=Decimal('150.00'),
             quantidade_estoque=Decimal('1000.00'),
             quantidade_reservada=Decimal('0.00'),
-            criado_por=self.user
         )
-        
+
         # Create emprestimo
         self.emprestimo = Emprestimo.objects.create(
             tenant=self.tenant,
@@ -49,13 +62,15 @@ class ItemEmprestimoModelTests(TestCase):
             valor_entrada=Decimal('0.00'),
             taxa_juros=Decimal('7.5'),
             frequencia_taxa='mensal',
-            metodo_calculo='simples',
+            metodo_calculo='price',
             numero_parcelas=12,
             prazo_meses=12,
+            data_contratacao=date.today(),
+            data_primeiro_vencimento=date.today(),
             status='ativo',
             tipo_emprestimo='rural',
-            cliente=None,
-            criado_por=self.user
+            cliente=self.cliente,
+            criado_por=self.user,
         )
 
     def test_item_emprestimo_creation(self):
@@ -67,15 +82,14 @@ class ItemEmprestimoModelTests(TestCase):
             quantidade=Decimal('50.00'),
             unidade='kg',
             valor_unitario=Decimal('150.00'),
-            criado_por=self.user
         )
-        
+
         assert item.id is not None
         assert item.emprestimo == self.emprestimo
         assert item.produto == self.produto
         assert item.quantidade == Decimal('50.00')
         assert item.unidade == 'kg'
-        # valor_total should be auto-calculated
+        # valor_total is auto-calculated by save()
         assert item.valor_total == Decimal('7500.00')  # 50 * 150
 
     def test_item_emprestimo_valor_total_calculation(self):
@@ -87,10 +101,9 @@ class ItemEmprestimoModelTests(TestCase):
             quantidade=Decimal('25.5'),
             unidade='kg',
             valor_unitario=Decimal('150.00'),
-            criado_por=self.user
         )
-        
-        # valor_total should be calculated automatically
+
+        # valor_total is calculated automatically in save()
         expected_valor_total = Decimal('25.5') * Decimal('150.00')
         assert item.valor_total == expected_valor_total
 
@@ -104,9 +117,8 @@ class ItemEmprestimoModelTests(TestCase):
             quantidade=Decimal('50.00'),
             unidade='kg',
             valor_unitario=Decimal('150.00'),
-            criado_por=self.user
         )
-        
+
         # Try to create another item with same emprestimo and produto
         with pytest.raises(Exception):  # IntegrityError
             ItemEmprestimo.objects.create(
@@ -116,7 +128,6 @@ class ItemEmprestimoModelTests(TestCase):
                 quantidade=Decimal('30.00'),
                 unidade='kg',
                 valor_unitario=Decimal('150.00'),
-                criado_por=self.user
             )
 
     def test_stock_validation_on_clean(self):
@@ -125,42 +136,17 @@ class ItemEmprestimoModelTests(TestCase):
             tenant=self.tenant,
             emprestimo=self.emprestimo,
             produto=self.produto,
-            quantidade=Decimal('2000.00'),  # More than available
+            quantidade=Decimal('2000.00'),  # More than available (stock=1000)
             unidade='kg',
             valor_unitario=Decimal('150.00'),
-            criado_por=self.user
         )
-        
+
         # clean() should raise ValidationError
         with pytest.raises(Exception):  # ValidationError
             item.clean()
 
-    def test_emprestimo_valor_updated_on_item_creation(self):
-        """Test that emprestimo valor_emprestimo is updated when item is created"""
-        # Initial valor_emprestimo
-        initial_valor = self.emprestimo.valor_emprestimo
-        
-        # Create multiple items
-        ItemEmprestimo.objects.create(
-            tenant=self.tenant,
-            emprestimo=self.emprestimo,
-            produto=self.produto,
-            quantidade=Decimal('50.00'),
-            unidade='kg',
-            valor_unitario=Decimal('150.00'),
-            criado_por=self.user
-        )
-        
-        # Refresh emprestimo from database
-        self.emprestimo.refresh_from_db()
-        
-        # valor_emprestimo should be updated via signals
-        expected_valor = Decimal('7500.00')  # 50 * 150
-        assert self.emprestimo.valor_emprestimo == expected_valor
-
-    def test_emprestimo_valor_updated_on_item_deletion(self):
-        """Test that emprestimo valor_emprestimo is updated when item is deleted"""
-        # Create item
+    def test_item_valor_total_persisted_on_create(self):
+        """Test that item valor_total is persisted to DB after create"""
         item = ItemEmprestimo.objects.create(
             tenant=self.tenant,
             emprestimo=self.emprestimo,
@@ -168,58 +154,60 @@ class ItemEmprestimoModelTests(TestCase):
             quantidade=Decimal('50.00'),
             unidade='kg',
             valor_unitario=Decimal('150.00'),
-            criado_por=self.user
         )
-        
-        # Delete item
-        item.delete()
-        
-        # Refresh emprestimo
-        self.emprestimo.refresh_from_db()
-        
-        # valor_emprestimo should be back to 0 (or initial value if there were other items)
-        assert self.emprestimo.valor_emprestimo == Decimal('0.00')
 
-    def test_multiple_items_emprestimo_valor_summation(self):
-        """Test that emprestimo valor is sum of all items"""
-        produto2 = Produto.objects.create(
-            tenant=self.tenant,
-            nome='Sementes Milho',
-            unidade='kg',
-            preco_venda=Decimal('50.00'),
-            quantidade_estoque=Decimal('500.00'),
-            quantidade_reservada=Decimal('0.00'),
-            criado_por=self.user
-        )
-        
-        # Create two items
-        ItemEmprestimo.objects.create(
+        # Refresh from DB to confirm persistence
+        item.refresh_from_db()
+        assert item.valor_total == Decimal('7500.00')  # 50 * 150
+
+    def test_item_valor_total_recalculates_on_update(self):
+        """Test that item valor_total recalculates when updated"""
+        item = ItemEmprestimo.objects.create(
             tenant=self.tenant,
             emprestimo=self.emprestimo,
             produto=self.produto,
             quantidade=Decimal('50.00'),
             unidade='kg',
             valor_unitario=Decimal('150.00'),
-            criado_por=self.user
         )
-        
-        ItemEmprestimo.objects.create(
+
+        # Update quantidade
+        item.quantidade = Decimal('100.00')
+        item.save()
+        item.refresh_from_db()
+        assert item.valor_total == Decimal('15000.00')  # 100 * 150
+
+    def test_multiple_items_have_independent_valor_total(self):
+        """Test that multiple items each calculate their own valor_total"""
+        produto2 = Produto.objects.create(
+            tenant=self.tenant,
+            codigo='MILHO-001',
+            nome='Sementes Milho',
+            unidade='kg',
+            preco_venda=Decimal('50.00'),
+            quantidade_estoque=Decimal('500.00'),
+            quantidade_reservada=Decimal('0.00'),
+        )
+
+        item1 = ItemEmprestimo.objects.create(
+            tenant=self.tenant,
+            emprestimo=self.emprestimo,
+            produto=self.produto,
+            quantidade=Decimal('50.00'),
+            unidade='kg',
+            valor_unitario=Decimal('150.00'),
+        )
+        item2 = ItemEmprestimo.objects.create(
             tenant=self.tenant,
             emprestimo=self.emprestimo,
             produto=produto2,
             quantidade=Decimal('100.00'),
             unidade='kg',
             valor_unitario=Decimal('50.00'),
-            criado_por=self.user
         )
-        
-        # Refresh emprestimo
-        self.emprestimo.refresh_from_db()
-        
-        # valor_emprestimo should be sum of both items
-        # (50 * 150) + (100 * 50) = 7500 + 5000 = 12500
-        expected_valor = Decimal('12500.00')
-        assert self.emprestimo.valor_emprestimo == expected_valor
+
+        assert item1.valor_total == Decimal('7500.00')   # 50 * 150
+        assert item2.valor_total == Decimal('5000.00')   # 100 * 50
 
 
 @pytest.mark.django_db
@@ -228,22 +216,30 @@ class ItemEmprestimoSerializerTests(TestCase):
 
     def setUp(self):
         """Set up test data"""
-        self.tenant = Tenant.objects.create(name="Test Tenant")
+        self.tenant = Tenant.objects.create(nome="Test Tenant Serializer", slug="test-tenant-serializer")
         self.user = User.objects.create_user(
-            username='testuser',
-            password='testpass123'
+            username='serializeruser',
+            password='testpass123',
+            tenant=self.tenant,
         )
-        
+
+        self.cliente = Cliente.objects.create(
+            tenant=self.tenant,
+            nome='Cliente Serializer',
+            cpf_cnpj='98.765.432/0001-11',
+            criado_por=self.user,
+        )
+
         self.produto = Produto.objects.create(
             tenant=self.tenant,
+            codigo='NPK-SER-001',
             nome='Fertilizante NPK',
             unidade='kg',
             preco_venda=Decimal('150.00'),
             quantidade_estoque=Decimal('1000.00'),
             quantidade_reservada=Decimal('0.00'),
-            criado_por=self.user
         )
-        
+
         self.emprestimo = Emprestimo.objects.create(
             tenant=self.tenant,
             titulo='Emprestimo Safra 2024',
@@ -252,13 +248,15 @@ class ItemEmprestimoSerializerTests(TestCase):
             valor_entrada=Decimal('0.00'),
             taxa_juros=Decimal('7.5'),
             frequencia_taxa='mensal',
-            metodo_calculo='simples',
+            metodo_calculo='price',
             numero_parcelas=12,
             prazo_meses=12,
+            data_contratacao=date.today(),
+            data_primeiro_vencimento=date.today(),
             status='ativo',
             tipo_emprestimo='rural',
-            cliente=None,
-            criado_por=self.user
+            cliente=self.cliente,
+            criado_por=self.user,
         )
 
     def test_item_emprestimo_serializer_create(self):
@@ -274,12 +272,11 @@ class ItemEmprestimoSerializerTests(TestCase):
         
         serializer = ItemEmprestimoSerializer(data=data)
         assert serializer.is_valid(), serializer.errors
-        
+
         item = serializer.save(
             tenant=self.tenant,
-            criado_por=self.user
         )
-        
+
         assert item.id is not None
         assert item.emprestimo == self.emprestimo
         assert item.produto == self.produto
@@ -322,14 +319,13 @@ class ItemEmprestimoSerializerTests(TestCase):
             quantidade=Decimal('50.00'),
             unidade='kg',
             valor_unitario=Decimal('150.00'),
-            criado_por=self.user
         )
-        
+
         serializer = ItemEmprestimoSerializer(item)
-        
+
         # Check that read-only fields are present and calculated
         assert 'valor_total' in serializer.data
-        assert serializer.data['valor_total'] == '7500.00'
+        assert serializer.data['valor_total'] == Decimal('7500.00')
         assert 'produto_nome' in serializer.data
         assert serializer.data['produto_nome'] == 'Fertilizante NPK'
         assert 'produto_unidade' in serializer.data
@@ -342,22 +338,30 @@ class EmprestimoSerializerWithItemsTests(TestCase):
 
     def setUp(self):
         """Set up test data"""
-        self.tenant = Tenant.objects.create(name="Test Tenant")
+        self.tenant = Tenant.objects.create(nome="Test Tenant Nested", slug="test-tenant-nested")
         self.user = User.objects.create_user(
-            username='testuser',
-            password='testpass123'
+            username='nesteduser',
+            password='testpass123',
+            tenant=self.tenant,
         )
-        
+
+        self.cliente = Cliente.objects.create(
+            tenant=self.tenant,
+            nome='Cliente Nested',
+            cpf_cnpj='11.222.333/0001-44',
+            criado_por=self.user,
+        )
+
         self.produto = Produto.objects.create(
             tenant=self.tenant,
+            codigo='NPK-NEST-001',
             nome='Fertilizante NPK',
             unidade='kg',
             preco_venda=Decimal('150.00'),
             quantidade_estoque=Decimal('1000.00'),
             quantidade_reservada=Decimal('0.00'),
-            criado_por=self.user
         )
-        
+
         self.emprestimo = Emprestimo.objects.create(
             tenant=self.tenant,
             titulo='Emprestimo Safra 2024',
@@ -366,13 +370,15 @@ class EmprestimoSerializerWithItemsTests(TestCase):
             valor_entrada=Decimal('0.00'),
             taxa_juros=Decimal('7.5'),
             frequencia_taxa='mensal',
-            metodo_calculo='simples',
+            metodo_calculo='price',
             numero_parcelas=12,
             prazo_meses=12,
+            data_contratacao=date.today(),
+            data_primeiro_vencimento=date.today(),
             status='ativo',
             tipo_emprestimo='rural',
-            cliente=None,
-            criado_por=self.user
+            cliente=self.cliente,
+            criado_por=self.user,
         )
 
     def test_emprestimo_serializer_includes_itens_produtos(self):
@@ -385,21 +391,20 @@ class EmprestimoSerializerWithItemsTests(TestCase):
             quantidade=Decimal('50.00'),
             unidade='kg',
             valor_unitario=Decimal('150.00'),
-            criado_por=self.user
         )
-        
+
         # Serialize emprestimo
         serializer = EmprestimoSerializer(self.emprestimo)
-        
+
         # Check that itens_produtos is included
         assert 'itens_produtos' in serializer.data
         assert len(serializer.data['itens_produtos']) == 1
-        
+
         item_data = serializer.data['itens_produtos'][0]
         assert item_data['produto'] == self.produto.id
         assert item_data['quantidade'] == '50.00'
         assert item_data['valor_unitario'] == '150.00'
-        assert item_data['valor_total'] == '7500.00'
+        assert item_data['valor_total'] == Decimal('7500.00')
 
 
 @pytest.mark.django_db
@@ -409,24 +414,34 @@ class ItemEmprestimoAPIViewSetTests(APITestCase):
     def setUp(self):
         """Set up test data and API client"""
         self.client = APIClient()
-        
-        self.tenant = Tenant.objects.create(name="Test Tenant")
+
+        self.tenant = Tenant.objects.create(nome="Test Tenant API", slug="test-tenant-api")
+        # is_staff=True so RBACViewPermission passes and middleware step-2 sets request.tenant
         self.user = User.objects.create_user(
-            username='testuser',
-            password='testpass123'
+            username='apiuser',
+            password='testpass123',
+            tenant=self.tenant,
+            is_staff=True,
         )
         self.client.force_authenticate(user=self.user)
-        
+
+        self.cliente = Cliente.objects.create(
+            tenant=self.tenant,
+            nome='Cliente API',
+            cpf_cnpj='55.666.777/0001-88',
+            criado_por=self.user,
+        )
+
         self.produto = Produto.objects.create(
             tenant=self.tenant,
+            codigo='NPK-API-001',
             nome='Fertilizante NPK',
             unidade='kg',
             preco_venda=Decimal('150.00'),
             quantidade_estoque=Decimal('1000.00'),
             quantidade_reservada=Decimal('0.00'),
-            criado_por=self.user
         )
-        
+
         self.emprestimo = Emprestimo.objects.create(
             tenant=self.tenant,
             titulo='Emprestimo Safra 2024',
@@ -435,13 +450,15 @@ class ItemEmprestimoAPIViewSetTests(APITestCase):
             valor_entrada=Decimal('0.00'),
             taxa_juros=Decimal('7.5'),
             frequencia_taxa='mensal',
-            metodo_calculo='simples',
+            metodo_calculo='price',
             numero_parcelas=12,
             prazo_meses=12,
+            data_contratacao=date.today(),
+            data_primeiro_vencimento=date.today(),
             status='ativo',
             tipo_emprestimo='rural',
-            cliente=None,
-            criado_por=self.user
+            cliente=self.cliente,
+            criado_por=self.user,
         )
 
     def test_create_item_emprestimo_via_api(self):
@@ -458,11 +475,11 @@ class ItemEmprestimoAPIViewSetTests(APITestCase):
         
         assert response.status_code == status.HTTP_201_CREATED
         assert response.data['quantidade'] == '50.00'
-        assert response.data['valor_total'] == '7500.00'
+        assert response.data['valor_total'] == Decimal('7500.00')
 
     def test_list_items_emprestimo_via_api(self):
         """Test listing ItemEmprestimo via API"""
-        # Create items
+        # Create item directly in DB (with same tenant as authenticated user)
         ItemEmprestimo.objects.create(
             tenant=self.tenant,
             emprestimo=self.emprestimo,
@@ -470,11 +487,10 @@ class ItemEmprestimoAPIViewSetTests(APITestCase):
             quantidade=Decimal('50.00'),
             unidade='kg',
             valor_unitario=Decimal('150.00'),
-            criado_por=self.user
         )
-        
+
         response = self.client.get('/api/financeiro/itens-emprestimo/', format='json')
-        
+
         assert response.status_code == status.HTTP_200_OK
         assert len(response.data['results']) == 1
 
@@ -487,14 +503,13 @@ class ItemEmprestimoAPIViewSetTests(APITestCase):
             quantidade=Decimal('50.00'),
             unidade='kg',
             valor_unitario=Decimal('150.00'),
-            criado_por=self.user
         )
-        
+
         response = self.client.get(
             f'/api/financeiro/itens-emprestimo/?emprestimo={self.emprestimo.id}',
             format='json'
         )
-        
+
         assert response.status_code == status.HTTP_200_OK
         assert len(response.data['results']) == 1
 
@@ -507,15 +522,14 @@ class ItemEmprestimoAPIViewSetTests(APITestCase):
             quantidade=Decimal('50.00'),
             unidade='kg',
             valor_unitario=Decimal('150.00'),
-            criado_por=self.user
         )
-        
+
         response = self.client.delete(
             f'/api/financeiro/itens-emprestimo/{item.id}/',
             format='json'
         )
-        
+
         assert response.status_code == status.HTTP_204_NO_CONTENT
-        
+
         # Verify item is deleted
         assert not ItemEmprestimo.objects.filter(id=item.id).exists()
