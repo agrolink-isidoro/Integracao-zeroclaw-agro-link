@@ -85,23 +85,23 @@ const AreasList: React.FC = () => {
       )
     },
     {
-      key: 'fazenda',
+      key: 'fazenda_nome',
       header: 'Fazenda',
-      render: (value: any, _item: Area) => (
+      render: (_value: any, item: Area) => (
         <span className="badge bg-info text-dark">
           <i className="bi bi-house-door me-1"></i>
-          Fazenda {value as number}
+          {item.fazenda_nome || `Fazenda ${item.fazenda}`}
         </span>
       ),
       sortable: true
     },
     {
-      key: 'proprietario',
+      key: 'proprietario_nome',
       header: 'Proprietário',
-      render: (value: any, _item: Area) => (
+      render: (_value: any, item: Area) => (
         <span className="text-muted">
           <i className="bi bi-person me-1"></i>
-          Proprietário {value as number}
+          {item.proprietario_nome || `Proprietário ${item.proprietario}`}
         </span>
       ),
       sortable: true

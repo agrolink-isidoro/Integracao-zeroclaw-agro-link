@@ -49,10 +49,12 @@ export interface Area {
   id: number;
   fazenda: number;
   fazenda_detail?: Fazenda;
+  fazenda_nome?: string;
   name: string;
   geom: string; // WKT or GeoJSON
   proprietario?: number;
   proprietario_detail?: Proprietario;
+  proprietario_nome?: string;
   tipo?: 'propria' | 'arrendada';
   custo_arrendamento?: number;
   area_hectares?: number; // Calculado pelo backend via PostGIS
