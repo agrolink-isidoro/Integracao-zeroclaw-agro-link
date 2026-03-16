@@ -72,6 +72,9 @@ export interface Talhao {
   id: number;
   area: number;
   area_detail?: Area;
+  area_nome?: string;
+  fazenda_id?: number;
+  fazenda_nome?: string;
   name: string;
   area_size: number;
   area_hectares?: number; // Calculado pelo backend via PostGIS

@@ -58,23 +58,23 @@ const TalhaosList: React.FC = () => {
       )
     },
     {
-      key: 'area',
+      key: 'area_nome',
       header: 'Área',
       render: (_value: any, item: Talhao) => (
         <span className="badge bg-success-subtle text-success">
           <i className="bi bi-geo-alt me-1"></i>
-          {item.area_detail?.name || `Área ${item.area}`}
+          {item.area_nome || `Área ${item.area}`}
         </span>
       ),
       sortable: true
     },
     {
-      key: 'fazenda',
+      key: 'fazenda_nome',
       header: 'Fazenda',
       render: (_value: any, item: Talhao) => (
         <span className="text-muted">
           <i className="bi bi-building me-1"></i>
-          {item.area_detail?.fazenda_detail?.name || '-'}
+          {item.fazenda_nome || '-'}
         </span>
       ),
     },
