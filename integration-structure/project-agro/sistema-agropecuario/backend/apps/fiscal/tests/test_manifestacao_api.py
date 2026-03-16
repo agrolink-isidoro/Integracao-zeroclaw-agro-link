@@ -29,12 +29,13 @@ class TenantTestCase(TestCase):
     """
     def setUp(self):
         super().setUp()
-        from apps.fazendas.models import Proprietario, Fazenda, Tenant
+        from apps.core.models import Tenant
+        from apps.fazendas.models import Proprietario, Fazenda
         
         # 1. Criar tenant
         self.tenant, _ = Tenant.objects.get_or_create(
             nome="test_tenant_" + self.__class__.__name__,
-            defaults={"descricao": "Tenant para testes"}
+            defaults={"slug": f"test-{self.__class__.__name__.lower()}"}
         )
         
         # 2. Criar proprietario

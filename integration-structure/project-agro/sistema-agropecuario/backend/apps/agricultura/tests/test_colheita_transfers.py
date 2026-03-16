@@ -15,7 +15,7 @@ class TenantTestCase(TestCase):
         super().setUp()
         self.tenant, _ = Tenant.objects.get_or_create(
             nome="test_tenant_" + self.__class__.__name__,
-            defaults={"descricao": "Tenant para testes"}
+            defaults={"slug": f"test-{self.__class__.__name__.lower()}"}
         )
         self.proprietario, _ = Proprietario.objects.get_or_create(
             tenant=self.tenant,
