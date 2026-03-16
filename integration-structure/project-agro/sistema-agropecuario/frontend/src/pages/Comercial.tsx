@@ -673,12 +673,12 @@ const Comercial: React.FC = () => {
         }}
       />
 
-      <ModalForm isOpen={showClienteModal} onClose={() => setShowClienteModal(false)} title="Novo Cliente">
+      <ModalForm isOpen={showClienteModal} onClose={() => setShowClienteModal(false)} title="Novo Cliente" size="xl">
         <ClienteCreate onSuccess={(data: any) => { setShowClienteModal(false); }} onCancel={() => setShowClienteModal(false)} />
       </ModalForm>
 
       {/* Modal editar cliente */}
-      <ModalForm isOpen={!!editingCliente} onClose={() => setEditingCliente(null)} title="Editar Cliente">
+      <ModalForm isOpen={!!editingCliente} onClose={() => setEditingCliente(null)} title="Editar Cliente" size="xl">
         <ClienteCreate initialData={editingCliente} onSuccess={() => { setEditingCliente(null); }} onCancel={() => setEditingCliente(null)} />
       </ModalForm>
 

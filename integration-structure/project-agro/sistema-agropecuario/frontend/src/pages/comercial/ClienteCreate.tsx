@@ -158,17 +158,8 @@ const ClienteCreate: React.FC<ClienteCreateProps> = ({ onSuccess, onCancel, init
     }
   };
 
-  return (
-    <div className="container-fluid py-4">
-      {!onCancel && (
-        <div className="d-flex justify-content-between align-items-center mb-3">
-          <h2>{isEditing ? 'Editar Cliente' : 'Novo Cliente'}</h2>
-        </div>
-      )}
-
-      <div className="card">
-        <div className="card-body">
-          <form onSubmit={handleSubmit(onSubmit)}>
+  const formContent = (
+    <form onSubmit={handleSubmit(onSubmit)}>
             {/* Dados Principais */}
             <div className="mb-4">
               <h6 className="text-primary mb-3">
@@ -430,6 +421,22 @@ const ClienteCreate: React.FC<ClienteCreateProps> = ({ onSuccess, onCancel, init
               </Button>
             </div>
           </form>
+  );
+
+  // Modal mode: render form directly without container/card wrappers
+  if (onCancel) {
+    return formContent;
+  }
+
+  // Page mode: wrap with container, heading and card
+  return (
+    <div className="container-fluid py-4">
+      <div className="d-flex justify-content-between align-items-center mb-3">
+        <h2>{isEditing ? 'Editar Cliente' : 'Novo Cliente'}</h2>
+      </div>
+      <div className="card">
+        <div className="card-body">
+          {formContent}
         </div>
       </div>
     </div>
