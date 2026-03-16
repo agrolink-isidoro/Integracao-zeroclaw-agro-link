@@ -9,7 +9,7 @@ import os
 import logging
 from .models import (
     Proprietario, Fazenda, Area, Talhao, Arrendamento, CotacaoSaca,
-    DocumentoArrendamento, ParcelaArrendamento
+    DocumentoArrendamento, ParcelaArrendamento, MatriculaFazenda
 )
 
 logger = logging.getLogger(__name__)
@@ -228,11 +228,17 @@ class AreaSerializer(GeoFeatureModelSerializer):
     kml_file = serializers.FileField(write_only=True, required=False)
     area_hectares_manual = serializers.DecimalField(max_digits=12, decimal_places=2, write_only=True, required=False, allow_null=True)
     area_hectares = serializers.ReadOnlyField()
+    proprietario_nome = serializers.CharField(source='proprietario.nome', read_only=True)
+    fazenda_nome = serializers.CharField(source='fazenda.name', read_only=True)
 
     class Meta:
         model = Area
         geo_field = "geom"
-        fields = ["id", "proprietario", "fazenda", "name", "tipo", "geom", "custo_arrendamento", "area_hectares", "talhoes", "kml_file", "area_hectares_manual"]
+        fields = [
+            "id", "proprietario", "proprietario_nome", "fazenda", "fazenda_nome",
+            "name", "tipo", "geom", "custo_arrendamento", "area_hectares",
+            "talhoes", "kml_file", "area_hectares_manual"
+        ]
         read_only_fields = ["id"]
 
     def _create_approximate_geometry_from_hectares(self, hectares):
@@ -398,10 +404,11 @@ class FazendaSerializer(serializers.ModelSerializer):
     proprietario_nome = serializers.CharField(source='proprietario.nome', read_only=True)
     areas_count = serializers.SerializerMethodField()
     total_hectares = serializers.SerializerMethodField()
+    todas_matriculas = serializers.SerializerMethodField()
 
     class Meta:
         model = Fazenda
-        fields = ["id", "proprietario", "proprietario_nome", "name", "matricula", "areas", "areas_count", "total_hectares"]
+        fields = ["id", "proprietario", "proprietario_nome", "name", "matricula", "areas", "areas_count", "total_hectares", "todas_matriculas"]
         read_only_fields = ["id"]
 
     def get_areas_count(self, obj):
@@ -414,6 +421,20 @@ class FazendaSerializer(serializers.ModelSerializer):
         for area in obj.areas.all():
             total += area.area_hectares or 0
         return round(total, 2)
+
+    def get_todas_matriculas(self, obj):
+        """Retorna todas as matrículas (principal + adicionais)"""
+        return obj.get_matriculas_display()
+
+
+class MatriculaFazendaSerializer(serializers.ModelSerializer):
+    """Serializer para armazenar múltiplas matrículas por fazenda"""
+    fazenda_nome = serializers.CharField(source='fazenda.name', read_only=True)
+    
+    class Meta:
+        model = MatriculaFazenda
+        fields = ["id", "fazenda", "fazenda_nome", "matricula", "ativa", "data_registro"]
+        read_only_fields = ["id", "data_registro"]
 
 
 class ParcelaArrendamentoSerializer(serializers.ModelSerializer):
