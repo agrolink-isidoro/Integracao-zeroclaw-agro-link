@@ -305,6 +305,10 @@ const ArrendamentoForm: React.FC<ArrendamentoFormProps> = ({
   );
 
   return (
+    <form onSubmit={handleSubmit}>
+      <div className="card border-0 shadow-sm">
+        <div className="card-body p-3 p-md-4">
+          <div className="row g-2 g-md-3">
             {/* Arrendador */}
             <div className="col-md-6">
               <label className="form-label">
@@ -417,14 +421,14 @@ const ArrendamentoForm: React.FC<ArrendamentoFormProps> = ({
                 <i className="bi bi-calendar-event me-2"></i>
                 Data de Início <span className="text-danger">*</span>
               </label>
-          <DatePicker
-            value={formData.start_date}
-            onChange={(value) => handleDateChange('start_date', value)}
-            error={getFieldError('start_date') || customErrors.start_date || undefined}
-          />
-          {(getFieldError('start_date') || customErrors.start_date) && (
-            <div className="text-danger small mt-1">{getFieldError('start_date') || customErrors.start_date}</div>
-          )}
+              <DatePicker
+                value={formData.start_date}
+                onChange={(value) => handleDateChange('start_date', value)}
+                error={getFieldError('start_date') || customErrors.start_date || undefined}
+              />
+              {(getFieldError('start_date') || customErrors.start_date) && (
+                <div className="text-danger small mt-1">{getFieldError('start_date') || customErrors.start_date}</div>
+              )}
             </div>
 
             {/* Data Fim */}
@@ -433,14 +437,14 @@ const ArrendamentoForm: React.FC<ArrendamentoFormProps> = ({
                 <i className="bi bi-calendar-check me-2"></i>
                 Data de Fim (opcional)
               </label>
-          <DatePicker
-            value={formData.end_date}
-            onChange={(value) => handleDateChange('end_date', value)}
-            error={getFieldError('end_date') || customErrors.end_date || undefined}
-          />
-          {(getFieldError('end_date') || customErrors.end_date) && (
-            <div className="text-danger small mt-1">{getFieldError('end_date') || customErrors.end_date}</div>
-          )}
+              <DatePicker
+                value={formData.end_date}
+                onChange={(value) => handleDateChange('end_date', value)}
+                error={getFieldError('end_date') || customErrors.end_date || undefined}
+              />
+              {(getFieldError('end_date') || customErrors.end_date) && (
+                <div className="text-danger small mt-1">{getFieldError('end_date') || customErrors.end_date}</div>
+              )}
             </div>
 
             {/* Custo em Sacas/Hectare */}
@@ -449,24 +453,24 @@ const ArrendamentoForm: React.FC<ArrendamentoFormProps> = ({
                 <i className="bi bi-cash-coin me-2"></i>
                 Custo do Arrendamento (sacas/hectare) <span className="text-danger">*</span>
               </label>
-        <input
-          type="number"
-          step="0.01"
-          min="0.01"
-          className={`form-control ${getFieldError('custo_sacas_hectare') ? 'is-invalid' : ''}`}
-          id="custo_sacas_hectare"
-          name="custo_sacas_hectare"
-          value={formData.custo_sacas_hectare}
-          onChange={handleInputChange}
-          placeholder="Ex: 8.5"
-        />
-        {getFieldError('custo_sacas_hectare') && (
-          <div className="invalid-feedback">{getFieldError('custo_sacas_hectare')}</div>
-        )}
-        <small className="form-text text-muted">
-          <i className="bi bi-info-circle me-1"></i>
-          Valor que o <strong>arrendatário paga</strong> ao arrendador, em sacas de soja por hectare
-        </small>
+              <input
+                type="number"
+                step="0.01"
+                min="0.01"
+                className={`form-control ${getFieldError('custo_sacas_hectare') ? 'is-invalid' : ''}`}
+                id="custo_sacas_hectare"
+                name="custo_sacas_hectare"
+                value={formData.custo_sacas_hectare}
+                onChange={handleInputChange}
+                placeholder="Ex: 8.5"
+              />
+              {getFieldError('custo_sacas_hectare') && (
+                <div className="invalid-feedback">{getFieldError('custo_sacas_hectare')}</div>
+              )}
+              <small className="form-text text-muted">
+                <i className="bi bi-info-circle me-1"></i>
+                Valor que o <strong>arrendatário paga</strong> ao arrendador, em sacas de soja por hectare
+              </small>
             </div>
 
             {/* Custo Total (calculado pelo backend) */}
