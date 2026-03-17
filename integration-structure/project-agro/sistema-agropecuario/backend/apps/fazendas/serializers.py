@@ -112,7 +112,7 @@ class TalhaoSerializer(serializers.ModelSerializer):
             "name", "geom", "area_size", "custo_arrendamento", 
             "area_hectares", "kml_file", "area_size_manual"
         ]
-        read_only_fields = ["id"]
+        read_only_fields = ["id", "area_hectares", "area_nome", "fazenda_id", "fazenda_nome"]
     
     def _create_approximate_geometry_from_hectares(self, hectares):
         """Cria uma geometria aproximada (quadrado) a partir de hectares."""
@@ -239,7 +239,7 @@ class AreaSerializer(GeoFeatureModelSerializer):
             "name", "tipo", "geom", "custo_arrendamento", "area_hectares",
             "talhoes", "kml_file", "area_hectares_manual"
         ]
-        read_only_fields = ["id"]
+        read_only_fields = ["id", "area_hectares", "proprietario_nome", "fazenda_nome", "talhoes"]
 
     def _create_approximate_geometry_from_hectares(self, hectares):
         """Cria uma geometria aproximada (quadrado) a partir de hectares."""
@@ -352,7 +352,7 @@ class ArrendamentoSerializer(serializers.ModelSerializer):
             "start_date", "end_date", "custo_sacas_hectare", "custo_total_atual",
             "arrendador_detail", "arrendatario_detail", "fazenda_detail"
         ]
-        read_only_fields = ["id"]
+        read_only_fields = ["id", "custo_total_atual", "arrendador_detail", "arrendatario_detail", "fazenda_detail"]
 
     def get_fazenda_detail(self, obj):
         return {
