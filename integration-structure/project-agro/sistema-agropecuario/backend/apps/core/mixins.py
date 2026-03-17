@@ -84,7 +84,7 @@ class TenantQuerySetMixin:
             raise PermissionDenied("Não é possível criar registros sem um tenant ativo.")
 
         kwargs = {}
-        if tenant is not None:
+        if tenant is not None and hasattr(serializer.Meta.model, 'tenant'):
             kwargs['tenant'] = tenant
 
         serializer.save(**kwargs)
