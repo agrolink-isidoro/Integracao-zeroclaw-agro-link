@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useFormValidation } from '../../hooks/useFormValidation';
 import { useApiCreate, useApiUpdate, useApiQuery } from '../../hooks/useApi';
 import type { Arrendamento, Proprietario, Fazenda, Area, AreaFeature } from '../../types';
@@ -6,6 +6,14 @@ import SelectDropdown from '../../components/common/SelectDropdown';
 import DatePicker from '../../components/common/DatePicker';
 import ErrorMessage from '../../components/common/ErrorMessage';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
+
+interface Talhao {
+  id: number;
+  name: string;
+  area_id: number;
+  area_name: string;
+  area_size: number | null;
+}
 
 interface ArrendamentoFormProps {
   arrendamento?: Arrendamento | null;
@@ -16,7 +24,7 @@ interface ArrendamentoFormData {
   arrendador: number;
   arrendatario: number;
   fazenda: number;
-  areas: number[];
+  talhoes: number[];
   start_date: string;
   end_date: string;
   custo_sacas_hectare: string;
@@ -31,167 +39,180 @@ const ArrendamentoForm: React.FC<ArrendamentoFormProps> = ({
     arrendador: 0,
     arrendatario: 0,
     fazenda: 0,
-    areas: [],
+    talhoes: [],
     start_date: '',
     end_date: '',
     custo_sacas_hectare: ''
   });
 
-  const [filteredAreas, setFilteredAreas] = useState<Area[]>([]);
-  const [filteredFazendas, setFilteredFazendas] = useState<Fazenda[]>([]);
+  const [customErrors, setCustomErrors] = useState<Record<string, string>>({});
 
   const validationRules = {
     arrendador: { required: true },
     arrendatario: { required: true },
     fazenda: { required: true },
-    areas: { required: true, minLength: 1 },
+    talhoes: { required: true, minLength: 1 },
     start_date: { required: true },
     custo_sacas_hectare: { required: true, min: 0.01 }
   };
 
   const { validate, validateSingle, getFieldError, clearErrors } = useFormValidation(validationRules);
-  const [customErrors, setCustomErrors] = useState<Record<string, string>>({});
 
   // Queries
-  const { data: proprietarios = [], isLoading: loadingProprietarios } = useApiQuery<Proprietario[]>(
+  const { data: proprietarios = [] } = useApiQuery<Proprietario[]>(
     ['proprietarios'],
     '/proprietarios/'
   );
 
-  const { data: fazendas = [], isLoading: loadingFazendas } = useApiQuery<Fazenda[]>(
+  const { data: fazendas = [] } = useApiQuery<Fazenda[]>(
     ['fazendas'],
     '/fazendas/'
   );
 
-  // Query áreas - API retorna GeoJSON FeatureCollection
-  const { data: areasData, isLoading: loadingAreas } = useApiQuery<{ type: string; features: AreaFeature[] }>(
-    ['areas'],
-    '/areas/'
+  const { data: talhoes = [] } = useApiQuery<Talhao[]>(
+    ['talhoes'],
+    '/talhoes/'
   );
 
-  // Extrair áreas do GeoJSON FeatureCollection
-  const allAreasArray: Area[] = (areasData?.features || []).map(feature => ({
-    ...feature.properties,
-    id: feature.id
-  }));
-
-  // Garantir que os dados sejam arrays
+  // Garantir arrays
   const proprietariosArray = Array.isArray(proprietarios) ? proprietarios : [];
   const fazendasArray = Array.isArray(fazendas) ? fazendas : [];
+  const talhoesArray = Array.isArray(talhoes) ? talhoes : [];
 
   // Mutations
   const createMutation = useApiCreate('/arrendamentos/', [['arrendamentos']]);
   const updateMutation = useApiUpdate('/arrendamentos/', [['arrendamentos']]);
 
+  // Inicializar form data quando arrendamento muda
   useEffect(() => {
     if (arrendamento) {
       setFormData({
         arrendador: arrendamento.arrendador || 0,
         arrendatario: arrendamento.arrendatario || 0,
         fazenda: arrendamento.fazenda || 0,
-        areas: arrendamento.areas || [],
+        talhoes: arrendamento.areas || [], // Backend usa "areas" mas aqui estamos usando talhões
         start_date: arrendamento.start_date || '',
         end_date: arrendamento.end_date || '',
         custo_sacas_hectare: arrendamento.custo_sacas_hectare?.toString() || ''
       });
       clearErrors();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [arrendamento]);
+  }, [arrendamento, clearErrors]);
 
-  // Filtrar fazendas pelo arrendador selecionado
-  useEffect(() => {
-    if (formData.arrendador) {
-      const fazendas = fazendasArray.filter(f => f.proprietario === formData.arrendador);
-      setFilteredFazendas(fazendas);
-      
-      // Limpar fazenda selecionada se não pertencer ao arrendador
-      if (formData.fazenda && !fazendas.some(f => f.id === formData.fazenda)) {
-        // Mostrar alerta ao usuário
-        if (arrendamento) {
-          alert('Atenção: Ao mudar o arrendador, você precisa selecionar uma nova fazenda e áreas que pertencem a ele.');
-        }
-        setFormData(prev => ({ ...prev, fazenda: 0, areas: [] }));
-      }
-    } else {
-      setFilteredFazendas([]);
-      setFormData(prev => ({ ...prev, fazenda: 0, areas: [] }));
-    }
-  }, [formData.arrendador, fazendasArray, formData.fazenda]);
+  // Filtrar fazendas - usando useMemo para evitar re-renders desnecessários
+  const filteredFazendas = useMemo(() => {
+    if (!formData.arrendador) return [];
+    return fazendasArray.filter(f => f.proprietario === formData.arrendador);
+  }, [formData.arrendador, fazendasArray]);
 
-  // Filtrar áreas pela fazenda selecionada
-  useEffect(() => {
-    if (formData.fazenda && areasData?.features) {
-      const areas = allAreasArray.filter(area => area.fazenda === formData.fazenda);
-      setFilteredAreas(areas);
-      
-      // Limpar áreas selecionadas se não pertencerem à fazenda
-      if (formData.areas.length > 0) {
-        const validAreas = formData.areas.filter(areaId => 
-          areas.some(a => a.id === areaId)
-        );
-        if (validAreas.length !== formData.areas.length) {
-          setFormData(prev => ({ ...prev, areas: validAreas }));
-        }
-      }
-    } else {
-      setFilteredAreas([]);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [formData.fazenda, areasData]);
+  // Filtrar talhões - usando useMemo para evitar re-renders desnecessários
+  const filteredTalhoes = useMemo(() => {
+    if (!formData.fazenda) return [];
+    // Buscar áreas da fazenda
+    const areas = fazendasArray
+      .find(f => f.id === formData.fazenda)
+      ?.areas || [];
+    
+    if (areas.length === 0) return [];
+    
+    // Buscar talhões que pertencem às áreas da fazenda
+    const areaIds = areas.map((a: any) => a.id);
+    return talhoesArray.filter(t => areaIds.includes(t.area_id));
+  }, [formData.fazenda, fazendasArray, talhoesArray]);
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
-    validateSingle(name, value);
-  };
+  // Callback para mudar fazenda - limpa talhões se necessário
+  const handleFazendaChange = useCallback((value: string | number) => {
+    const newFazendaId = Number(value);
+    setFormData(prev => ({ 
+      ...prev, 
+      fazenda: newFazendaId,
+      talhoes: [] // Limpar talhões ao mudar fazenda
+    }));
+    validateSingle('fazenda', value);
+  }, [validateSingle]);
 
-  const handleSelectChange = (name: string, value: string | number) => {
-    setFormData(prev => ({ ...prev, [name]: Number(value) }));
-    validateSingle(name, value);
-
-    // Validações customizadas
-    if (name === 'arrendatario' && Number(value) === formData.arrendador) {
-      setCustomErrors({ arrendatario: 'Arrendatário não pode ser o mesmo que arrendador' });
-    } else if (name === 'arrendador' && Number(value) === formData.arrendatario) {
+  // Callback para mudar arrendador - limpa fazenda e talhões
+  const handleArrendadorChange = useCallback((value: string | number) => {
+    const arrendadorId = Number(value);
+    setFormData(prev => ({ 
+      ...prev, 
+      arrendador: arrendadorId,
+      fazenda: 0,
+      talhoes: []
+    }));
+    validateSingle('arrendador', value);
+    
+    // Validação customizada
+    if (arrendadorId === formData.arrendatario) {
       setCustomErrors({ arrendador: 'Arrendador não pode ser o mesmo que arrendatário' });
     } else {
       setCustomErrors({});
     }
-  };
+  }, [formData.arrendatario, validateSingle]);
 
-  const handleDateChange = (name: string, value: string) => {
+  // Callback para mudar arrendatário
+  const handleArrendatarioChange = useCallback((value: string | number) => {
+    const arrendatarioId = Number(value);
+    setFormData(prev => ({ ...prev, arrendatario: arrendatarioId }));
+    validateSingle('arrendatario', value);
+    
+    // Validação customizada
+    if (arrendatarioId === formData.arrendador) {
+      setCustomErrors({ arrendatario: 'Arrendatário não pode ser o mesmo que arrendador' });
+    } else {
+      setCustomErrors({});
+    }
+  }, [formData.arrendador, validateSingle]);
+
+  // Callback para mudar talhões
+  const handleTalhoesChange = useCallback((e: React.ChangeEvent<HTMLSelectElement>) => {
+    const options = e.target.options;
+    const selectedTalhoes: number[] = [];
+    for (let i = 0; i < options.length; i++) {
+      if (options[i].selected) {
+        selectedTalhoes.push(Number(options[i].value));
+      }
+    }
+    setFormData(prev => ({ ...prev, talhoes: selectedTalhoes }));
+    validateSingle('talhoes', selectedTalhoes);
+  }, [validateSingle]);
+
+  // Callback para mudar input
+  const handleInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+    validateSingle(name, value);
+  }, [validateSingle]);
+
+  // Callback para mudar data
+  const handleDateChange = useCallback((name: string, value: string) => {
     setFormData(prev => ({ ...prev, [name]: value }));
     validateSingle(name, value);
 
     // Validar datas
     if (name === 'start_date' && formData.end_date) {
       if (new Date(value) >= new Date(formData.end_date)) {
-        setCustomErrors({ start_date: 'Data de início deve ser anterior à data de fim' });
+        setCustomErrors(prev => ({ ...prev, start_date: 'Data de início deve ser anterior à data de fim' }));
       } else {
-        setCustomErrors({});
+        setCustomErrors(prev => {
+          const newErrors = { ...prev };
+          delete newErrors.start_date;
+          return newErrors;
+        });
       }
     }
     if (name === 'end_date' && formData.start_date) {
       if (new Date(value) <= new Date(formData.start_date)) {
-        setCustomErrors({ end_date: 'Data de fim deve ser posterior à data de início' });
+        setCustomErrors(prev => ({ ...prev, end_date: 'Data de fim deve ser posterior à data de início' }));
       } else {
-        setCustomErrors({});
+        setCustomErrors(prev => {
+          const newErrors = { ...prev };
+          delete newErrors.end_date;
+          return newErrors;
+        });
       }
     }
-  };
-
-  const handleAreasChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const options = e.target.options;
-    const selectedAreas: number[] = [];
-    for (let i = 0; i < options.length; i++) {
-      if (options[i].selected) {
-        selectedAreas.push(Number(options[i].value));
-      }
-    }
-    setFormData(prev => ({ ...prev, areas: selectedAreas }));
-    validateSingle('areas', selectedAreas);
-  };
+  }, [formData.end_date, formData.start_date, validateSingle]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -207,8 +228,8 @@ const ArrendamentoForm: React.FC<ArrendamentoFormProps> = ({
       return;
     }
 
-    if (formData.areas.length === 0) {
-      setCustomErrors({ areas: 'Selecione ao menos uma área' });
+    if (formData.talhoes.length === 0) {
+      setCustomErrors({ talhoes: 'Selecione ao menos um talhão' });
       return;
     }
 
@@ -221,7 +242,7 @@ const ArrendamentoForm: React.FC<ArrendamentoFormProps> = ({
         arrendador: formData.arrendador,
         arrendatario: formData.arrendatario,
         fazenda: formData.fazenda,
-        areas: formData.areas,
+        areas: formData.talhoes, // Backend espera "areas" mas são talhões
         start_date: formData.start_date,
         end_date: formData.end_date || null,
         custo_sacas_hectare: parseFloat(formData.custo_sacas_hectare)
@@ -236,16 +257,13 @@ const ArrendamentoForm: React.FC<ArrendamentoFormProps> = ({
     } catch (error: any) {
       console.error('Erro ao salvar arrendamento:', error);
       
-      // Mostrar erros de validação do backend
       if (error.response?.data) {
         const backendErrors = error.response.data;
         
-        // Erros não relacionados a campos específicos
         if (backendErrors.non_field_errors) {
           alert('Erro de validação:\n\n' + backendErrors.non_field_errors.join('\n'));
         }
         
-        // Erros em campos específicos
         const fieldErrors: any = {};
         Object.keys(backendErrors).forEach(field => {
           if (field !== 'non_field_errors') {
@@ -262,48 +280,50 @@ const ArrendamentoForm: React.FC<ArrendamentoFormProps> = ({
     }
   };
 
-  const proprietarioOptions = proprietariosArray.map(p => ({
-    value: p.id.toString(),
-    label: `${p.nome} (${p.cpf_cnpj})`
-  }));
+  const proprietarioOptions = useMemo(() => 
+    proprietariosArray.map(p => ({
+      value: p.id.toString(),
+      label: `${p.nome} (${p.cpf_cnpj})`
+    })), 
+    [proprietariosArray]
+  );
 
-  const fazendaOptions = filteredFazendas.map(f => ({
-    value: f.id.toString(),
-    label: `${f.name} (${f.matricula})`
-  }));
+  const fazendaOptions = useMemo(() =>
+    filteredFazendas.map(f => ({
+      value: f.id.toString(),
+      label: `${f.name} (${f.matricula})`
+    })),
+    [filteredFazendas]
+  );
 
-  if (loadingProprietarios || loadingFazendas || loadingAreas) {
-    return (
-      <div className="d-flex justify-content-center py-5">
-        <LoadingSpinner />
-      </div>
-    );
-  }
+  const talhoesOptions = useMemo(() =>
+    filteredTalhoes.map(t => ({
+      value: t.id.toString(),
+      label: `${t.name} - ${t.area_name} ${t.area_size ? `(${t.area_size} ha)` : ''}`
+    })),
+    [filteredTalhoes]
+  );
 
   return (
-    <form onSubmit={handleSubmit}>
-      <div className="card border-0 shadow-sm">
-        <div className="card-body p-3 p-md-4">
-          <div className="row g-2 g-md-3">
             {/* Arrendador */}
             <div className="col-md-6">
               <label className="form-label">
                 <i className="bi bi-person-badge me-2"></i>
                 Arrendador (proprietário da terra) <span className="text-danger">*</span>
               </label>
-          <SelectDropdown
-            value={formData.arrendador.toString()}
-            onChange={(value) => handleSelectChange('arrendador', value)}
-            options={proprietarioOptions}
-            placeholder="Selecione o proprietário da terra"
-            error={getFieldError('arrendador') || customErrors.arrendador}
-          />
-          <small className="form-text text-muted">
-            Pessoa que é dona da terra e vai ceder para uso
-          </small>
-          {(getFieldError('arrendador') || customErrors.arrendador) && (
-            <div className="text-danger small mt-1">{getFieldError('arrendador') || customErrors.arrendador}</div>
-          )}
+              <SelectDropdown
+                value={formData.arrendador.toString()}
+                onChange={(value) => handleArrendadorChange(value)}
+                options={proprietarioOptions}
+                placeholder="Selecione o proprietário da terra"
+                error={getFieldError('arrendador') || customErrors.arrendador}
+              />
+              <small className="form-text text-muted">
+                Pessoa que é dona da terra e vai ceder para uso
+              </small>
+              {(getFieldError('arrendador') || customErrors.arrendador) && (
+                <div className="text-danger small mt-1">{getFieldError('arrendador') || customErrors.arrendador}</div>
+              )}
             </div>
 
             {/* Arrendatário */}
@@ -312,19 +332,19 @@ const ArrendamentoForm: React.FC<ArrendamentoFormProps> = ({
                 <i className="bi bi-person-check me-2"></i>
                 Arrendatário (produtor que usa/paga) <span className="text-danger">*</span>
               </label>
-          <SelectDropdown
-            value={formData.arrendatario.toString()}
-            onChange={(value) => handleSelectChange('arrendatario', value)}
-            options={proprietarioOptions}
-            placeholder="Selecione quem vai usar a terra"
-            error={getFieldError('arrendatario') || customErrors.arrendatario}
-          />
-          <small className="form-text text-muted">
-            Produtor rural que vai pagar para cultivar na terra
-          </small>
-          {(getFieldError('arrendatario') || customErrors.arrendatario) && (
-            <div className="text-danger small mt-1">{getFieldError('arrendatario') || customErrors.arrendatario}</div>
-          )}
+              <SelectDropdown
+                value={formData.arrendatario.toString()}
+                onChange={(value) => handleArrendatarioChange(value)}
+                options={proprietarioOptions}
+                placeholder="Selecione quem vai usar a terra"
+                error={getFieldError('arrendatario') || customErrors.arrendatario}
+              />
+              <small className="form-text text-muted">
+                Produtor rural que vai pagar para cultivar na terra
+              </small>
+              {(getFieldError('arrendatario') || customErrors.arrendatario) && (
+                <div className="text-danger small mt-1">{getFieldError('arrendatario') || customErrors.arrendatario}</div>
+              )}
             </div>
 
             {/* Fazenda */}
@@ -333,62 +353,62 @@ const ArrendamentoForm: React.FC<ArrendamentoFormProps> = ({
                 <i className="bi bi-house-door me-2"></i>
                 Fazenda (do arrendador) <span className="text-danger">*</span>
               </label>
-        <SelectDropdown
-          value={formData.fazenda.toString()}
-          onChange={(value) => handleSelectChange('fazenda', value)}
-          options={fazendaOptions}
-          placeholder={formData.arrendador ? "Selecione a fazenda" : "Selecione o arrendador primeiro"}
-          error={getFieldError('fazenda')}
-        />
-        <small className="form-text text-muted">
-          {formData.arrendador ? (
-            <>
-              <i className="bi bi-info-circle me-1"></i>
-              Mostrando apenas fazendas do arrendador selecionado ({filteredFazendas.length} disponível{filteredFazendas.length !== 1 ? 'is' : ''})
-            </>
-          ) : (
-            <>
-              <i className="bi bi-exclamation-circle me-1"></i>
-              Selecione primeiro o arrendador (proprietário da terra)
-            </>
-          )}
-        </small>
-        {getFieldError('fazenda') && (
-          <div className="text-danger small mt-1">{getFieldError('fazenda')}</div>
-        )}
+              <SelectDropdown
+                value={formData.fazenda.toString()}
+                onChange={(value) => handleFazendaChange(value)}
+                options={fazendaOptions}
+                placeholder={formData.arrendador ? "Selecione a fazenda" : "Selecione o arrendador primeiro"}
+                error={getFieldError('fazenda')}
+              />
+              <small className="form-text text-muted">
+                {formData.arrendador ? (
+                  <>
+                    <i className="bi bi-info-circle me-1"></i>
+                    Mostrando apenas fazendas do arrendador selecionado ({filteredFazendas.length} disponível{filteredFazendas.length !== 1 ? 'is' : ''})
+                  </>
+                ) : (
+                  <>
+                    <i className="bi bi-exclamation-circle me-1"></i>
+                    Selecione primeiro o arrendador (proprietário da terra)
+                  </>
+                )}
+              </small>
+              {getFieldError('fazenda') && (
+                <div className="text-danger small mt-1">{getFieldError('fazenda')}</div>
+              )}
             </div>
 
-            {/* Áreas (multi-select) */}
+            {/* Talhões (multi-select) */}
             <div className="col-12">
               <label className="form-label">
-                <i className="bi bi-map me-2"></i>
-                Áreas que serão arrendadas <span className="text-danger">*</span>
+                <i className="bi bi-grid-3x3-gap me-2"></i>
+                Talhões que serão arrendados <span className="text-danger">*</span>
               </label>
-        <select
-          className={`form-select ${getFieldError('areas') || customErrors.areas ? 'is-invalid' : ''}`}
-          multiple
-          size={5}
-          value={formData.areas.map(a => a.toString())}
-          onChange={handleAreasChange}
-          disabled={!formData.fazenda}
-        >
-          {filteredAreas.length === 0 ? (
-            <option disabled>Selecione uma fazenda primeiro</option>
-          ) : (
-            filteredAreas.map(area => (
-              <option key={area.id} value={area.id}>
-                {area.name} ({area.area_hectares ? `${area.area_hectares} ha` : 'Área não calculada'})
-              </option>
-            ))
-          )}
-        </select>
-        {(getFieldError('areas') || customErrors.areas) && (
-          <div className="invalid-feedback d-block">{getFieldError('areas') || customErrors.areas}</div>
-        )}
-        <small className="form-text text-muted">
-          <i className="bi bi-info-circle me-1"></i>
-          Segure Ctrl (Cmd no Mac) para selecionar múltiplas áreas da fazenda
-        </small>
+              <select
+                className={`form-select ${getFieldError('talhoes') || customErrors.talhoes ? 'is-invalid' : ''}`}
+                multiple
+                size={Math.min(5, Math.max(2, filteredTalhoes.length))}
+                value={formData.talhoes.map(t => t.toString())}
+                onChange={handleTalhoesChange}
+                disabled={!formData.fazenda}
+              >
+                {filteredTalhoes.length === 0 ? (
+                  <option disabled>Selecione uma fazenda primeiro</option>
+                ) : (
+                  filteredTalhoes.map(talhao => (
+                    <option key={talhao.id} value={talhao.id}>
+                      {talhao.name} - {talhao.area_name} {talhao.area_size ? `(${talhao.area_size} ha)` : ''}
+                    </option>
+                  ))
+                )}
+              </select>
+              {(getFieldError('talhoes') || customErrors.talhoes) && (
+                <div className="invalid-feedback d-block">{getFieldError('talhoes') || customErrors.talhoes}</div>
+              )}
+              <small className="form-text text-muted">
+                <i className="bi bi-info-circle me-1"></i>
+                Segure Ctrl (Cmd no Mac) para selecionar múltiplos talhões da fazenda
+              </small>
             </div>
 
             {/* Data Início */}
