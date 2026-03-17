@@ -109,10 +109,10 @@ const ArrendamentoForm: React.FC<ArrendamentoFormProps> = ({
   const filteredTalhoes = useMemo(() => {
     if (!formData.fazenda) return [];
     // Buscar áreas da fazenda
-    const areas = fazendasArray
-      .find(f => f.id === formData.fazenda)
-      ?.areas || [];
+    const fazenda = fazendasArray.find(f => f.id === formData.fazenda);
+    if (!fazenda) return [];
     
+    const areas = Array.isArray(fazenda.areas) ? fazenda.areas : [];
     if (areas.length === 0) return [];
     
     // Buscar talhões que pertencem às áreas da fazenda
