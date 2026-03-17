@@ -876,8 +876,9 @@ def get_agrolink_tools(base_url: str, jwt_token: str, tenant_id: str = "") -> li
     def registrar_operacao_agricola(
         safra: str,
         talhao: str,
-        data_operacao: str,
+        data_inicio: str,
         tipo_operacao: str,
+        data_fim: str = "",
         trator: str = "",
         implemento: str = "",
         produto_insumo: str = "",
@@ -897,7 +898,7 @@ def get_agrolink_tools(base_url: str, jwt_token: str, tenant_id: str = "") -> li
                    Consulte as safras ativas com consultar_safras_ativas antes.
             talhao: Nome do talhão pertencente à safra — obrigatório.
                     Use consultar_talhoes para verificar os nomes corretos.
-            data_operacao: Data no formato DD/MM/AAAA — obrigatório
+            data_inicio: Data/hora de início no formato DD/MM/AAAA ou DD/MM/AAAA HH:MM — obrigatório
             tipo_operacao: Tipo da operação — obrigatório. DEVE ser um dos valores abaixo.
                 Apresente as opções ao usuário agrupadas por categoria:
 
@@ -936,6 +937,8 @@ def get_agrolink_tools(base_url: str, jwt_token: str, tenant_id: str = "") -> li
                 - mec_rocada (Roçada)
                 - mec_cultivo (Cultivo Mecânico)
 
+            data_fim: Data/hora de fim no formato DD/MM/AAAA ou DD/MM/AAAA HH:MM (opcional).
+                      Se omitida, assume-se que a operação terminou no mesmo dia.
             trator: Nome do trator/equipamento autopropelido (opcional).
                     Use consultar_maquinas para verificar nomes disponíveis.
             implemento: Nome do implemento/reboque (opcional).
@@ -996,7 +999,8 @@ def get_agrolink_tools(base_url: str, jwt_token: str, tenant_id: str = "") -> li
         draft = {
             "safra": safra,
             "talhao": talhao_resolvido,
-            "data_operacao": data_operacao,
+            "data_inicio": data_inicio,
+            "data_fim": data_fim,
             "tipo_operacao": tipo_operacao,
             "trator": trator_resolvido,
             "implemento": implemento_resolvido,

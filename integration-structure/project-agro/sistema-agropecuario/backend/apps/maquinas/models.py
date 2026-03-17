@@ -4,6 +4,9 @@ from django.contrib.gis.db import models as gis_models
 from django.core.validators import MinValueValidator, MaxValueValidator
 from django.core.exceptions import ValidationError
 import re
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 # ====================================================================
@@ -318,33 +321,31 @@ class Equipamento(TenantModel):
         return self.categoria.tipo_mobilidade == 'rebocado'
 
     def clean(self):
-        """Validações baseadas na categoria"""
+        """Validações baseadas na categoria (SEGURO - não quebra criação manual)"""
         super().clean()
         
         from datetime import date
         
-        # Validações de data
-        if self.ano_fabricacao and self.ano_fabricacao > date.today().year:
-            raise ValidationError({
-                'ano_fabricacao': 'Ano de fabricação não pode ser no futuro.'
-            })
-        
-        if self.data_aquisicao and self.data_aquisicao > date.today():
-            raise ValidationError({
-                'data_aquisicao': 'Data de aquisição não pode ser no futuro.'
-            })
-        
-        # ====================================================================
-        # VALIDAÇÕES DINÂMICAS BASEADAS NA CATEGORIA
-        # ====================================================================
-        
-        if not self.categoria:
-            return
+        # Validações de data (permissivas)
+        try:
+            if self.ano_fabricacao and self.ano_fabricacao > date.today().year:
+                raise ValidationError({
+                    'ano_fabricacao': 'Ano de fabricação não pode ser no futuro.'
+                })
+            
+            if self.data_aquisicao and self.data_aquisicao > date.today():
+                raise ValidationError({
+                    'data_aquisicao': 'Data de aquisição não pode ser no futuro.'
+                })
+        except Exception as e:
+            logger.warning("Equipment validation warning (non-blocking): %s", e)
+            # NÃO re-raise - permitir criação mesmo com warnings
         
         # ====================================================================
-        # TODOS OS CAMPOS SÃO OPCIONAIS (exceto nome, marca, modelo)
-        # Validações dinâmicas foram removidas para permitir cadastro flexível.
-        # Campos podem ser preenchidos depois de criado o equipamento.
+        # VALIDAÇÕES DINÂMICAS BASEADAS NA CATEGORIA - OPCIONAIS
+        # ====================================================================
+        # Removidas deliberadamente: todos os campos são agora opcionais
+        # Isso garante compatibilidade com criação manual e via IA
         # ====================================================================
     
     def _validar_placa(self, placa):

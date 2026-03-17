@@ -504,16 +504,27 @@ def execute_operacao_agricola(action) -> None:
         prefix = tipo.split("_")[0] if "_" in tipo else tipo[:4]
         categoria = _cat_map.get(prefix, "preparacao")
 
-        # Parse data — aceita "data_operacao" e "data" (legado)
-        data_op = _parse_date(data.get("data_operacao") or data.get("data", ""))
-        data_op_date = data_op.date() if hasattr(data_op, "date") else data_op
-
+        # Parse datas — suporta tanto (data_operacao) quanto (data_inicio + data_fim)
+        # Legado: "data_operacao" e "data"
+        data_inicio_input = data.get("data_inicio") or data.get("data_operacao") or data.get("data", "")
+        data_fim_input = data.get("data_fim", "")
+        
+        data_inicio = _parse_date(data_inicio_input)
+        data_inicio_dt = data_inicio if isinstance(data_inicio, datetime) else datetime.combine(data_inicio, datetime.min.time())
+        data_inicio_date = data_inicio.date() if hasattr(data_inicio, "date") else data_inicio
+        
+        data_fim = None
+        data_fim_dt = None
+        if data_fim_input:
+            data_fim = _parse_date(data_fim_input)
+            data_fim_dt = data_fim if isinstance(data_fim, datetime) else datetime.combine(data_fim, datetime.min.time())
+        
         # ── Inferir status pela data (futuro=planejada, passado/hoje=concluida) ─
         from datetime import date as _date
         status_draft = (data.get("status") or "").strip().lower()
         if status_draft and status_draft in ("planejada", "em_andamento", "concluida", "cancelada"):
             status_final = status_draft
-        elif data_op_date and data_op_date > _date.today():
+        elif data_inicio_date and data_inicio_date > _date.today():
             status_final = "planejada"
         else:
             status_final = "concluida"
@@ -546,7 +557,9 @@ def execute_operacao_agricola(action) -> None:
             tipo=tipo,
             plantio=plantio,
             fazenda=fazenda,
-            data_operacao=data_op_date,
+            data_operacao=data_inicio_date,
+            data_inicio=data_inicio_dt,
+            data_fim=data_fim_dt,
             trator=trator_obj,
             implemento=implemento_obj,
             custo_mao_obra=_parse_decimal(data.get("custo_mao_obra"), "0"),
@@ -594,12 +607,16 @@ def execute_operacao_agricola(action) -> None:
         "operacao_id": operacao.pk,
         "tipo": operacao.tipo,
         "categoria": operacao.categoria,
-        "data": str(data_op_date),
+        "data_inicio": data_inicio_dt.isoformat() if data_inicio_dt else None,
+        "data_fim": data_fim_dt.isoformat() if data_fim_dt else None,
         "safra": plantio.nome_safra if plantio else None,
         "trator": trator_nome or None,
         "implemento": implemento_nome or None,
     })
-    logger.info("execute_operacao_agricola OK: action=%s operacao=%s tipo=%s", action.id, operacao.pk, operacao.tipo)
+    logger.info(
+        "execute_operacao_agricola OK: action=%s operacao=%s tipo=%s data_inicio=%s data_fim=%s",
+        action.id, operacao.pk, operacao.tipo, data_inicio_dt, data_fim_dt
+    )
 
 
 # ─── Registrar Manejo ─────────────────────────────────────────────────────────
