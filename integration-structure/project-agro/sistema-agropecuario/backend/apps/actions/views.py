@@ -741,11 +741,19 @@ class ActionSchemaView(APIView):
         """
         from .ACTION_FIELDS_SCHEMA import ACTION_FIELDS_SCHEMA, get_required_fields, get_optional_fields, get_all_action_types
         
+        logger.info('═══════════════════════════════════════════════════════════════')
+        logger.info(f'🔍 [ActionSchemaView.get] Consultando schema')
+        logger.info(f'   action_type: {action_type}')
+        logger.info(f'   format: {request.query_params.get("format", "complete")}')
+        logger.info(f'   user: {request.user}')
+        
         format_param = request.query_params.get('format', 'complete')
         
         # Case 1: List all action_types (GET /api/actions/schema/)
         if action_type is None:
             all_types = get_all_action_types()
+            logger.info(f'   ✅ Retornando lista de {len(all_types)} action_types')
+            logger.info('═══════════════════════════════════════════════════════════════')
             return Response({
                 'action_types': all_types,
                 'count': len(all_types),
@@ -755,29 +763,45 @@ class ActionSchemaView(APIView):
         # Case 2: Get schema for specific action_type
         schema = ACTION_FIELDS_SCHEMA.get(action_type)
         if not schema:
+            logger.warning(f'   ❌ action_type não encontrado: {action_type}')
+            logger.warning(f'   Available: {list(ACTION_FIELDS_SCHEMA.keys())}')
+            logger.info('═══════════════════════════════════════════════════════════════')
             return Response(
                 {'error': f'action_type "{action_type}" não encontrado'},
                 status=status.HTTP_404_NOT_FOUND
             )
         
+        logger.info(f'   ✅ Schema encontrado para {action_type}')
+        logger.info(f'   module: {schema.get("module")}')
+        logger.info(f'   required_fields: {[f["name"] for f in schema.get("fields", {}).get("required", [])]}')
+        logger.info(f'   optional_fields: {[f["name"] for f in schema.get("fields", {}).get("optional", [])]}')
+        
         # Format response based on query param
         if format_param == 'required':
+            logger.info(f'   format: required only')
+            logger.info('═══════════════════════════════════════════════════════════════')
             return Response({
                 'action_type': action_type,
                 'required_fields': get_required_fields(action_type)
             })
         elif format_param == 'optional':
+            logger.info(f'   format: optional only')
+            logger.info('═══════════════════════════════════════════════════════════════')
             return Response({
                 'action_type': action_type,
                 'optional_fields': get_optional_fields(action_type)
             })
         elif format_param == 'all':
+            logger.info(f'   format: required + optional')
+            logger.info('═══════════════════════════════════════════════════════════════')
             return Response({
                 'action_type': action_type,
                 'required_fields': get_required_fields(action_type),
                 'optional_fields': get_optional_fields(action_type)
             })
         else:  # complete (default)
+            logger.info(f'   format: complete (full schema)')
+            logger.info('═══════════════════════════════════════════════════════════════')
             return Response(schema)
     
     def _group_by_module(self, action_types):

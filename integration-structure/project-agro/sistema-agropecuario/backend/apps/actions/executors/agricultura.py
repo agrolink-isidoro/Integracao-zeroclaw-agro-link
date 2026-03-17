@@ -446,12 +446,24 @@ def execute_operacao_agricola(action) -> None:
     Cria uma Operação agrícola a partir de registrar_operacao_agricola draft_data.
     Usa o modelo Operacao (sistema unificado).
     """
+    import logging
+    logger = logging.getLogger(__name__)
+    
     from apps.agricultura.models import Operacao, OperacaoProduto
     from apps.maquinas.models import Equipamento
 
     data = action.draft_data
     tenant = action.tenant
     criado_por = action.criado_por
+
+    logger.info('═══════════════════════════════════════════════════════════════')
+    logger.info(f'🟡 [execute_operacao_agricola] INICIADO para action_id={action.id}')
+    logger.info(f'   tenant: {tenant}')
+    logger.info(f'   criado_por: {criado_por}')
+    logger.info(f'   draft_data keys: {list(data.keys())}')
+    logger.info(f'   safra: {data.get("safra")}')
+    logger.info(f'   tipo_operacao: {data.get("tipo_operacao")}')
+    logger.info(f'   data: {data.get("data") or data.get("data_operacao")}')
 
     with transaction.atomic():
         # Resolve safra/plantio (opcional)
@@ -460,8 +472,9 @@ def execute_operacao_agricola(action) -> None:
         if safra_nome:
             try:
                 plantio = _resolve_plantio(tenant, safra_nome)
-            except ValueError:
-                logger.warning("execute_operacao_agricola: safra '%s' não encontrada", safra_nome)
+                logger.info(f'   ✅ Safra resolvida: plantio_id={plantio.id}, cultura={plantio.cultura.nome}')
+            except ValueError as e:
+                logger.warning(f"   ⚠️ Safra '{safra_nome}' não encontrada: {str(e)}")
 
         # Resolve fazenda
         from apps.fazendas.models import Fazenda
@@ -469,8 +482,10 @@ def execute_operacao_agricola(action) -> None:
         fazenda_nome = data.get("fazenda", "").strip()
         if fazenda_nome:
             fazenda = Fazenda.objects.filter(tenant=tenant, name__icontains=fazenda_nome).first()
+            logger.info(f'   ✅ Fazenda resolvida: {fazenda.name if fazenda else "NÃO ENCONTRADA"}')
         elif plantio and plantio.fazenda:
             fazenda = plantio.fazenda
+            logger.info(f'   ℹ️  Fazenda herdada da safra: {fazenda.name}')
 
         # Mapear tipo e categoria — aceita tanto "tipo_operacao" quanto "atividade" (legado)
         tipo_raw = (
@@ -571,6 +586,11 @@ def execute_operacao_agricola(action) -> None:
             criado_por=criado_por,
         )
         operacao.save()
+        
+        logger.info(f'   ✅ Operação criada: id={operacao.id}')
+        logger.info(f'      categoria={operacao.categoria}, tipo={operacao.tipo}, status={operacao.status}')
+        logger.info(f'      data_operacao={operacao.data_operacao}, data_inicio={operacao.data_inicio}')
+        logger.info(f'      custos: mão_obra={operacao.custo_mao_obra}, máquina={operacao.custo_maquina}, insumos={operacao.custo_insumos}')
 
         # Vincular talhões
         talhoes_info = data.get("talhoes", [])
@@ -584,6 +604,9 @@ def execute_operacao_agricola(action) -> None:
             talhao = _resolve_talhao(tenant, t_nome, plantio)
             if talhao:
                 operacao.talhoes.add(talhao)
+                logger.debug(f'   📍 Talhão vinculado: {talhao.name} (id={talhao.id})')
+            else:
+                logger.warning(f'   ⚠️  Talhão não resolvido: {t_nome}')
 
         # ── Vincular produto/insumo ───────────────────────────────────────
         produto_nome = (data.get("produto_insumo") or data.get("insumo") or "").strip()
@@ -601,8 +624,9 @@ def execute_operacao_agricola(action) -> None:
                     dosagem=_parse_decimal(quantidade_insumo, "0"),
                     unidade_dosagem=data.get("unidade", ""),
                 )
+                logger.info(f'   📦 Produto vinculado: {produto_obj.nome} (id={produto_obj.id}), dosagem={quantidade_insumo}')
             else:
-                logger.warning("execute_operacao_agricola: produto '%s' não encontrado no estoque", produto_nome)
+                logger.warning(f'   ⚠️  Produto não encontrado no estoque: {produto_nome}')
 
     action.mark_executed({
         "operacao_id": operacao.pk,
@@ -614,10 +638,12 @@ def execute_operacao_agricola(action) -> None:
         "trator": trator_nome or None,
         "implemento": implemento_nome or None,
     })
-    logger.info(
-        "execute_operacao_agricola OK: action=%s operacao=%s tipo=%s data_inicio=%s data_fim=%s",
-        action.id, operacao.pk, operacao.tipo, data_inicio_dt, data_fim_dt
-    )
+    
+    logger.info(f'✅ [execute_operacao_agricola] CONCLUÍDO')
+    logger.info(f'   operacao_id={operacao.pk}')
+    logger.info(f'   talhoes_count={operacao.talhoes.count()}')
+    logger.info(f'   produtos_count={operacao.operacaoproduto_set.count()}')
+    logger.info('═══════════════════════════════════════════════════════════════')
 
 
 # ─── Registrar Manejo ─────────────────────────────────────────────────────────
