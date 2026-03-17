@@ -219,7 +219,7 @@ const FazendaMap: React.FC = () => {
     }
   }, [bounds]);
 
-  // Auto-select and focus the user's primary fazenda (if any)
+  // Auto-select and focus the user's primary fazenda (if any) - or first available if no user fazenda
   useEffect(() => {
     if (didAutoFocusRef.current) return;
     if (!geoData?.features?.length || !mapRef.current) return;
@@ -243,21 +243,29 @@ const FazendaMap: React.FC = () => {
 
     if (!id) return;
 
-    const target = geoData.features.find((f) => f.properties.fazenda_id === id);
-    if (!target) return;
+    // Get all features for this fazenda and compute bounds
+    const fazendaFeatures = geoData.features.filter((f) => f.properties.fazenda_id === id);
+    if (!fazendaFeatures.length) return;
 
-    // select feature to open side panel
-    setSelectedFeature(target);
+    // Compute bounds for all features in this fazenda
+    const b = new google.maps.LatLngBounds();
+    let hasPoints = false;
+    fazendaFeatures.forEach((f) => {
+      const paths = getPolygonPaths(f.geometry);
+      paths.forEach((ring) => {
+        ring.forEach((pt) => {
+          b.extend(pt);
+          hasPoints = true;
+        });
+      });
+    });
 
-    // compute bounds for only this feature and fit
-    try {
-      const b = new google.maps.LatLngBounds();
-      const paths = getPolygonPaths(target.geometry);
-      paths.forEach((ring) => ring.forEach((pt) => b.extend(pt)));
-      if (!b.isEmpty()) mapRef.current.fitBounds(b, 60);
-    } catch (e) {
-      console.debug('fitBounds single feature failed', e);
+    if (hasPoints && !b.isEmpty()) {
+      mapRef.current.fitBounds(b, 50);
     }
+
+    // select first feature to open side panel
+    setSelectedFeature(fazendaFeatures[0]);
 
     didAutoFocusRef.current = true;
   }, [geoData, user, fazendaFilter]);
@@ -266,39 +274,72 @@ const FazendaMap: React.FC = () => {
   const centerOnCurrentFazenda = useCallback(() => {
     if (!mapRef.current || !geoData?.features?.length) return;
 
-    // Prefer currently selected feature
-    let target = selectedFeature ?? null;
-
-    // Otherwise prefer filter/user, otherwise first
-    if (!target) {
-      const id = fazendaFilter ? Number(fazendaFilter) : (user as any)?.fazenda ?? null;
-      if (id) target = geoData.features.find((f) => f.properties.fazenda_id === id) ?? null;
+    // Build bounds for all features of the current fazenda
+    let fazendaId: number | null = null;
+    
+    // Prefer currently selected feature's fazenda
+    if (selectedFeature) {
+      fazendaId = selectedFeature.properties.fazenda_id;
+    } else {
+      // Otherwise prefer filter/user, otherwise first
+      try {
+        fazendaId = fazendaFilter ? Number(fazendaFilter) : (user as any)?.fazenda ?? null;
+      } catch {
+        fazendaId = null;
+      }
     }
 
-    if (!target) {
-      target = geoData.features.find((f) => !!f.properties.fazenda_id) ?? null;
+    if (!fazendaId) {
+      // If no fazenda selected, center on all available features
+      const allBounds = new google.maps.LatLngBounds();
+      let hasPoints = false;
+      geoData.features.forEach((f) => {
+        const paths = getPolygonPaths(f.geometry);
+        paths.forEach((ring) => {
+          ring.forEach((pt) => {
+            allBounds.extend(pt);
+            hasPoints = true;
+          });
+        });
+      });
+      if (hasPoints && !allBounds.isEmpty()) {
+        mapRef.current.fitBounds(allBounds, 50);
+      }
+      return;
     }
 
-    if (!target) return;
+    // Get all features for this fazenda
+    const fazendaFeatures = geoData.features.filter((f) => f.properties.fazenda_id === fazendaId);
+    if (!fazendaFeatures.length) return;
 
-    setSelectedFeature(target);
+    // Compute bounds for all features in this fazenda
+    const b = new google.maps.LatLngBounds();
+    let hasPoints = false;
+    fazendaFeatures.forEach((f) => {
+      const paths = getPolygonPaths(f.geometry);
+      paths.forEach((ring) => {
+        ring.forEach((pt) => {
+          b.extend(pt);
+          hasPoints = true;
+        });
+      });
+    });
 
-    try {
-      const b = new google.maps.LatLngBounds();
-      const paths = getPolygonPaths(target.geometry);
-      paths.forEach((ring) => ring.forEach((pt) => b.extend(pt)));
-      if (!b.isEmpty()) mapRef.current.fitBounds(b, 60);
-    } catch (e) {
-      console.debug('centerOnCurrentFazenda failed', e);
+    if (hasPoints && !b.isEmpty()) {
+      mapRef.current.fitBounds(b, 50);
     }
   }, [mapRef, geoData, selectedFeature, fazendaFilter, user]);
 
-  // Unique fazendas for filter dropdown
+  // Unique fazendas for filter dropdown (only those with geometry)
   const fazendaOptions = useMemo(() => {
     if (!geoData?.features) return [];
     const map = new Map<number, string>();
     geoData.features.forEach((f) => {
-      map.set(f.properties.fazenda_id, f.properties.fazenda_name);
+      // Only include fazendas that have at least one feature with valid geometry
+      const paths = getPolygonPaths(f.geometry);
+      if (paths.length > 0) {
+        map.set(f.properties.fazenda_id, f.properties.fazenda_name);
+      }
     });
     return Array.from(map.entries()).sort((a, b) => a[1].localeCompare(b[1]));
   }, [geoData]);
@@ -365,6 +406,8 @@ const FazendaMap: React.FC = () => {
             style={{ width: 200 }}
             value={fazendaFilter}
             onChange={(e) => setFazendaFilter(e.target.value)}
+            disabled={fazendaOptions.length === 0 || geoLoading}
+            title={fazendaOptions.length === 0 ? 'Nenhuma fazenda com coordenadas cadastradas' : ''}
           >
             <option value="">Todas fazendas</option>
             {fazendaOptions.map(([id, name]) => (
@@ -391,74 +434,84 @@ const FazendaMap: React.FC = () => {
         </div>
       )}
 
-      <div className="position-relative">
-        <GoogleMap
-          mapContainerStyle={MAP_CONTAINER_STYLE}
-          center={DEFAULT_CENTER}
-          zoom={5}
-          onLoad={onMapLoad}
-          options={{
-            mapTypeId: 'satellite',
-            mapTypeControl: true,
-            streetViewControl: false,
-          }}
-        >
-          {geoData?.features?.map((feature) => {
-            const paths = getPolygonPaths(feature.geometry);
-            if (!paths.length) return null;
+      {!geoLoading && geoData?.features?.length === 0 && (
+        <div className="alert alert-info">
+          <i className="bi bi-info-circle me-2"></i>
+          Nenhuma área ou talhão com coordenadas (KML/Geometria) cadastrados. 
+          Por favor, adicione geometrias aos seus registros para visualizá-los no mapa.
+        </div>
+      )}
 
-            const isArea = feature.properties.entity_type === 'area';
-            const fillColor = isArea
-              ? AREA_COLORS[feature.properties.tipo || 'propria'] || '#4CAF50'
-              : TALHAO_COLOR;
+      {!geoLoading && geoData?.features && geoData.features.length > 0 && (
+        <div className="position-relative">
+          <GoogleMap
+            mapContainerStyle={MAP_CONTAINER_STYLE}
+            center={DEFAULT_CENTER}
+            zoom={5}
+            onLoad={onMapLoad}
+            options={{
+              mapTypeId: 'satellite',
+              mapTypeControl: true,
+              streetViewControl: false,
+            }}
+          >
+            {geoData?.features?.map((feature) => {
+              const paths = getPolygonPaths(feature.geometry);
+              if (!paths.length) return null;
 
-            return (
-              <Polygon
-                key={feature.id}
-                paths={paths}
-                options={{
-                  fillColor,
-                  fillOpacity: 0.35,
-                  strokeColor: fillColor,
-                  strokeOpacity: 0.8,
-                  strokeWeight: 2,
-                }}
-                onClick={() => setSelectedFeature(feature)}
-              />
-            );
-          })}
-        </GoogleMap>
+              const isArea = feature.properties.entity_type === 'area';
+              const fillColor = isArea
+                ? AREA_COLORS[feature.properties.tipo || 'propria'] || '#4CAF50'
+                : TALHAO_COLOR;
 
-        {/* Side panel */}
-        {selectedFeature && (
-          <FazendaSidePanel
-            feature={selectedFeature}
-            onClose={() => setSelectedFeature(null)}
-          />
-        )}
+              return (
+                <Polygon
+                  key={feature.id}
+                  paths={paths}
+                  options={{
+                    fillColor,
+                    fillOpacity: 0.35,
+                    strokeColor: fillColor,
+                    strokeOpacity: 0.8,
+                    strokeWeight: 2,
+                  }}
+                  onClick={() => setSelectedFeature(feature)}
+                />
+              );
+            })}
+          </GoogleMap>
 
-        {/* Legend */}
-        <div
-          className="card shadow-sm position-absolute bottom-0 start-0 m-3"
-          style={{ zIndex: 10, fontSize: '0.85rem' }}
-        >
-          <div className="card-body py-2 px-3">
-            <strong className="d-block mb-1">Legenda</strong>
-            <div className="d-flex align-items-center gap-2 mb-1">
-              <span style={{ width: 14, height: 14, backgroundColor: AREA_COLORS.propria, display: 'inline-block', borderRadius: 2 }}></span>
-              Área Própria
-            </div>
-            <div className="d-flex align-items-center gap-2 mb-1">
-              <span style={{ width: 14, height: 14, backgroundColor: AREA_COLORS.arrendada, display: 'inline-block', borderRadius: 2 }}></span>
-              Área Arrendada
-            </div>
-            <div className="d-flex align-items-center gap-2">
-              <span style={{ width: 14, height: 14, backgroundColor: TALHAO_COLOR, display: 'inline-block', borderRadius: 2 }}></span>
-              Talhão
+          {/* Side panel */}
+          {selectedFeature && (
+            <FazendaSidePanel
+              feature={selectedFeature}
+              onClose={() => setSelectedFeature(null)}
+            />
+          )}
+
+          {/* Legend */}
+          <div
+            className="card shadow-sm position-absolute bottom-0 start-0 m-3"
+            style={{ zIndex: 10, fontSize: '0.85rem' }}
+          >
+            <div className="card-body py-2 px-3">
+              <strong className="d-block mb-1">Legenda</strong>
+              <div className="d-flex align-items-center gap-2 mb-1">
+                <span style={{ width: 14, height: 14, backgroundColor: AREA_COLORS.propria, display: 'inline-block', borderRadius: 2 }}></span>
+                Área Própria
+              </div>
+              <div className="d-flex align-items-center gap-2 mb-1">
+                <span style={{ width: 14, height: 14, backgroundColor: AREA_COLORS.arrendada, display: 'inline-block', borderRadius: 2 }}></span>
+                Área Arrendada
+              </div>
+              <div className="d-flex align-items-center gap-2">
+                <span style={{ width: 14, height: 14, backgroundColor: TALHAO_COLOR, display: 'inline-block', borderRadius: 2 }}></span>
+                Talhão
+              </div>
             </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* Feature count */}
       {geoData && (
