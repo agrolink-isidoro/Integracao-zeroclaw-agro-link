@@ -819,6 +819,8 @@ def get_agrolink_tools(base_url: str, jwt_token: str, tenant_id: str = "") -> li
         local_destino: str = "",
         empresa_destino: str = "",
         custo_transporte: float = 0.0,
+        custo_transporte_unidade: str = "tonelada",
+        descontos: float = 0.0,
         condicoes_graos: str = "",
         contrato_ref: str = "",
         observacoes: str = "",
@@ -847,6 +849,8 @@ def get_agrolink_tools(base_url: str, jwt_token: str, tenant_id: str = "") -> li
             local_destino: Nome do local de armazenamento interno (se destino_tipo='armazenagem_interna')
             empresa_destino: Nome da empresa destino (se destino_tipo='armazenagem_externa' ou 'venda_direta')
             custo_transporte: Custo do frete em reais
+            custo_transporte_unidade: Unidade do custo: 'tonelada' (padrão), 'saca', 'unidade'
+            descontos: Descontos (ex: umidade, impureza) em kg
             condicoes_graos: Condições dos grãos (ex: Boa, Avariado, Úmido)
             contrato_ref: Número de nota fiscal provisória ou referência de contrato
             observacoes: Observações adicionais
@@ -866,6 +870,8 @@ def get_agrolink_tools(base_url: str, jwt_token: str, tenant_id: str = "") -> li
                 "local_destino": local_destino,
                 "empresa_destino": empresa_destino,
                 "custo_transporte": custo_transporte,
+                "custo_transporte_unidade": custo_transporte_unidade,
+                "descontos": descontos,
                 "condicoes_graos": condicoes_graos,
                 "contrato_ref": contrato_ref,
                 "observacoes": observacoes,

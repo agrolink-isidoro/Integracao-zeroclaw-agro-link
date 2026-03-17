@@ -331,6 +331,7 @@ def execute_movimentacao_carga(action) -> None:
             peso_bruto=peso_bruto,
             descontos=_parse_decimal(data.get("descontos"), "0"),
             custo_transporte=custo_transporte,
+            custo_transporte_unidade=data.get("custo_transporte_unidade", "tonelada"),
             destino_tipo=destino_tipo,
             local_destino=local_destino,
             empresa_destino=empresa_destino,

@@ -419,10 +419,31 @@ Operações agrícolas — SEMPRE: consultar_safras_ativas() PRIMEIRO:
 - "OS para irrigação do talhão C1" → 1) consultar_safras_ativas → 2) confirmar safra → 3) perguntar campos de registrar_ordem_servico_agricola
 
 Movimentação de Carga (colheita) — SEMPRE: consultar_sessoes_colheita_ativas() PRIMEIRO:
-- "Registrar carga / caminhão saindo" → 1) consultar_sessoes_colheita_ativas → se sessão ativa: "Sessão de colheita da Safra [X] em andamento. Qual talhão?" → 3) perguntar placa, motorista, peso_bruto, tara, destino → 4) registrar_movimentacao_carga
-- "Caminhão pesou 28.500 kg bruto tara 13.200" → 1) consultar_sessoes_colheita_ativas → 2) confirmar talhão → 3) completar campos → 4) registrar_movimentacao_carga
-- "Quero lançar a pesagem de um caminhão" → 1) consultar_sessoes_colheita_ativas → se NÃO houver sessão: "Não há sessão de colheita ativa. Inicie uma sessão de colheita no sistema antes de registrar cargas." → se houver: perguntar talhão + dados do caminhão
-- "Saída de carga talhão 5" → 1) consultar_sessoes_colheita_ativas → 2) confirmar safra ativa → 3) perguntar placa, motorista, peso_bruto, tara, destino → 4) registrar_movimentacao_carga
+- "Registrar carga / caminhão saindo" → 1) consultar_sessoes_colheita_ativas → se sessão ativa: "Sessão de colheita da Safra [X] em andamento. Qual talhão?" → 2) confirmar talhão → 3) **PERGUNTAR TODOS OS CAMPOS (veja checklist abaixo)** → 4) registrar_movimentacao_carga COM TODOS os dados
+
+**CHECKLIST DE CAMPOS — PERGUNTE SEMPRE (não omita nenhum):**
+  1. OBRIGATÓRIOS: peso_bruto, tara
+  2. PLACA (ex: OLV-9987) 
+  3. MOTORISTA (ex: Cleiton)
+  4. **DESCONTOS em kg** (ex: "Houve descontos por umidade? Quantos kg?" — calcular se necessário)
+     - Se user der % de umidade → converter em kg: descontos = (peso_bruto * %_umidade) / 100
+     - Se user der kg direto → usar valor
+     - Se nãohouver → 0
+  5. **CONDIÇÕES DOS GRÃOS** (ex: "Quais as condições? Boa, Avariada, Úmida, etc?")
+  6. CUSTO DO TRANSPORTE em **REAIS** (não em $/tonelada)
+     - Pergunte: "Qual foi o custo total do transporte em R$?" OU "Qual o frete? R$ por tonelada?"
+     - Se responder R$/tonelada: usar `custo_transporte_unidade='tonelada'`
+     - Se responder R$/saca: usar `custo_transporte_unidade='saca'`
+     - Se responder valor fixo em R$: usar `custo_transporte_unidade='unidade'`
+  7. CONTRATO/NF PROVISÓRIA (ex: NF-2026-001)
+  8. TIPO DE DESTINO (armazenagem_interna, armazenagem_externa, venda_direta)
+     - Se armazenagem_interna: pergunte o local
+     - Se externa ou venda: pergunte a empresa
+  9. OBSERVAÇÕES (se houver algo adicional)
+
+- "Caminhão pesou 28.500 kg bruto tara 13.200 umidade 2%" → 1) calcular descontos por umidade 2) confirmar talhão 3) **perguntar TODOS os campos da checklist** → 4) registrar_movimentacao_carga
+- "Quero lançar a pesagem de um caminhão" → 1) consultar_sessoes_colheita_ativas → se NÃO houver: "Não há sessão ativa. Inicie uma sessão de colheita no sistema antes de registrar cargas." → se houver: **PERGUNTAR TODOS OS CAMPOS** em uma conversa natural
+- "Saída de carga talhão 5" → 1) consultar_sessoes_colheita_ativas → 2) confirmar safra ativa e talhão → 3) **PERGUNTAR TODOS OS CAMPOS** → 4) registrar_movimentacao_carga
 
 Máquinas / Estoque / Dados (sem safra):
 - "Quero cadastrar um novo trator" → 1) consultar_categorias_equipamento() 2) apresentar lista de categorias reais e DEIXAR USUÁRIO ESCOLHER 3) perguntar nome, ano, valor 4) resumir e ao confirmar CHAMAR criar_equipamento() COM CATEGORIA SELECIONADA
