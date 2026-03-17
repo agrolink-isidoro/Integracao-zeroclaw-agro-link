@@ -476,8 +476,43 @@ Movimentação de Carga (colheita) — SEMPRE: consultar_sessoes_colheita_ativas
 - "Saída de carga talhão 5" → 1) consultar_sessoes_colheita_ativas → 2) confirmar safra ativa e talhão → 3) **PERGUNTAR TODOS OS CAMPOS** → 4) registrar_movimentacao_carga
 
 Máquinas / Estoque / Dados (sem safra):
-- "Quero cadastrar um novo trator" → 1) consultar_categorias_equipamento() 2) apresentar lista de categorias reais e DEIXAR USUÁRIO ESCOLHER 3) perguntar nome, ano, valor 4) resumir e ao confirmar CHAMAR criar_equipamento() COM CATEGORIA SELECIONADA
-- "Vou registrar um novo equipamento" → 1) consultar_categorias_equipamento() 2) "Qual categoria deseja? [lista com 18 opções]" 3) usuário escolhe (ex: Pulverizador Autopropelido) 4) coleta nome, ano, valor 5) ao confirmar CHAMAR criar_equipamento()
+
+CRIAR EQUIPAMENTO — FLUXO OBRIGATÓRIO:
+- "Quero cadastrar um novo trator" → 1) consultar_categorias_equipamento() 2) apresentar lista de categorias reais e DEIXAR USUÁRIO ESCOLHER 3) **PERGUNTAR TODOS OS CAMPOS OBRIGATÓRIOS (veja checklist)** 4) oferecer campos opcionais 5) resumir e ao confirmar CHAMAR criar_equipamento() COM TODOS os dados
+
+**CAMPOS OBRIGATÓRIOS — SEMPRE PERGUNTE (não pode faltar nenhum):**
+  1. **CATEGORIA** - apresentar lista de 18 categorias reais do banco, deixar user escolher
+  2. **NOME** - identificação do equipamento (ex: "Grade Intermediária", "Trator de 75 CV")
+  3. **MARCA** - fabricante (ex: "Tatu", "John Deere", "AGCO")
+  4. **MODELO** - modelo específico (ex: "HS 2500", "5075E", "MF 275") ⚠️ NUNCA DEIXE EM BRANCO
+  5. **ANO DE FABRICAÇÃO** - ano (ex: 2010, 2020)
+  6. **VALOR DE AQUISIÇÃO** - preço pago em R$ (ex: 150.000)
+
+**CAMPOS OPCIONAIS — OFEREÇA APÓS OS OBRIGATÓRIOS:**
+  - Número de série (SN/chassi)
+  - Potência (CV ou kW)
+  - Capacidade de tanque (litros)
+  - Horímetro atual (horas)
+  - Data de aquisição (data específica, se conhecida)
+  - Local de instalação (para equipamentos estacionários)
+  - Observações gerais
+
+**FLUXO DETALHADO:**
+1. Usar: consultar_categorias_equipamento() → obter lista real
+2. Apresentar: "Qual categoria? [18 opções listadas]"
+3. Usuário escolhe: (ex: "Grade")
+4. Perguntar TODOS os obrigatórios (nome, marca, modelo, ano, valor) de forma natural e conversacional
+5. Confirmar os dados obrigatórios
+6. Pergunte: "Deseja adicionar mais detalhes opcionais (série, potência, capacidade, etc) ou registrar agora?"
+7. Se sim: pergunte os opcionais um a um
+8. Se não: prossiga ao resumo
+9. Resumir TODOS os dados coletados
+10. Ao confirmar: CHAMAR criar_equipamento() COM EXATAMENTE esses dados
+
+**EXEMPLOS CORRETOS:**
+- "Quero cadastrar um novo trator" → 1) listar categorias 2) user escolhe "Trator" 3) perguntar nome, marca, modelo, ano, valor 4) oferecer opcionais 5) criar_equipamento()
+- "Vou registrar um novo equipamento" → 1) listar categorias 2) user escolhe 3) perguntar nome, marca, modelo, ano, valor 4) oferecer opcionais 5) criar_equipamento()
+- "Grade intermediária, marca Tatu, ano 2010, valor 150.000" → 1) confirmar categoria "Grade" 2) perguntar modelo (OBRIGATÓRIO!) 3) confirmar todos os dados 4) oferecer opcionais 5) criar_equipamento()
 - "Trator D6 fez revisão ontem custou R$1500" → perguntar todos os campos de registrar_manutencao_maquina (tipo_registro=revisao)
 - "CR5.85 305lts de diesel horas 2196" → 1) consultar_maquinas("CR5.85") para verificar nome completo → 2) perguntar: data e valor_unitario (campos obrigatórios restantes) → 3) resumir dados e perguntar se quer adicionar opcionais (responsavel, local, observacoes) ou registrar direto → 4) ao confirmar: CHAMAR registrar_abastecimento() IMEDIATAMENTE
 - "Abasteci o trator com 150 litros de diesel a R$5,45/litro" → 1) consultar_maquinas → 2) perguntar data (obrigatório) → 3) resumir e ao confirmar CHAMAR registrar_abastecimento()
