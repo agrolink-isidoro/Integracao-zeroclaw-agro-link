@@ -108,16 +108,21 @@ const ArrendamentoForm: React.FC<ArrendamentoFormProps> = ({
   // Filtrar talhões - usando useMemo para evitar re-renders desnecessários
   const filteredTalhoes = useMemo(() => {
     if (!formData.fazenda) return [];
-    // Buscar áreas da fazenda
+    
+    // Buscar a fazenda selecionada
     const fazenda = fazendasArray.find(f => f.id === formData.fazenda);
     if (!fazenda) return [];
     
+    // Se a fazenda tem áreas, filtrar talhões pelas áreas
     const areas = Array.isArray(fazenda.areas) ? fazenda.areas : [];
-    if (areas.length === 0) return [];
+    if (areas.length > 0) {
+      // Filtrar talhões que pertencem às áreas da fazenda
+      const areaIds = areas.map((a: any) => a.id);
+      return talhoesArray.filter(t => areaIds.includes(t.area_id));
+    }
     
-    // Buscar talhões que pertencem às áreas da fazenda
-    const areaIds = areas.map((a: any) => a.id);
-    return talhoesArray.filter(t => areaIds.includes(t.area_id));
+    // Se não há áreas, mostrar todos os talhões (fallback)
+    return talhoesArray;
   }, [formData.fazenda, fazendasArray, talhoesArray]);
 
   // Callback para mudar fazenda - limpa talhões se necessário
@@ -391,17 +396,19 @@ const ArrendamentoForm: React.FC<ArrendamentoFormProps> = ({
               <select
                 className={`form-select ${getFieldError('talhoes') || customErrors.talhoes ? 'is-invalid' : ''}`}
                 multiple
-                size={Math.min(5, Math.max(2, filteredTalhoes.length))}
+                size={Math.min(5, Math.max(2, filteredTalhoes.length || 3))}
                 value={formData.talhoes.map(t => t.toString())}
                 onChange={handleTalhoesChange}
                 disabled={!formData.fazenda}
               >
-                {filteredTalhoes.length === 0 ? (
+                {!formData.fazenda ? (
                   <option disabled>Selecione uma fazenda primeiro</option>
+                ) : filteredTalhoes.length === 0 ? (
+                  <option disabled>Nenhum talhão disponível para esta fazenda</option>
                 ) : (
                   filteredTalhoes.map(talhao => (
                     <option key={talhao.id} value={talhao.id}>
-                      {talhao.name} - {talhao.area_name} {talhao.area_size ? `(${talhao.area_size} ha)` : ''}
+                      {talhao.name} {talhao.area_name ? `- ${talhao.area_name}` : ''} {talhao.area_size ? `(${talhao.area_size} ha)` : ''}
                     </option>
                   ))
                 )}
