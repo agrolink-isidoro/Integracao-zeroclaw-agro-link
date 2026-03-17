@@ -137,7 +137,8 @@ const ArrendamentoForm: React.FC<ArrendamentoFormProps> = ({
     } else {
       setFilteredAreas([]);
     }
-  }, [formData.fazenda, areasData, formData.areas]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [formData.fazenda, areasData]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
