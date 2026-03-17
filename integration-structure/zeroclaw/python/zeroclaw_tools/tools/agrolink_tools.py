@@ -2131,6 +2131,82 @@ def get_agrolink_tools(base_url: str, jwt_token: str, tenant_id: str = "") -> li
             params["days"] = dias
         return _get(base_url, jwt_token, tenant_id, "/financeiro/lancamentos/", params)
 
+    @tool
+    def consultar_schema_acao(
+        action_type: str = "",
+        formato: str = "complete"
+    ) -> str:
+        """
+        Ferramenta LEGADO de introspection: consulta o schema de campos (obrigatórios vs opcionais)
+        para uma ação específica, ANTES de tentar registrá-la.
+        
+        Esta ferramenta INTERMEDIA a comunicação entre o backend (que já conhece a estrutura manual)
+        e a IA, retornando QUAIS CAMPOS SÃO OBRIGATÓRIOS e QUAIS SÃO OPCIONAIS para qualquer ação.
+        
+        **FLUXO OBRIGATÓRIO PARA TODA AÇÃO:**
+        1. PRIMEIRO: Chamar consultar_schema_acao(action_type="{nome_acao}") 
+        2. SEGUNDO: Ler resposta e identificar campos obrigatórios
+        3. TERCEIRO: Perguntar CADA campo obrigatório ao usuário individualmente
+        4. QUARTO: Confirmar todos os campos antes de chamar a ferramenta de criação
+        
+        Args:
+            action_type: Nome da ação (ex: "criar_equipamento", "registrar_operacao_agricola", 
+                         "registrar_abastecimento", etc). 
+                         Se vazio, retorna lista de TODOS os action_types disponíveis.
+            formato: Como estruturar a resposta:
+               - "required": apenas lista campos obrigatórios (nomes)
+               - "optional": apenas lista campos opcionais (nomes)
+               - "all": lista obrigatórios + opcionais (nomes)
+               - "complete": estrutura COMPLETA com metadata, descrições, exemplos [PADRÃO]
+        
+        Returns:
+            JSON com:
+            - Se action_type vazio: lista de todos action_types com agrupamento por módulo
+            - Se action_type preenchido: schema completo (ou filtrado por formato)
+        
+        **EXEMPLO DE USO:**
+        1. User: "Quero registrar um novo trator"
+           → ISIDORO: consultar_schema_acao(action_type="criar_equipamento", formato="complete")
+           → Recebe: lista de 6 campos obrigatórios (categoria, nome, marca, modelo, ano, valor)
+           → Recebe: lista de 7 campos opcionais (série, potência, capacidade, etc)
+        
+        2. ISIDORO: "Que tipo de equipamento? [lista 18 categorias]"
+           User: "Trator"
+           → Confirma categoria
+        
+        3. ISIDORO: "Qual o nome/identificação?" (campo obrigatório conforme schema)
+           User: "Trator de 75 CV"
+           → Confirma nome
+        
+        4. ISIDORO repete para: marca, modelo, ano, valor (todos obrigatórios segundo schema)
+        
+        5. ISIDORO: "Confirmi os dados: [resumo de todos 6 obrigatórios]"
+           User: "Sim"
+        
+        6. ISIDORO: "Deseja adicionar opcionais (série, potência, etc)?"
+           User: "Não"
+        
+        7. ISIDORO: criar_equipamento(categoria=..., nome=..., marca=..., modelo=..., ano=..., valor=...)
+        
+        **POR QUÊ ESTA FERRAMENTA?**
+        - Backend manual (formulário HTML) já knows quais campos são required
+        - Esta ferramenta EXPÕE esse conhecimento via API para IA
+        - Garante que IA NUNCA tente criar com campos obrigatórios faltando
+        - Permite que IA ofereça opcionais de forma inteligente ("Deixe mim oferecer extras")
+        
+        **REGRA CRÍTICA:**
+        NUNCA chame uma ferramenta de criação (criar_equipamento, registrar_abastecimento, etc)
+        sem ter PRIMEIRO consultado seu schema com esta ferramenta.
+        """
+        
+        # Se action_type vazio, retorna lista de todos os action_types
+        if not action_type:
+            return _get(base_url, jwt_token, tenant_id, "/actions/schema/", {})
+        
+        # Se action_type preenchido, retorna schema específico
+        params = {} if formato == "complete" else {"format": formato}
+        return _get(base_url, jwt_token, tenant_id, f"/actions/schema/{action_type}/", params)
+
     return [
         # Fazendas
         criar_proprietario,
@@ -2156,6 +2232,8 @@ def get_agrolink_tools(base_url: str, jwt_token: str, tenant_id: str = "") -> li
         registrar_abastecimento,
         registrar_ordem_servico_maquina,
         registrar_manutencao_maquina,
+        # Schema Introspection (LEGADO - intermediário backend manual ↔ IA)
+        consultar_schema_acao,
         # Consultas
         consultar_actions_pendentes,
         consultar_estoque,

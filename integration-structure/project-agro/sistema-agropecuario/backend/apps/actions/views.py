@@ -709,3 +709,86 @@ class ChatPDFExportView(APIView):
                 {'detail': f'Erro ao gerar PDF: {str(exc)}'},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
+
+class ActionSchemaView(APIView):
+    """
+    API REST para introspection de schema de actions.
+    
+    Permite que Isidoro (e qualquer cliente AI) consulte quais campos são obrigatórios
+    e quais são opcionais para cada ação, sem precisar ter hardcoded a lógica.
+    
+    É um intermediário legado que expõe a definição de campos já existente no sistema
+    manual (ACTION_FIELDS_SCHEMA) via REST API.
+    
+    Endpoints:
+    - GET /api/actions/schema/                    → Lista todos action_types disponíveis
+    - GET /api/actions/schema/{action_type}/      → Schema completo de um action_type
+    - GET /api/actions/schema/{action_type}/      → Com query ?format=required|optional|all
+    """
+    
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def get(self, request, action_type=None):
+        """
+        Retorna schema de campos para action_type.
+        
+        Query params:
+        - format: required|optional|all|complete (default: complete)
+          - required: apenas lista campos obrigatórios (nomes)
+          - optional: apenas lista campos opcionais (nomes)
+          - all: lista obrigatórios + opcionais (nomes)
+          - complete: estrutura completa com metadata (padrão)
+        """
+        from .ACTION_FIELDS_SCHEMA import ACTION_FIELDS_SCHEMA, get_required_fields, get_optional_fields, get_all_action_types
+        
+        format_param = request.query_params.get('format', 'complete')
+        
+        # Case 1: List all action_types (GET /api/actions/schema/)
+        if action_type is None:
+            all_types = get_all_action_types()
+            return Response({
+                'action_types': all_types,
+                'count': len(all_types),
+                'modules': self._group_by_module(all_types)
+            })
+        
+        # Case 2: Get schema for specific action_type
+        schema = ACTION_FIELDS_SCHEMA.get(action_type)
+        if not schema:
+            return Response(
+                {'error': f'action_type "{action_type}" não encontrado'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        # Format response based on query param
+        if format_param == 'required':
+            return Response({
+                'action_type': action_type,
+                'required_fields': get_required_fields(action_type)
+            })
+        elif format_param == 'optional':
+            return Response({
+                'action_type': action_type,
+                'optional_fields': get_optional_fields(action_type)
+            })
+        elif format_param == 'all':
+            return Response({
+                'action_type': action_type,
+                'required_fields': get_required_fields(action_type),
+                'optional_fields': get_optional_fields(action_type)
+            })
+        else:  # complete (default)
+            return Response(schema)
+    
+    def _group_by_module(self, action_types):
+        """Agrupa action_types por módulo."""
+        from .ACTION_FIELDS_SCHEMA import ACTION_FIELDS_SCHEMA
+        
+        by_module = {}
+        for action_type in action_types:
+            schema = ACTION_FIELDS_SCHEMA.get(action_type, {})
+            module = schema.get('module', 'unknown')
+            if module not in by_module:
+                by_module[module] = []
+            by_module[module].append(action_type)
+        return by_module
