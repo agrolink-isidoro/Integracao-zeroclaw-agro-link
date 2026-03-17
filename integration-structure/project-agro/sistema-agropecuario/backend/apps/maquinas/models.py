@@ -146,10 +146,7 @@ class Equipamento(TenantModel):
     modelo = models.CharField('Modelo', max_length=100, help_text='Modelo específico')
     numero_serie = models.CharField('Número de Série', max_length=100, blank=True, null=True)
     ano_fabricacao = models.PositiveIntegerField('Ano de Fabricação', validators=[MinValueValidator(1900)])
-    data_aquisicao = models.DateField('Data de Aquisição')
-    valor_aquisicao = models.DecimalField('Valor de Aquisição', max_digits=12, decimal_places=2, validators=[MinValueValidator(0)])
-
-    data_aquisicao = models.DateField('Data de Aquisição')
+    data_aquisicao = models.DateField('Data de Aquisição', blank=True, null=True)
     valor_aquisicao = models.DecimalField('Valor de Aquisição', max_digits=12, decimal_places=2, validators=[MinValueValidator(0)])
 
     # Status
@@ -344,30 +341,11 @@ class Equipamento(TenantModel):
         if not self.categoria:
             return
         
-        # Validação: horímetro obrigatório
-        if self.categoria.requer_horimetro and not self.horimetro_atual:
-            raise ValidationError({
-                'horimetro_atual': f'Horímetro é obrigatório para categoria "{self.categoria.nome}"'
-            })
-        
-        # Validação: potência obrigatória
-        if self.categoria.requer_potencia:
-            if not self.potencia_cv and not self.potencia_kw:
-                raise ValidationError({
-                    'potencia_cv': f'Potência (CV ou kW) é obrigatória para categoria "{self.categoria.nome}"'
-                })
-        
-        # Validação: localização obrigatória
-        if self.categoria.requer_localizacao and not self.local_instalacao:
-            raise ValidationError({
-                'local_instalacao': f'Local de instalação é obrigatório para categoria "{self.categoria.nome}"'
-            })
-        
-        # Validação: acoplamento obrigatório
-        if self.categoria.requer_acoplamento and not self.maquina_principal:
-            raise ValidationError({
-                'maquina_principal': f'Equipamento principal é obrigatório para categoria "{self.categoria.nome}" (implementos devem estar acoplados)'
-            })
+        # ====================================================================
+        # TODOS OS CAMPOS SÃO OPCIONAIS (exceto nome, marca, modelo)
+        # Validações dinâmicas foram removidas para permitir cadastro flexível.
+        # Campos podem ser preenchidos depois de criado o equipamento.
+        # ====================================================================
     
     def _validar_placa(self, placa):
         """Valida formato de placa brasileira"""

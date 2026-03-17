@@ -78,8 +78,56 @@ def _resolve_produto(tenant, nome: str, codigo: str = ""):
     return p
 
 
+def _criar_produto_automatico(tenant, nome: str, unidade: str = "un", criado_por=None):
+    """
+    Cria um produto automaticamente com valores padrão se não existir.
+    Útil para entrada_estoque quando o produto não foi previamente cadastrado.
+    """
+    from apps.estoque.models import Produto
+    
+    # Evitar duplicatas mesmo durante auto-criação
+    existing = Produto.objects.filter(tenant=tenant, nome__iexact=nome).first()
+    if existing:
+        return existing
+    
+    # Gerar código automático
+    count = Produto.objects.filter(tenant=tenant).count()
+    codigo = f"AUTO-{count + 1:04d}"
+    
+    # Detectar categoria a partir do nome
+    nome_lower = nome.lower()
+    categoria = "outro"
+    if any(word in nome_lower for word in ["diesel", "gasolina", "álcool", "combustível"]):
+        categoria = "combustivel" if hasattr(Produto, 'CATEGORIA_CHOICES') else "outro"
+    elif any(word in nome_lower for word in ["adubo", "fertilizante", "nutriente"]):
+        categoria = "fertilizante" if hasattr(Produto, 'CATEGORIA_CHOICES') else "outro"
+    elif any(word in nome_lower for word in ["agrotóxico", "defensivo", "pesticida", "herbicida"]):
+        categoria = "defensivo" if hasattr(Produto, 'CATEGORIA_CHOICES') else "outro"
+    
+    produto = Produto.objects.create(
+        tenant=tenant,
+        codigo=codigo,
+        nome=nome,
+        unidade=unidade,
+        categoria=categoria,
+        quantidade_estoque=Decimal("0"),
+        estoque_minimo=Decimal("0"),
+        criado_por=criado_por,
+    )
+    
+    logger.info(
+        "Produto criado automaticamente: codigo=%s nome=%s categoria=%s unidade=%s",
+        codigo, nome, categoria, unidade
+    )
+    
+    return produto
+
+
 def execute_entrada_estoque(action) -> None:
-    """Registra entrada de estoque."""
+    """
+    Registra entrada de estoque.
+    Se o produto não existir, cria automaticamente com valores padrão (categoria detectada pelo nome).
+    """
     from apps.estoque.services import create_movimentacao
     from apps.estoque.models import Produto
 
@@ -90,7 +138,22 @@ def execute_entrada_estoque(action) -> None:
     with transaction.atomic():
         nome_produto = data.get("nome_produto") or data.get("produto", "")
         codigo_produto = data.get("codigo_produto") or data.get("codigo", "")
-        produto = _resolve_produto(tenant, nome_produto, codigo_produto)
+        unidade = (data.get("unidade") or "un").strip()
+        
+        # Tentar resolver produto
+        try:
+            produto = _resolve_produto(tenant, nome_produto, codigo_produto)
+        except ValueError:
+            # Se não encontrou, criar automaticamente
+            logger.info(
+                "Produto não encontrado, criando automaticamente: %s", nome_produto
+            )
+            produto = _criar_produto_automatico(
+                tenant=tenant,
+                nome=nome_produto,
+                unidade=unidade,
+                criado_por=criado_por
+            )
 
         quantidade = _parse_decimal(data.get("quantidade"), "0")
         if quantidade <= Decimal("0"):
@@ -113,6 +176,7 @@ def execute_entrada_estoque(action) -> None:
     action.mark_executed({
         "movimentacao_id": str(getattr(mov, "pk", "?")),
         "produto": produto.nome,
+        "produto_criado_automaticamente": produto.codigo.startswith("AUTO-"),
         "quantidade": str(quantidade),
     })
     logger.info("execute_entrada_estoque OK: action=%s produto=%s qtd=%s", action.id, produto.nome, quantidade)

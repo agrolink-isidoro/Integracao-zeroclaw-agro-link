@@ -103,6 +103,11 @@ const ActionsPanel: React.FC = () => {
     (v) => v !== undefined && v !== '' && v !== 'pending_approval'
   ).length;
 
+  // Hard refresh
+  const handleHardRefresh = useCallback(() => {
+    queryClient.refetchQueries({ queryKey: ['actions'] });
+  }, [queryClient]);
+
   return (
     <div className="h-100">
       {/* Toolbar */}
@@ -159,6 +164,18 @@ const ActionsPanel: React.FC = () => {
                 {totalCount} {totalCount === 1 ? 'ação' : 'ações'}
                 {isFetching && <span className="spinner-border spinner-border-sm ms-2" />}
               </span>
+              
+              {/* Hard refresh button */}
+              <button
+                className="btn btn-sm btn-outline-primary"
+                onClick={handleHardRefresh}
+                disabled={isFetching}
+                title="Recarregar lista de ações"
+              >
+                <i className={`bi bi-arrow-clockwise ${isFetching ? 'spinning' : ''}`}></i>
+                <span className="d-none d-sm-inline ms-1">Atualizar</span>
+              </button>
+
               {/* View mode toggle */}
               <div className="btn-group btn-group-sm">
                 <button

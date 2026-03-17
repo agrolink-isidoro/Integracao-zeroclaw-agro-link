@@ -137,3 +137,17 @@ button:not(.btn):focus-visible {
 .tooltip-styled:hover::before,
 .tooltip-styled:focus::before { opacity: 1; }
 
+/* ─── Animação de load/refresh ─── */
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.spinning {
+  animation: spin 1s linear infinite;
+}
+

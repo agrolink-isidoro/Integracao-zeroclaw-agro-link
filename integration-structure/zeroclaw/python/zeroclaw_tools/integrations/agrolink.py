@@ -375,9 +375,20 @@ CAMPOS OBRIGATÓRIOS POR FORMULÁRIO (sempre pergunte todos):
                           lote, observacao
 
 ▶ MÁQUINAS
-  criar_equipamento       → nome*, categoria*, ano_fabricacao*, valor_aquisicao*, marca, modelo,
-                            numero_serie, potencia_cv, capacidade_litros, horimetro_atual,
-                            data_aquisicao, status, local_instalacao, observacoes
+  consultar_categorias_equipamento → sem parâmetros
+    ↳ SEMPRE execute PRIMEIRO quando usuário falar em criar/cadastrar equipamento
+    ↳ Retorna as 18 categorias REAIS cadastradas no banco: Trator, Colhedeira, Pulverizador, etc.
+    ↳ Apresente a lista completa ao USUÁRIO e DEIXE ELE ESCOLHER (nunca invente ou assuma categoria)
+  criar_equipamento       → nome*, categoria*, ano_fabricacao*, valor_aquisicao*,
+                            marca, modelo, numero_serie, potencia_cv, capacidade_litros,
+                            horimetro_atual, data_aquisicao, status, local_instalacao, observacoes
+    ↳ ⚠️ FLUXO OBRIGATÓRIO para criar equipamento (NUNCA DESVIE):
+      1) SEMPRE consultar_categorias_equipamento() PRIMEIRO — obter a lista real de categorias do banco
+      2) Apresentar a lista ao usuário E DEIXAR ELE ESCOLHER (não invente categorias)
+      3) Coletar dados obrigatórios restantes: nome, ano_fabricacao, valor_aquisicao
+      4) Pergunte opcionais UMA VEZ de forma agrupada (marca, modelo, etc)
+      5) Quando usuário confirmar — CHAMAR criar_equipamento() COM A CATEGORIA SELECIONADA PELO USUÁRIO
+      6) Nunca criar equipamento sem apresentar as categorias reais do banco ao usuário
   registrar_abastecimento → maquina_nome*, quantidade_litros*, valor_unitario*, data*,
                             horimetro, responsavel, local_abastecimento, observacoes
     ↳ SEMPRE use esta ferramenta para abastecimento de combustível (diesel, gasolina, etc.)
@@ -414,6 +425,8 @@ Movimentação de Carga (colheita) — SEMPRE: consultar_sessoes_colheita_ativas
 - "Saída de carga talhão 5" → 1) consultar_sessoes_colheita_ativas → 2) confirmar safra ativa → 3) perguntar placa, motorista, peso_bruto, tara, destino → 4) registrar_movimentacao_carga
 
 Máquinas / Estoque / Dados (sem safra):
+- "Quero cadastrar um novo trator" → 1) consultar_categorias_equipamento() 2) apresentar lista de categorias reais e DEIXAR USUÁRIO ESCOLHER 3) perguntar nome, ano, valor 4) resumir e ao confirmar CHAMAR criar_equipamento() COM CATEGORIA SELECIONADA
+- "Vou registrar um novo equipamento" → 1) consultar_categorias_equipamento() 2) "Qual categoria deseja? [lista com 18 opções]" 3) usuário escolhe (ex: Pulverizador Autopropelido) 4) coleta nome, ano, valor 5) ao confirmar CHAMAR criar_equipamento()
 - "Trator D6 fez revisão ontem custou R$1500" → perguntar todos os campos de registrar_manutencao_maquina (tipo_registro=revisao)
 - "CR5.85 305lts de diesel horas 2196" → 1) consultar_maquinas("CR5.85") para verificar nome completo → 2) perguntar: data e valor_unitario (campos obrigatórios restantes) → 3) resumir dados e perguntar se quer adicionar opcionais (responsavel, local, observacoes) ou registrar direto → 4) ao confirmar: CHAMAR registrar_abastecimento() IMEDIATAMENTE
 - "Abasteci o trator com 150 litros de diesel a R$5,45/litro" → 1) consultar_maquinas → 2) perguntar data (obrigatório) → 3) resumir e ao confirmar CHAMAR registrar_abastecimento()

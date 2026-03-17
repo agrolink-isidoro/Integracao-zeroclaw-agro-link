@@ -1327,6 +1327,51 @@ def get_agrolink_tools(base_url: str, jwt_token: str, tenant_id: str = "") -> li
     # ═══════════════════════════════════════════════════════════════════════
 
     @tool
+    def consultar_categorias_equipamento() -> str:
+        """
+        Consultar as categorias de equipamento/máquinas disponíveis no sistema.
+        
+        Retorna a lista de TODAS as categorias cadastradas no banco de dados.
+        USE SEMPRE PRIMEIRO antes de chamar criar_equipamento() para que o usuário
+        possa ESCOLHER a categoria real (nunca adivinhe).
+        
+        Retorno: Lista com os nomes de todas as categorias disponíveis.
+                 Ex: Trator, Colhedeira, Pulverizador Autopropelido, etc.
+        """
+        result = _get(base_url, jwt_token, tenant_id, "/maquinas/categorias-equipamento/")
+        
+        # Parse resultado
+        try:
+            data = json.loads(result)
+            
+            # Handle erro HTTP
+            if "erro" in data:
+                return json.dumps({
+                    "erro": f"Falha ao buscar categorias",
+                    "mensagem": data.get("erro")
+                })
+            
+            # Se for paginado, extrair results
+            if isinstance(data, dict) and "results" in data:
+                categorias = data["results"]
+            elif isinstance(data, list):
+                categorias = data
+            else:
+                categorias = [data]
+            
+            # Formatar como lista legível
+            if categorias and len(categorias) > 0:
+                nomes = [cat.get("nome", str(cat)) if isinstance(cat, dict) else str(cat) for cat in categorias]
+                return "\n".join([f"• {nome}" for nome in nomes])
+            else:
+                return "Nenhuma categoria encontrada no sistema."
+        except json.JSONDecodeError as e:
+            return json.dumps({
+                "erro": "Erro ao processar resposta",
+                "mensagem": str(e)
+            })
+
+    @tool
     def criar_equipamento(
         nome: str,
         categoria: str,
@@ -1336,33 +1381,29 @@ def get_agrolink_tools(base_url: str, jwt_token: str, tenant_id: str = "") -> li
         modelo: str = "",
         numero_serie: str = "",
         potencia_cv: float = 0.0,
-        capacidade_litros: float = 0.0,
+        capacidade_tanque: float = 0.0,
         horimetro_atual: float = 0.0,
         data_aquisicao: str = "",
         status: str = "ativo",
-        local_instalacao: str = "",
         observacoes: str = "",
     ) -> str:
         """
-        Cadastra um novo equipamento/máquina agrícola no sistema.
-        Pergunte os campos obrigatórios antes de chamar. Campos opcionais podem ser omitidos. Ao confirmar, CHAME a ferramenta IMEDIATAMENTE.
-
+        Criar um novo equipamento/máquina no sistema.
+        
+        ⚠️ CRÍTICO: SEMPRE liste as categorias disponíveis ANTES de chamar esta ferramenta:
+           1. Use consultar_categorias_equipamento() para ver a lista de categorias reais do banco
+           2. Apresente ao usuário para ELE ESCOLHER (não invente categorias)
+           3. SOMENTE ENTÃO colete os demais dados obrigatórios
+           4. Quando usuário confirmar, CHAME esta ferramenta IMEDIATAMENTE com a categoria selecionada
+           5. Nunca criar equipamento sem apresentar as categorias reais do banco ao usuário
+        
         Args:
-            nome: Nome completo do equipamento (ex: Trator John Deere 7200J) — obrigatório
-            categoria: Categoria do equipamento — obrigatório. Ex: Trator, Colhedora,
-                       Pulverizador, Plantadeira, Implemento, Veículo, Outros
-            ano_fabricacao: Ano de fabricação (ex: 2020) — obrigatório
-            valor_aquisicao: Valor de aquisição em reais — obrigatório
-            marca: Marca/fabricante (ex: John Deere, Case, Massey Ferguson)
-            modelo: Modelo específico (ex: 7200J, Magnum 310)
-            numero_serie: Número de série/chassi
-            potencia_cv: Potência em cavalos (CV) — para tratores e autopropelidos
-            capacidade_litros: Capacidade do tanque de combustível em litros
-            horimetro_atual: Leitura atual do horímetro (horas trabalhadas)
-            data_aquisicao: Data de aquisição no formato DD/MM/AAAA
-            status: Status: 'ativo' (padrão), 'inativo', 'manutenção', 'vendido'
-            local_instalacao: Local onde o equipamento está instalado/guardado
-            observacoes: Observações adicionais
+            nome: Nome do equipamento (ex: "Trator John Deere 7200")
+            categoria: Categoria SELECIONADA PELO USUÁRIO (ex: "Trator", "Colhedeira") — SEMPRE de consultar_categorias_equipamento()
+            ano_fabricacao: Ano de fabricação (ex: 2020)
+            valor_aquisicao: Valor de aquisição em reais (ex: 150000.00)
+            marca: Marca (ex: "John Deere")
+            modelo: Modelo (ex: "7200")
         """
         return _post_action(
             base_url, jwt_token, tenant_id,
@@ -1376,12 +1417,11 @@ def get_agrolink_tools(base_url: str, jwt_token: str, tenant_id: str = "") -> li
                 "ano_fabricacao": ano_fabricacao,
                 "numero_serie": numero_serie,
                 "potencia_cv": potencia_cv,
-                "capacidade_litros": capacidade_litros,
+                "capacidade_tanque": capacidade_tanque,
                 "horimetro_atual": horimetro_atual,
                 "valor_aquisicao": valor_aquisicao,
                 "data_aquisicao": data_aquisicao,
                 "status": status,
-                "local_instalacao": local_instalacao,
                 "observacoes": observacoes,
             },
         )
@@ -2101,6 +2141,7 @@ def get_agrolink_tools(base_url: str, jwt_token: str, tenant_id: str = "") -> li
         registrar_saida_estoque,
         registrar_movimentacao_estoque,
         # Máquinas
+        consultar_categorias_equipamento,
         criar_equipamento,
         registrar_abastecimento,
         registrar_ordem_servico_maquina,

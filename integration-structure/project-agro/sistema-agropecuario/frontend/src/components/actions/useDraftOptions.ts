@@ -27,7 +27,7 @@ const SOURCE_ENDPOINTS: Record<FieldSource, string | null> = {
   talhoes: '/talhoes/',
   safras: '/agricultura/plantios/',
   proprietarios: '/proprietarios/',
-  categorias_eq: '/maquinas/categorias/',
+  categorias_eq: '/maquinas/categorias-equipamento/',
   locais: '/estoque/locais-armazenamento/',
   static: null, // opções estáticas, não precisa fetch
 };

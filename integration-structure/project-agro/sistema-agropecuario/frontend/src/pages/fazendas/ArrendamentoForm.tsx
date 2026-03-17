@@ -46,6 +46,7 @@ const ArrendamentoForm: React.FC<ArrendamentoFormProps> = ({
   });
 
   const [customErrors, setCustomErrors] = useState<Record<string, string>>({});
+  const [invalidTalhoesWarning, setInvalidTalhoesWarning] = useState<string>('');
 
   const validationRules = {
     arrendador: { required: true },
@@ -79,6 +80,38 @@ const ArrendamentoForm: React.FC<ArrendamentoFormProps> = ({
   const fazendasArray = Array.isArray(fazendas) ? fazendas : [];
   const talhoesArray = Array.isArray(talhoes) ? talhoes : [];
 
+  // Debug: Monitorar carregamento de fazendas e áreas
+  useEffect(() => {
+    if (fazendasArray.length > 0) {
+      console.log('Fazendas carregadas:', fazendasArray.map(f => ({
+        id: f.id,
+        name: f.name,
+        areas_count: Array.isArray(f.areas) ? f.areas.length : 0,
+        areas: f.areas
+      })));
+    }
+  }, [fazendasArray]);
+
+  // Re-validar talhões quando fazendas são carregadas (em caso de race condition)
+  useEffect(() => {
+    if (formData.fazenda && formData.talhoes.length > 0 && fazendasArray.length > 0) {
+      const fazenda = fazendasArray.find(f => f.id === formData.fazenda);
+      if (fazenda && fazenda.areas_ids) {
+        const fazendasAreaIds = fazenda.areas_ids;
+        const invalidTalhoes = formData.talhoes.filter(id => !fazendasAreaIds.includes(id));
+        
+        if (invalidTalhoes.length > 0) {
+          const msg = `⚠️ Detectados ${invalidTalhoes.length} talhão(ões) que não pertencem à fazenda selecionada. Foram removidos automaticamente.`;
+          setInvalidTalhoesWarning(msg);
+          console.warn(msg);
+          setFormData(prev => ({ ...prev, talhoes: [] }));
+        } else {
+          setInvalidTalhoesWarning('');
+        }
+      }
+    }
+  }, [fazendasArray, formData.fazenda]);
+
   // Mutations
   const createMutation = useApiCreate('/arrendamentos/', [['arrendamentos']]);
   const updateMutation = useApiUpdate('/arrendamentos/', [['arrendamentos']]);
@@ -86,18 +119,39 @@ const ArrendamentoForm: React.FC<ArrendamentoFormProps> = ({
   // Inicializar form data quando arrendamento muda
   useEffect(() => {
     if (arrendamento) {
+      const fazendaId = arrendamento.fazenda || 0;
+      const areaIds = arrendamento.areas || [];
+      
+      // Validação: Verificar se as áreas carregadas pertencem à fazenda
+      const fazenda = fazendasArray.find(f => f.id === fazendaId);
+      let validTalhoes = areaIds;
+      
+      if (fazenda && fazenda.areas_ids) {
+        const fazendasAreaIds = fazenda.areas_ids;
+        const invalidTalhoes = areaIds.filter(id => !fazendasAreaIds.includes(id));
+        
+        if (invalidTalhoes.length > 0) {
+          const msg = `⚠️ Detectados ${invalidTalhoes.length} talhão(ões) que não pertencem à fazenda selecionada. Foram removidos automaticamente.`;
+          setInvalidTalhoesWarning(msg);
+          console.warn(msg);
+          validTalhoes = areaIds.filter(id => fazendasAreaIds.includes(id));
+        } else {
+          setInvalidTalhoesWarning('');
+        }
+      }
+      
       setFormData({
         arrendador: arrendamento.arrendador || 0,
         arrendatario: arrendamento.arrendatario || 0,
-        fazenda: arrendamento.fazenda || 0,
-        talhoes: arrendamento.areas || [], // Backend usa "areas" mas aqui estamos usando talhões
+        fazenda: fazendaId,
+        talhoes: validTalhoes,
         start_date: arrendamento.start_date || '',
         end_date: arrendamento.end_date || '',
         custo_sacas_hectare: arrendamento.custo_sacas_hectare?.toString() || ''
       });
       clearErrors();
     }
-  }, [arrendamento, clearErrors]);
+  }, [arrendamento, fazendasArray, clearErrors]);
 
   // Filtrar fazendas - usando useMemo para evitar re-renders desnecessários
   const filteredFazendas = useMemo(() => {
@@ -113,16 +167,27 @@ const ArrendamentoForm: React.FC<ArrendamentoFormProps> = ({
     const fazenda = fazendasArray.find(f => f.id === formData.fazenda);
     if (!fazenda) return [];
     
-    // Se a fazenda tem áreas, filtrar talhões pelas áreas
-    const areas = Array.isArray(fazenda.areas) ? fazenda.areas : [];
-    if (areas.length > 0) {
-      // Filtrar talhões que pertencem às áreas da fazenda
-      const areaIds = areas.map((a: any) => a.id);
+    // Obter IDs de todas as áreas que pertencem à fazenda
+    // O backend retorna areas_ids como um array simples de IDs para facilitar filtragem
+    const areaIds = fazenda.areas_ids || [];
+    
+    // Rastreamento: Talhão → area_id → Área (que pertence à Fazenda)
+    // Filtrar apenas talhões que tem area_id válido vinculado à fazenda
+    if (areaIds.length > 0) {
       return talhoesArray.filter(t => areaIds.includes(t.area_id));
     }
     
-    // Se não há áreas, mostrar todos os talhões (fallback)
-    return talhoesArray;
+    // Se não há áreas carregadas, tentar fallback por fazenda_id se existir
+    // Alguns APIs retornam fazenda_id diretamente no Talhão
+    const hasDirectFazendaId = talhoesArray.length > 0 && 'fazenda_id' in talhoesArray[0];
+    if (hasDirectFazendaId) {
+      console.info(`Fallback: filtrando talhões por fazenda_id (áreas não carregadas para fazenda ${formData.fazenda})`);
+      return talhoesArray.filter(t => (t as any).fazenda_id === formData.fazenda);
+    }
+    
+    // Se não conseguimos rastrear a relação, não mostrar talhões para evitar dados inválidos
+    console.warn(`Aviso: Não foi possível filtrar talhões para fazenda ${formData.fazenda}. Áreas não carregadas ([${areaIds}]) e talhões não têm fazenda_id.`);
+    return [];
   }, [formData.fazenda, fazendasArray, talhoesArray]);
 
   // Callback para mudar fazenda - limpa talhões se necessário
@@ -243,15 +308,32 @@ const ArrendamentoForm: React.FC<ArrendamentoFormProps> = ({
     }
 
     try {
+      // Converter Talhão IDs para Area IDs
+      const areaIds = formData.talhoes.map(talhaoId => {
+        const talhao = talhoesArray.find(t => t.id === talhaoId);
+        return talhao ?  talhao.area_id : null;
+      }).filter(id => id !== null);
+
+      // Debug: Log dos dados antes de enviar
       const submitData = {
         arrendador: formData.arrendador,
         arrendatario: formData.arrendatario,
         fazenda: formData.fazenda,
-        areas: formData.talhoes, // Backend espera "areas" mas são talhões
+        areas: areaIds, // Agora é Array de Area IDs, não Talhão IDs
         start_date: formData.start_date,
         end_date: formData.end_date || null,
         custo_sacas_hectare: parseFloat(formData.custo_sacas_hectare)
       };
+      
+      console.log('Antes de enviar:', {
+        fazenda_id: formData.fazenda,
+        talhao_ids: formData.talhoes,
+        area_ids: areaIds,
+        talhao_detalhes: formData.talhoes.map(id => {
+          const t = talhoesArray.find(t => t.id === id);
+          return t ? `${t.name} (area_id: ${t.area_id})` : `ID ${id} não encontrado`;
+        })
+      });
 
       if (arrendamento) {
         await updateMutation.mutateAsync({ id: arrendamento.id, ...submitData });
@@ -389,6 +471,11 @@ const ArrendamentoForm: React.FC<ArrendamentoFormProps> = ({
 
             {/* Talhões (multi-select) */}
             <div className="col-12">
+              {invalidTalhoesWarning && (
+                <div className="alert alert-warning mb-2">
+                  {invalidTalhoesWarning}
+                </div>
+              )}
               <label className="form-label">
                 <i className="bi bi-grid-3x3-gap me-2"></i>
                 Talhões que serão arrendados <span className="text-danger">*</span>

@@ -39,6 +39,7 @@ export interface ChatMessage {
   text: string;
   timestamp: string;
   isError?: boolean;
+  priority?: 'normal' | 'high'; // high for errors
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -156,6 +157,31 @@ export function ActionsProvider({ children }: { children: React.ReactNode }) {
 
   // ── WebSocket Chat ─────────────────────────────────────────────────────────
 
+  const playErrorSound = useCallback(() => {
+    try {
+      // Usar Web Audio API para gerar um tom de erro beep
+      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const oscillator = audioContext.createOscillator();
+      const gainNode = audioContext.createGain();
+      
+      oscillator.connect(gainNode);
+      gainNode.connect(audioContext.destination);
+      
+      // Frequência: 600Hz (tom intermediário), duração: 0.3s
+      oscillator.frequency.value = 600;
+      oscillator.type = 'sine';
+      
+      gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.3);
+      
+      oscillator.start(audioContext.currentTime);
+      oscillator.stop(audioContext.currentTime + 0.3);
+    } catch (e) {
+      console.debug('Erro ao reproduzir som:', e);
+      // Silenciosamente falha se não conseguir reproduzir
+    }
+  }, []);
+
   const connectWebSocket = useCallback(() => {
     const accessToken = getStoredTokens()?.access;
     if (!accessToken) return;
@@ -242,14 +268,28 @@ export function ActionsProvider({ children }: { children: React.ReactNode }) {
       // Novas actions criadas → atualiza fila
       refreshActions();
     } else if (type === 'error') {
+      // Reproduzir som de erro
+      playErrorSound();
+      
       const msg: ChatMessage = {
         id: crypto.randomUUID(),
         sender: 'isidoro',
-        text: `⚠️ ${data.message as string}`,
+        text: `❌ **ERRO**: ${data.message as string}`,
         timestamp: new Date().toISOString(),
         isError: true,
+        priority: 'high',
       };
       setChatMessages((prev) => [...prev, msg]);
+      
+      // Notificação do navegador se permitido
+      if ('Notification' in window && Notification.permission === 'granted') {
+        new Notification('Erro na ação Isidoro', {
+          body: String(data.message || 'Erro ao executar ação'),
+          icon: '⚠️',
+          tag: 'isidoro-error',
+          requireInteraction: true,
+        });
+      }
     }
   }, [refreshActions]);
 

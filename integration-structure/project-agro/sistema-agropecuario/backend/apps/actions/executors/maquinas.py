@@ -520,15 +520,16 @@ def execute_criar_equipamento(action) -> None:
             ano_fabricacao=data.get("ano_fabricacao") or None,
             numero_serie=data.get("numero_serie", "") or None,
             potencia_cv=_parse_decimal(data.get("potencia_cv"), "0") or None,
-            capacidade_litros=_parse_decimal(data.get("capacidade_litros"), "0") or None,
+            capacidade_tanque=_parse_decimal(data.get("capacidade_tanque"), "0") or None,
             horimetro_atual=_parse_decimal(data.get("horimetro_atual"), "0") or None,
             valor_aquisicao=_parse_decimal(data.get("valor_aquisicao"), "0"),
             data_aquisicao=data_aquisicao.date() if data_aquisicao else None,
             status=data.get("status", "ativo"),
-            local_instalacao=data.get("local_instalacao", ""),
             observacoes=data.get("observacoes", ""),
         )
-        eq.full_clean(exclude=["tenant"])
+        # Excluir validation de campos agora opcionais
+        eq.full_clean(exclude=["tenant", "potencia_cv", "potencia_kw", "horimetro_atual", 
+                               "local_instalacao", "maquina_principal", "data_aquisicao"])
         eq.save()
 
     action.mark_executed({"equipamento_id": eq.pk, "nome": eq.nome})

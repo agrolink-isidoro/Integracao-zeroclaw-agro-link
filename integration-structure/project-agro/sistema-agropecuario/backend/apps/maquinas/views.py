@@ -34,10 +34,13 @@ from .serializers import (
 # VIEWSETS PARA CATEGORIZAÇÃO FLEXÍVEL
 # ====================================================================
 
-class CategoriaEquipamentoViewSet(TenantQuerySetMixin, viewsets.ModelViewSet):
+class CategoriaEquipamentoViewSet(viewsets.ModelViewSet):
     """
     ViewSet para gerenciamento de categorias de equipamentos.
     Permite criar novas categorias sem modificar código.
+    
+    NOTA: CategoriaEquipamento é GLOBAL (não é filtrada por tenant)
+    pois as categorias devem estar disponíveis para todos os usuários.
     """
     rbac_module = 'maquinas'
     queryset = CategoriaEquipamento.objects.filter(ativo=True).prefetch_related('subcategorias')
@@ -49,7 +52,7 @@ class CategoriaEquipamentoViewSet(TenantQuerySetMixin, viewsets.ModelViewSet):
     ordering = ['ordem_exibicao', 'nome']
     
     def perform_create(self, serializer):
-        serializer.save(criado_por=self.request.user, **self._get_tenant_kwargs())
+        serializer.save(criado_por=self.request.user)
 
     @action(detail=False, methods=['GET'])
     def por_tipo_mobilidade(self, request):

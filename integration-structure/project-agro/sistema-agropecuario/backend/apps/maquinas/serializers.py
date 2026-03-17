@@ -122,31 +122,10 @@ class EquipamentoSerializer(serializers.ModelSerializer):
             return data
         
         # ====================================================================
-        # VALIDAÇÕES DINÂMICAS BASEADAS NAS FLAGS DA CATEGORIA
+        # TODOS OS CAMPOS SÃO OPCIONAIS (exceto nome, marca, modelo)
+        # Validações dinâmicas foram removidas para permitir cadastro flexível.
+        # Campos podem ser preenchidos depois de criado o equipamento.
         # ====================================================================
-        
-        # Validação: horímetro obrigatório
-        if categoria.requer_horimetro and not data.get('horimetro_atual'):
-            raise serializers.ValidationError({
-                'horimetro_atual': f'Horímetro é obrigatório para categoria "{categoria.nome}"'
-            })
-        
-        # Validação: potência obrigatória
-        if categoria.requer_potencia:
-            if not data.get('potencia_cv') and not data.get('potencia_kw'):
-                raise serializers.ValidationError({
-                    'potencia_cv': f'Potência (CV ou kW) é obrigatória para categoria "{categoria.nome}"'
-                })
-        
-        # Validação: localização obrigatória (equipamentos estacionários)
-        if categoria.requer_localizacao and not data.get('local_instalacao'):
-            raise serializers.ValidationError({
-                'local_instalacao': f'Local de instalação é obrigatório para categoria "{categoria.nome}"'
-            })
-        
-        # NOTA: maquina_principal NÃO é validado aqui!
-        # Implementos são acoplados durante OPERAÇÕES, não no cadastro do equipamento.
-        # A flag requer_acoplamento apenas indica que é um implemento rebocado.
         
         return data
 

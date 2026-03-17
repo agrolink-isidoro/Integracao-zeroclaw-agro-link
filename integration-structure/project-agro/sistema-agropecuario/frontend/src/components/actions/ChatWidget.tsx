@@ -254,6 +254,7 @@ const CHAT_STYLES = `
 const MessageBubble: React.FC<{ msg: ChatMessage; onExportPdf?: () => void }> = ({ msg, onExportPdf }) => {
   const isUser = msg.sender === 'user';
   const showPdf = !isUser && !msg.isError && isReportMessage(msg.text);
+  const isHighPriority = msg.priority === 'high' || msg.isError;
 
   return (
     <div className={`d-flex mb-3 ${isUser ? 'justify-content-end' : 'justify-content-start'}`}>
@@ -271,12 +272,16 @@ const MessageBubble: React.FC<{ msg: ChatMessage; onExportPdf?: () => void }> = 
             isUser
               ? 'bg-primary text-white'
               : msg.isError
-              ? 'bg-danger bg-opacity-10 text-danger border border-danger'
+              ? 'bg-danger bg-opacity-10 text-danger border-2 border-danger'
               : 'bg-white text-dark border shadow-sm'
           }`}
           style={{
             wordBreak: 'break-word',
             ...(isUser ? { whiteSpace: 'pre-wrap', fontSize: '0.84rem' } : {}),
+            ...(isHighPriority ? {
+              boxShadow: msg.isError ? '0 0 12px rgba(220,53,69,0.3)' : 'none',
+              animation: msg.isError ? 'pulse 0.6s ease-in-out' : 'none',
+            } : {}),
           }}
         >
           {isUser ? (
@@ -498,7 +503,18 @@ const ChatWidget: React.FC = () => {
            style={{ borderRadius: isModal ? '12px 12px 0 0' : '16px 16px 0 0' }}>
         <i className="bi bi-robot fs-5"></i>
         <div className="flex-grow-1">
-          <div className="fw-semibold small lh-1">Isidoro</div>
+          <div className="fw-semibold small lh-1">
+            Isidoro
+            {chatMessages.some((m) => m.isError) && (
+              <span
+                className="badge bg-danger ms-2"
+                title="Há erros não resolvidos"
+                style={{ fontSize: '0.65rem', animation: 'pulse 1s infinite' }}
+              >
+                ⚠️ Erro
+              </span>
+            )}
+          </div>
           <div className="opacity-75" style={{ fontSize: '0.7rem' }}>
             {isChatConnected ? (
               <><span className="me-1" style={{ color: '#90ee90' }}>●</span>Conectado</>

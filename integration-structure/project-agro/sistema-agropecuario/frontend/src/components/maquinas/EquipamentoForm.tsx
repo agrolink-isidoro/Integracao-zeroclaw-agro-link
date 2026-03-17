@@ -24,7 +24,7 @@ const EquipamentoForm: React.FC<EquipamentoFormProps> = ({
     ano_fabricacao: equipamento?.ano_fabricacao || new Date().getFullYear(),
     numero_serie: equipamento?.numero_serie || '',
     potencia_cv: Number(equipamento?.potencia_cv) || 0,
-    capacidade_litros: Number(equipamento?.capacidade_litros) || 0,
+    capacidade_tanque: Number(equipamento?.capacidade_tanque) || 0,
     horimetro_atual: Number(equipamento?.horimetro_atual) || 0,
     valor_aquisicao: Number(equipamento?.valor_aquisicao) || 0,
     data_aquisicao: equipamento?.data_aquisicao || '',
@@ -91,7 +91,7 @@ const EquipamentoForm: React.FC<EquipamentoFormProps> = ({
         modelo: formData.modelo || undefined,
         numero_serie: formData.numero_serie || undefined,
         potencia_cv: formData.potencia_cv > 0 ? formData.potencia_cv : undefined,
-        capacidade_litros: formData.capacidade_litros > 0 ? formData.capacidade_litros : undefined,
+        capacidade_tanque: formData.capacidade_tanque > 0 ? formData.capacidade_tanque : undefined,
         horimetro_atual: formData.horimetro_atual > 0 ? formData.horimetro_atual : undefined,
         valor_aquisicao: formData.valor_aquisicao,  // Campo obrigatório, sempre enviar
         data_aquisicao: formData.data_aquisicao || undefined,
@@ -308,13 +308,13 @@ const EquipamentoForm: React.FC<EquipamentoFormProps> = ({
       </div>
 
       <div className="col-md-6">
-        <label htmlFor="capacidade_litros" className="form-label">Capacidade (Litros)</label>
+        <label htmlFor="capacidade_tanque" className="form-label">Capacidade do Tanque (Litros)</label>
         <input
           type="number"
           className="form-control"
-          id="capacidade_litros"
-          name="capacidade_litros"
-          value={formData.capacidade_litros}
+          id="capacidade_tanque"
+          name="capacidade_tanque"
+          value={formData.capacidade_tanque}
           onChange={handleChange}
           min="0"
           step="0.1"

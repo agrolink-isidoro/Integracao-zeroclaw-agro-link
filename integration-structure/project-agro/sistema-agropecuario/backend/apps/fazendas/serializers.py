@@ -100,19 +100,20 @@ class TalhaoSerializer(serializers.ModelSerializer):
     kml_file = serializers.FileField(write_only=True, required=False)
     area_size_manual = serializers.DecimalField(max_digits=12, decimal_places=2, write_only=True, required=False, allow_null=True)
     
-    # Campos adicionais para agrupamento no frontend
-    area_nome = serializers.CharField(source='area.name', read_only=True)
+    # Campos para vincular talhão à área e à fazenda
+    area_id = serializers.IntegerField(source='area.id', read_only=True)
+    area_name = serializers.CharField(source='area.name', read_only=True)
     fazenda_id = serializers.IntegerField(source='area.fazenda.id', read_only=True)
     fazenda_nome = serializers.CharField(source='area.fazenda.name', read_only=True)
 
     class Meta:
         model = Talhao
         fields = [
-            "id", "area", "area_nome", "fazenda_id", "fazenda_nome",
+            "id", "area", "area_id", "area_name", "fazenda_id", "fazenda_nome",
             "name", "geom", "area_size", "custo_arrendamento", 
             "area_hectares", "kml_file", "area_size_manual"
         ]
-        read_only_fields = ["id", "area_hectares", "area_nome", "fazenda_id", "fazenda_nome"]
+        read_only_fields = ["id", "area_hectares", "area_id", "area_name", "fazenda_id", "fazenda_nome"]
     
     def _create_approximate_geometry_from_hectares(self, hectares):
         """Cria uma geometria aproximada (quadrado) a partir de hectares."""
@@ -383,9 +384,14 @@ class ArrendamentoSerializer(serializers.ModelSerializer):
         if areas and fazenda:
             areas_invalidas = [area for area in areas if area.fazenda != fazenda]
             if areas_invalidas:
-                nomes = ', '.join([area.name for area in areas_invalidas])
+                detalhes_invalidas = []
+                for area in areas_invalidas:
+                    detalhes_invalidas.append(
+                        f"'{area.name}' (pertence a '{area.fazenda.name}', ID {area.fazenda.id})"
+                    )
+                detalhes = ', '.join(detalhes_invalidas)
                 raise serializers.ValidationError(
-                    f"As seguintes áreas não pertencem à fazenda selecionada: {nomes}"
+                    f"As seguintes áreas/talhões não pertencem à fazenda selecionada '{fazenda.name}' (ID {fazenda.id}): {detalhes}"
                 )
 
         # 4. Validar datas
@@ -401,6 +407,7 @@ class ArrendamentoSerializer(serializers.ModelSerializer):
 
 class FazendaSerializer(serializers.ModelSerializer):
     areas = AreaSerializer(many=True, read_only=True)
+    areas_ids = serializers.SerializerMethodField()
     proprietario_nome = serializers.CharField(source='proprietario.nome', read_only=True)
     areas_count = serializers.SerializerMethodField()
     total_hectares = serializers.SerializerMethodField()
@@ -408,8 +415,12 @@ class FazendaSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Fazenda
-        fields = ["id", "proprietario", "proprietario_nome", "name", "matricula", "areas", "areas_count", "total_hectares", "todas_matriculas"]
+        fields = ["id", "proprietario", "proprietario_nome", "name", "matricula", "areas", "areas_ids", "areas_count", "total_hectares", "todas_matriculas"]
         read_only_fields = ["id"]
+
+    def get_areas_ids(self, obj):
+        """Retorna apenas os IDs das áreas como array simples, para filtro no frontend"""
+        return list(obj.areas.values_list('id', flat=True))
 
     def get_areas_count(self, obj):
         """Retorna o número de áreas da fazenda"""

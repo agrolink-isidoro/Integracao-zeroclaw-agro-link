@@ -25,22 +25,46 @@ const EquipamentoForm = ({ equipamento, onSave, onCancel }) => {
     useEffect(() => {
         const loadCategorias = async () => {
             try {
+                console.log('[EquipamentoForm] Iniciando carregamento de categorias de /maquinas/categorias-equipamento/');
                 const response = await api.get('/maquinas/categorias-equipamento/');
-                setCategorias(response.data.results || response.data);
+                console.log('[EquipamentoForm] Resposta da API:', response.data);
+                const cats = response.data.results || response.data;
+                console.log(`[EquipamentoForm] Categorias carregadas com sucesso: ${cats?.length || 0} itens`);
+                setCategorias(cats || []);
             }
             catch (error) {
-                if (error?.response?.status === 401) {
-                    // Usuário não autenticado – reduzir spam no console
-                    console.warn('Categorias: não autorizado (usuário não autenticado)');
-                }
-                else {
-                    console.error('Erro ao carregar categorias:', error);
-                }
-                // Fallback para categorias básicas se API falhar
-                setCategorias([
-                    { id: 1, nome: 'Trator', descricao: 'Trator agrícola', tipo_mobilidade: 'autopropelido', requer_horimetro: true, requer_potencia: true, requer_localizacao: false, requer_acoplamento: false, ativo: true, ordem_exibicao: 1 },
-                    { id: 5, nome: 'Outros', descricao: 'Outros equipamentos', tipo_mobilidade: 'autopropelido', requer_horimetro: false, requer_potencia: false, requer_localizacao: false, requer_acoplamento: false, ativo: true, ordem_exibicao: 5 }
-                ]);
+                console.error('[EquipamentoForm] ERRO ao carregar categorias:', {
+                    status: error?.response?.status,
+                    message: error?.message,
+                    data: error?.response?.data,
+                    fullError: error
+                });
+                
+                // Fallback com as 18 categorias REAIS do banco de dados
+                // Se a API falhar, usa essas para que a IA tenha dados corretos
+                const categoriasReais = [
+                    { id: 18, nome: 'Drone Agrícola', descricao: 'Drone aéreo para monitoramento e aplicação de defensivos', tipo_mobilidade: 'aéreo', requer_horimetro: false, requer_potencia: true, requer_localizacao: true, requer_acoplamento: false, ativo: true },
+                    { id: 1, nome: 'Trator', descricao: 'Trator agrícola para tração e operações diversas', tipo_mobilidade: 'autopropelido', requer_horimetro: true, requer_potencia: true, requer_localizacao: false, requer_acoplamento: true, ativo: true },
+                    { id: 2, nome: 'Colhedeira', descricao: 'Colhedeira automotriz para grãos', tipo_mobilidade: 'autopropelido', requer_horimetro: true, requer_potencia: true, requer_localizacao: false, requer_acoplamento: false, ativo: true },
+                    { id: 3, nome: 'Pulverizador Autopropelido', descricao: 'Pulverizador com motor próprio', tipo_mobilidade: 'autopropelido', requer_horimetro: true, requer_potencia: true, requer_localizacao: false, requer_acoplamento: false, ativo: true },
+                    { id: 4, nome: 'Caminhão', descricao: 'Caminhão para transporte', tipo_mobilidade: 'autopropelido', requer_horimetro: true, requer_potencia: true, requer_localizacao: false, requer_acoplamento: false, ativo: true },
+                    { id: 5, nome: 'Arado', descricao: 'Arado acoplável ao trator', tipo_mobilidade: 'acoplado', requer_horimetro: false, requer_potencia: false, requer_localizacao: false, requer_acoplamento: true, ativo: true },
+                    { id: 6, nome: 'Grade', descricao: 'Grade acoplável ao trator', tipo_mobilidade: 'acoplado', requer_horimetro: false, requer_potencia: false, requer_localizacao: false, requer_acoplamento: true, ativo: true },
+                    { id: 7, nome: 'Plantadeira', descricao: 'Plantadeira acoplável ao trator', tipo_mobilidade: 'acoplado', requer_horimetro: false, requer_potencia: false, requer_localizacao: false, requer_acoplamento: true, ativo: true },
+                    { id: 8, nome: 'Pulverizador Rebocado', descricao: 'Pulverizador rebocado pelo trator', tipo_mobilidade: 'rebocado', requer_horimetro: false, requer_potencia: false, requer_localizacao: false, requer_acoplamento: true, ativo: true },
+                    { id: 9, nome: 'Distribuidor de Calcário', descricao: 'Distribuidor de calcário rebocado', tipo_mobilidade: 'rebocado', requer_horimetro: false, requer_potencia: false, requer_localizacao: false, requer_acoplamento: true, ativo: true },
+                    { id: 10, nome: 'Carreta Agrícola', descricao: 'Carreta agrícola rebocada', tipo_mobilidade: 'rebocado', requer_horimetro: false, requer_potencia: false, requer_localizacao: false, requer_acoplamento: true, ativo: true },
+                    { id: 11, nome: 'Pivot Central', descricao: 'Sistema de irrigação pivot', tipo_mobilidade: 'fixo', requer_horimetro: false, requer_potencia: true, requer_localizacao: true, requer_acoplamento: false, ativo: true },
+                    { id: 12, nome: 'Bomba de Água', descricao: 'Bomba de água para irrigação', tipo_mobilidade: 'fixo', requer_horimetro: false, requer_potencia: true, requer_localizacao: true, requer_acoplamento: false, ativo: true },
+                    { id: 13, nome: 'Gerador Elétrico', descricao: 'Gerador elétrico de energia', tipo_mobilidade: 'fixo', requer_horimetro: true, requer_potencia: true, requer_localizacao: true, requer_acoplamento: false, ativo: true },
+                    { id: 14, nome: 'Motor Elétrico', descricao: 'Motor elétrico para acionamento', tipo_mobilidade: 'fixo', requer_horimetro: false, requer_potencia: true, requer_localizacao: true, requer_acoplamento: false, ativo: true },
+                    { id: 15, nome: 'Motor a Combustão', descricao: 'Motor à combustão para acionamento', tipo_mobilidade: 'fixo', requer_horimetro: true, requer_potencia: true, requer_localizacao: true, requer_acoplamento: false, ativo: true },
+                    { id: 16, nome: 'Sistema de Irrigação Fixo', descricao: 'Irrigação fixa no terreno', tipo_mobilidade: 'fixo', requer_horimetro: false, requer_potencia: false, requer_localizacao: true, requer_acoplamento: false, ativo: true },
+                    { id: 17, nome: 'Secador de Grãos', descricao: 'Secador de grãos estacionário', tipo_mobilidade: 'fixo', requer_horimetro: true, requer_potencia: true, requer_localizacao: true, requer_acoplamento: false, ativo: true }
+                ];
+                
+                console.warn('[EquipamentoForm] Usando fallback com 18 categorias reais do banco de dados');
+                setCategorias(categoriasReais);
             }
             finally {
                 setLoadingCategorias(false);
