@@ -163,15 +163,28 @@ const OrdemServicoForm: React.FC<Props> = ({ ordemServico, onClose, onSuccess })
         observacoes: data.observacoes || undefined,
       };
 
+      console.log('🟡 [OrdemServicoForm.mutationFn] ENVIANDO PAYLOAD:');
+      console.log('   isEdit:', isEdit);
+      console.log('   ordemServico?.id:', ordemServico?.id);
+      console.log('   payload.status:', payload.status);
+      console.log('   payload completo:', JSON.stringify(payload, null, 2));
+
       if (isEdit && ordemServico) {
+        console.log('   Método: PUT para /maquinas/ordens-servico/' + ordemServico.id + '/');
         const resp = await api.put(`/maquinas/ordens-servico/${ordemServico.id}/`, payload);
+        console.log('   Response status:', resp.status);
+        console.log('   Response data.status:', resp.data.status);
         return resp.data;
       }
 
+      console.log('   Método: POST para /maquinas/ordens-servico/');
       const resp = await api.post('/maquinas/ordens-servico/', payload);
+      console.log('   Response status:', resp.status);
+      console.log('   Response data.status:', resp.data.status);
       return resp.data;
     },
     onSuccess: () => {
+      console.log('✅ [OrdemServicoForm] SUCESSO ao salvar!');
       queryClient.invalidateQueries({ queryKey: ['maquinas', 'ordens-servico'] });
       onSuccess();
       onClose();
@@ -197,8 +210,12 @@ const OrdemServicoForm: React.FC<Props> = ({ ordemServico, onClose, onSuccess })
       }
 
       // developer-friendly logging + light UI feedback
-      // eslint-disable-next-line no-console
-      console.error('[OrdemServicoForm] save error', error, serverData);
+      console.error('❌ [OrdemServicoForm] ERRO ao salvar:', {
+        status: error?.response?.status,
+        message,
+        serverData,
+        fullError: error
+      });
       // Quick user feedback — keeps UX simple until a proper form-error UI is added
       try { window.alert(message); } catch (e) { /* ignore */ }
     }
@@ -211,9 +228,22 @@ const OrdemServicoForm: React.FC<Props> = ({ ordemServico, onClose, onSuccess })
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    // debug
-     
-    console.log('Submitting OrdemServicoForm, formData:', formData);
+    console.log('═══════════════════════════════════════════════════════════════');
+    console.log('🔴 [OrdemServicoForm] SUBMIT INICIADO');
+    console.log('   isEdit:', isEdit);
+    console.log('   ordemServico?.id:', ordemServico?.id);
+    console.log('   formData.status:', formData.status);
+    console.log('   STATUS ANTERIOR:', ordemServico?.status);
+    console.log('   STATUS NOVO:', formData.status);
+    console.log('   insumos count:', formData.insumos?.length || 0);
+    console.log('formData completo:', JSON.stringify({
+      equipamento: formData.equipamento,
+      tipo: formData.tipo,
+      status: formData.status,
+      descricao_problema: formData.descricao_problema?.substring(0, 50) + '...',
+      insumos_count: formData.insumos?.length,
+    }, null, 2));
+    console.log('═══════════════════════════════════════════════════════════════');
     mutation.mutate(formData);
   };
 

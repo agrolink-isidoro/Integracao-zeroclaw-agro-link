@@ -46,32 +46,59 @@ def abastecimento_create_saida(sender, instance, created, **kwargs):
 @receiver(pre_save, sender=OrdemServico)
 def ordem_pre_save(sender, instance, **kwargs):
     """Guarda status anterior antes do save para detectar transição."""
+    logger.info('═══════════════════════════════════════════════════════════════')
+    logger.info(f'🔵 [orden_pre_save] DISPARADO para OS id={instance.pk}')
+    logger.info(f'   pk existe? {bool(instance.pk)}')
+    logger.info(f'   status atual (memória): {instance.status}')
+    
     if instance.pk:
         try:
             old = OrdemServico.objects.get(pk=instance.pk)
             instance._old_status = old.status
+            logger.info(f'   status anterior (banco): {old.status}')
+            logger.info(f'   TRANSIÇÃO? {old.status} → {instance.status}')
         except OrdemServico.DoesNotExist:
             instance._old_status = None
+            logger.warning(f'   ⚠️ OS não encontrada no banco!')
     else:
         instance._old_status = None
+        logger.info(f'   Criação nova (sem pk anterior)')
+    logger.info('═══════════════════════════════════════════════════════════════')
 
 
 @receiver(post_save, sender=OrdemServico)
 def ordem_post_save(sender, instance, created, **kwargs):
-    """Gere reservas de insumos ao criar e consuma insumos ao finalizar a OS."""
+    """
+    Gerencia o ciclo completo de insumos:
+    - Ao CRIAR: reserva insumos
+    - Ao FINALIZAR (ou criada já finalizada): consome insumos (saida)
+    - Ao CANCELAR: libera reservas
+    """
+    logger.info('═══════════════════════════════════════════════════════════════')
+    logger.info(f'🟢 [ordem_post_save] DISPARADO para OS id={instance.pk}')
+    logger.info(f'   created={created}')
+    logger.info(f'   status={instance.status}')
+    logger.info(f'   insumos_reservados={instance.insumos_reservados}')
+    logger.info(f'   insumos count={len(instance.insumos or [])}')
+    logger.info('═══════════════════════════════════════════════════════════════')
 
-    # 1) Ao criar: reservas de insumos são gerenciadas pelo serializer.create()
-    #    (que já tem error handling e rollback).
-    #    Aqui apenas fazemos fallback para criações fora da API (admin, shell, etc.)
     if created:
         insumos = instance.insumos or []
+        
+        logger.info(
+            "ordem_post_save CRIAÇÃO: OS %s status=%s insumos_count=%d insumos_reservados=%s",
+            instance.pk, instance.status, len(insumos), instance.insumos_reservados
+        )
+        
+        # 1) Reservar insumos (primeira vez que é executado)
         if insumos and not instance.insumos_reservados:
+            logger.info("ordem_post_save: Iniciando reserva de insumos para OS %s", instance.pk)
             with transaction.atomic():
-                for ins in insumos:
+                for idx, ins in enumerate(insumos):
                     try:
                         quantidade = ins.get('quantidade') or ins.get('qtd') or ins.get('quantidade_total')
                         if quantidade is None:
-                            logger.warning("Insumo sem quantidade ignorado na reserva da OS %s: %s", instance.pk, ins)
+                            logger.warning("Insumo #%d sem quantidade ignorado na reserva da OS %s: %s", idx+1, instance.pk, ins)
                             continue
 
                         produto = None
@@ -93,6 +120,11 @@ def ordem_post_save(sender, instance, created, **kwargs):
 
                         criado_por = getattr(instance, 'criado_por', None) or getattr(instance, 'responsavel_abertura', None)
 
+                        logger.debug(
+                            "ordem_post_save: Criando RESERVA insumo #%d produto=%s qtd=%s",
+                            idx+1, produto.id, quantidade
+                        )
+
                         create_movimentacao(
                             produto=produto,
                             tipo='reserva',
@@ -105,26 +137,114 @@ def ordem_post_save(sender, instance, created, **kwargs):
                             ordem_servico=instance,
                         )
                         logger.info("Movimentacao de reserva criada para insumo %s na OS %s", produto.pk, instance.pk)
-                    except Exception:
-                        logger.exception("Erro ao criar reserva de insumo na OS %s: %s", instance.pk, ins)
-                        # Não propagar exceção para evitar erro 500 na API — reserva já é tratada pela camada de serializers
-                        # Em contexto não-API a falha ficará registrada nos logs para investigação.
+                    except Exception as e:
+                        logger.exception("Erro ao criar reserva de insumo #%d na OS %s. Detalhes: %s", idx+1, instance.pk, str(e))
                         continue
 
-                # Marca insumos como reservados
+                # Marcar como reservado usando .update() para não dispara post_save recursivo
+                logger.debug("ordem_post_save: Marcando insumos_reservados=True para OS %s", instance.pk)
+                OrdemServico.objects.filter(pk=instance.pk).update(insumos_reservados=True)
                 instance.insumos_reservados = True
-                instance.save(update_fields=['insumos_reservados'])
+                logger.info("ordem_post_save: Reservas de insumos concluídas para OS %s", instance.pk)
+        else:
+            # Se não houver insumos ou já foi reservado, marcar como reservado mesmo assim
+            # (para evitar tentar reservar novamente)
+            if not instance.insumos_reservados:
+                logger.debug("ordem_post_save: Nenhum insumo ou já reservado. Apenas marcando flag para OS %s", instance.pk)
+                OrdemServico.objects.filter(pk=instance.pk).update(insumos_reservados=True)
+                instance.insumos_reservados = True
 
-    # 2) Ao transitar para 'finalizada', consumir os insumos (saida)
+        # 2) SE foi criada DIRETO com status='concluida', consumir insumos agora
+        # (este é o caso do action executor que cria com status final)
+        # Agora insumos_reservados SEMPRE é True depois da seção acima
+        logger.info(
+            "ordem_post_save: Verificando se deve processar saída. "
+            "status=%s, insumos_reservados=%s, qtd_insumos=%d",
+            instance.status, instance.insumos_reservados, len(insumos)
+        )
+        
+        if instance.status in ('concluida', 'finalizada') and instance.insumos_reservados:
+            logger.info(
+                "ordem_post_save: PROCESSANDO SAÍDA para OS %s status=%s insumos=%d",
+                instance.pk, instance.status, len(insumos)
+            )
+            # Só processa insumos se houver
+            if insumos:
+                logger.info("ordem_post_save: Iniciando loop de insumos para saída...")
+                with transaction.atomic():
+                    for idx, ins in enumerate(insumos):
+                        try:
+                            quantidade = ins.get('quantidade') or ins.get('qtd') or ins.get('quantidade_total')
+                            if quantidade is None:
+                                logger.warning("Insumo sem quantidade ignorado na OS %s: %s", instance.pk, ins)
+                                continue
+
+                            produto = None
+                            if 'produto_id' in ins:
+                                produto = Produto.objects.filter(pk=ins['produto_id']).first()
+                            elif 'codigo' in ins:
+                                produto = Produto.objects.filter(codigo=ins['codigo']).first()
+                            elif 'produto' in ins and isinstance(ins['produto'], dict) and ins['produto'].get('id'):
+                                produto = Produto.objects.filter(pk=ins['produto']['id']).first()
+
+                            if not produto:
+                                nome = ins.get('nome') or ins.get('produto_nome')
+                                if nome:
+                                    produto = Produto.objects.filter(nome__icontains=nome).first()
+
+                            if not produto:
+                                logger.warning("Produto de insumo não encontrado para OS %s: %s", instance.pk, ins)
+                                continue
+
+                            criado_por = getattr(instance, 'criado_por', None) or getattr(instance, 'responsavel_abertura', None)
+
+                            logger.debug(
+                                "ordem_post_save: Criando saída insumo #%d. produto=%s, qtd=%s",
+                                idx+1, produto.id, quantidade
+                            )
+
+                            create_movimentacao(
+                                produto=produto,
+                                tipo='saida',
+                                quantidade=quantidade,
+                                valor_unitario=ins.get('valor_unitario') or produto.custo_unitario,
+                                criado_por=criado_por,
+                                origem='manutencao',
+                                documento_referencia=f'OS #{instance.pk}',
+                                motivo=f"Consumo em OrdemServico #{instance.pk}: {getattr(instance, 'descricao_problema', '')}",
+                                ordem_servico=instance,
+                            )
+                            logger.info("Movimentacao de saida criada para insumo %s na OS %s (criação_concluida)", produto.pk, instance.pk)
+                        except Exception as e:
+                            logger.exception("Erro ao criar saida de insumo #%d na OS %s. Detalhes: %s", idx+1, instance.pk, str(e))
+                            continue
+                logger.info("ordem_post_save: Loop de insumos concluído")
+            else:
+                logger.warning("ordem_post_save: Nenhum insumo para processar saída (lista vazia)")
+
+            logger.info(
+                "Ordem de serviço criada com status concluída: OS %s com %d insumos (reserva + saida geradas)",
+                instance.pk, len(insumos)
+            )
+            return
+        else:
+            logger.debug(
+                "ordem_post_save: NÃO processando saída. Condição falhou: status=%s (esperado concluida/finalizada), insumos_reservados=%s (esperado True)",
+                instance.status, instance.insumos_reservados
+            )
+
+    # 3) Ao TRANSITAR para 'concluida' (transição manual: aberta -> concluida)
     old = getattr(instance, '_old_status', None)
     new = instance.status
 
-    if old == new:
-        return
+    logger.info('🔷 [ordem_post_save] Analisando transições de status:')
+    logger.info(f'   _old_status={old}, current status={new}')
+    logger.info(f'   Há transição? {old != new}')
+    logger.info(f'   É transição para concluida? {old != new and new in ("concluida", "finalizada")}')
 
-    # Consideramos 'concluida' como o status de conclusão (alinhado com STATUS_CHOICES)
-    if new in ('concluida', 'finalizada'):
-        # Processar insumos (esperamos lista de dicts com 'produto_id' ou 'codigo' e 'quantidade')
+    if old != new and new in ('concluida', 'finalizada'):
+        logger.info(f'🟡 TRANSIÇÃO PARA CONCLUIDA: {old} → {new}')
+        logger.info(f'   Processando saída de {len(instance.insumos or [])} insumos...')
         insumos = instance.insumos or []
 
         with transaction.atomic():
@@ -144,7 +264,6 @@ def ordem_post_save(sender, instance, created, **kwargs):
                         produto = Produto.objects.filter(pk=ins['produto']['id']).first()
 
                     if not produto:
-                        # Tentativa por nome
                         nome = ins.get('nome') or ins.get('produto_nome')
                         if nome:
                             produto = Produto.objects.filter(nome__icontains=nome).first()
@@ -163,19 +282,22 @@ def ordem_post_save(sender, instance, created, **kwargs):
                         criado_por=criado_por,
                         origem='manutencao',
                         documento_referencia=f'OS #{instance.pk}',
-                        motivo=f"Consumo em OrdemServico #{instance.pk}: {getattr(instance, 'tarefa', getattr(instance, 'descricao_problema', ''))}",
+                        motivo=f"Consumo em OrdemServico #{instance.pk}: {getattr(instance, 'descricao_problema', '')}",
                         ordem_servico=instance,
                     )
-                    logger.info("Movimentacao de saida gerada para insumo %s na OS %s", produto.pk, instance.pk)
+                    logger.info("Movimentacao de saida criada para insumo %s na OS %s (transicao_status)", produto.pk, instance.pk)
                 except Exception:
                     logger.exception("Erro ao processar insumo na OS %s: %s", instance.pk, ins)
-                    # Não propagar para evitar 500; errors serão registrados e podem ser tratados por jobs de reconciliação
                     continue
 
+        logger.info(
+            "Ordem de serviço finalizada por transição: OS %s com %d insumos consumidos",
+            instance.pk, len(insumos)
+        )
         return
 
-    # 3) Se transitar para 'cancelada' e havia reservas, liberar reservas
-    if new == 'cancelada' and instance.insumos_reservados:
+    # 4) Ao CANCELAR: liberar reservas
+    if old != new and new == 'cancelada' and instance.insumos_reservados:
         insumos = instance.insumos or []
         with transaction.atomic():
             for ins in insumos:
@@ -218,12 +340,12 @@ def ordem_post_save(sender, instance, created, **kwargs):
                     logger.info("Movimentacao de liberacao criada para insumo %s na OS %s", produto.pk, instance.pk)
                 except Exception:
                     logger.exception("Erro ao liberar insumo na OS %s: %s", instance.pk, ins)
-                    # Não propagar para evitar 500; registrar e continuar
                     continue
 
-            # Atualiza flag
+            # Atualiza flag usando update() para evitar post_save recursivo
+            OrdemServico.objects.filter(pk=instance.pk).update(insumos_reservados=False)
             instance.insumos_reservados = False
-            instance.save(update_fields=['insumos_reservados'])
+            logger.info("Reservas liberadas para OS %s por cancelamento", instance.pk)
 
 
 # ============================================

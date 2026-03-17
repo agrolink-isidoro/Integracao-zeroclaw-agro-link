@@ -12,13 +12,60 @@ Converte Actions aprovados em movimentações de estoque reais.
 from __future__ import annotations
 
 import logging
+import uuid
 from datetime import datetime
 from decimal import Decimal, InvalidOperation
 
-from django.db import transaction
+from django.db import transaction, IntegrityError
 from django.db.models import Q
 
 logger = logging.getLogger(__name__)
+
+
+def _gerar_codigo_unico(tenant, prefixo: str = "AUTO", tentativas: int = 5) -> str:
+    """
+    Gera um código único para produto, tratando race conditions.
+    
+    Estratégia:
+    1. Tenta gerar com padrão: PREFIXO-{timestamp_compact}-{uuid_curto}
+    2. Se falhar por duplicata, retorna erro informativo
+    3. Não usa count() para evitar race condition
+    
+    ⚠️ CRÍTICO: Évita o padrão PREFIXO-{count+1} que causava IntegrityError
+    
+    Args:
+        tenant: Tenant do produto
+        prefixo: Prefixo do código (AUTO, PROD, etc)
+        tentativas: Quantas vezes tentar antes de desistir
+    
+    Returns:
+        str: Código único
+    
+    Raises:
+        ValueError: Se falhar depois de N tentativas
+    """
+    from apps.estoque.models import Produto
+    
+    for tentativa in range(tentativas):
+        # Gerar com timestamp (segunda/milissegundo) + UUID curto
+        timestamp_compact = datetime.now().strftime("%H%M%S")
+        uuid_curto = str(uuid.uuid4())[:6].upper()
+        codigo = f"{prefixo}-{timestamp_compact}-{uuid_curto}"
+        
+        # Validar se não existe
+        if not Produto.objects.filter(tenant=tenant, codigo=codigo).exists():
+            return codigo
+        
+        logger.warning(
+            "Código duplicado na tentativa %d: %s (muito improvável!)", 
+            tentativa + 1, codigo
+        )
+    
+    # Se chegou aqui, algo está muito errado
+    raise ValueError(
+        f"Falha ao gerar código único após {tentativas} tentativas. "
+        "Contate suporte técnico."
+    )
 
 
 def _parse_decimal(value, default: str = "0") -> Decimal:
@@ -82,6 +129,8 @@ def _criar_produto_automatico(tenant, nome: str, unidade: str = "un", criado_por
     """
     Cria um produto automaticamente com valores padrão se não existir.
     Útil para entrada_estoque quando o produto não foi previamente cadastrado.
+    
+    ⚠️ SEGURANÇA: Usa código único gerado com timestamp + UUID para evitar race condition
     """
     from apps.estoque.models import Produto
     
@@ -90,9 +139,8 @@ def _criar_produto_automatico(tenant, nome: str, unidade: str = "un", criado_por
     if existing:
         return existing
     
-    # Gerar código automático
-    count = Produto.objects.filter(tenant=tenant).count()
-    codigo = f"AUTO-{count + 1:04d}"
+    # ✅ CORREÇÃO: Gerar código único de forma segura (sem race condition)
+    codigo = _gerar_codigo_unico(tenant, prefixo="AUTO")
     
     # Detectar categoria a partir do nome
     nome_lower = nome.lower()
@@ -104,16 +152,24 @@ def _criar_produto_automatico(tenant, nome: str, unidade: str = "un", criado_por
     elif any(word in nome_lower for word in ["agrotóxico", "defensivo", "pesticida", "herbicida"]):
         categoria = "defensivo" if hasattr(Produto, 'CATEGORIA_CHOICES') else "outro"
     
-    produto = Produto.objects.create(
-        tenant=tenant,
-        codigo=codigo,
-        nome=nome,
-        unidade=unidade,
-        categoria=categoria,
-        quantidade_estoque=Decimal("0"),
-        estoque_minimo=Decimal("0"),
-        criado_por=criado_por,
-    )
+    try:
+        produto = Produto.objects.create(
+            tenant=tenant,
+            codigo=codigo,
+            nome=nome,
+            unidade=unidade,
+            categoria=categoria,
+            quantidade_estoque=Decimal("0"),
+            estoque_minimo=Decimal("0"),
+            criado_por=criado_por,
+        )
+    except IntegrityError as e:
+        # Se ainda assim houver erro, logar e re-lançar com contexto
+        logger.error(
+            "IntegrityError ao criar produto automaticamente: codigo=%s nome=%s erro=%s",
+            codigo, nome, str(e)
+        )
+        raise
     
     logger.info(
         "Produto criado automaticamente: codigo=%s nome=%s categoria=%s unidade=%s",
@@ -249,8 +305,8 @@ def execute_criar_produto(action) -> None:
         # Gerar código automático se não informado
         codigo = data.get("codigo", "").strip()
         if not codigo:
-            count = Produto.objects.filter(tenant=tenant).count()
-            codigo = f"PROD-{count + 1:04d}"
+            # ✅ CORREÇÃO: Usar função segura que evita race condition
+            codigo = _gerar_codigo_unico(tenant, prefixo="PROD")
 
         unidade = (data.get("unidade") or "un").strip()
         categoria = (data.get("categoria") or "outro").lower()
@@ -283,7 +339,18 @@ def execute_criar_produto(action) -> None:
             local_armazenamento=local,
             criado_por=criado_por,
         )
-        produto.save()
+        try:
+            produto.save()
+        except IntegrityError as e:
+            # ⚠️ Se ainda houver duplicata, logar e re-lançar
+            logger.error(
+                "IntegrityError ao criar produto: codigo=%s nome=%s erro=%s",
+                codigo, nome, str(e)
+            )
+            raise ValueError(
+                f"Erro de integridade ao criar produto (código '{codigo}' pode ser duplicado). "
+                f"Entre em contato com suporte: {str(e)}"
+            )
 
     action.mark_executed({
         "produto_id": produto.pk,

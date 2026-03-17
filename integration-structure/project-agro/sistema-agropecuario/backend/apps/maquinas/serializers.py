@@ -410,12 +410,34 @@ class OrdemServicoSerializer(serializers.ModelSerializer):
     def update(self, instance, validated_data):
         nfes = validated_data.pop('nfes', None)
         insumos = validated_data.pop('insumos', None)
+        
+        # DEBUG LOG: antes do update
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info('═══════════════════════════════════════════════════════════════')
+        logger.info(f'🔴 [OrdemServicoSerializer.update] INICIADO')
+        logger.info(f'   instance.id: {instance.id}')
+        logger.info(f'   instance.status ANTES: {instance.status}')
+        logger.info(f'   validated_data keys: {list(validated_data.keys())}')
+        logger.info(f'   status no validated_data: {validated_data.get("status")}')
+        logger.info(f'   nfes: {nfes}')
+        logger.info(f'   insumos count: {len(insumos) if insumos else 0}')
+        
         instance = super().update(instance, validated_data)
+        
+        logger.info(f'   instance.status DEPOIS do super().update: {instance.status}')
+        logger.info(f'   instance.insumos_reservados: {instance.insumos_reservados}')
+        
         if nfes is not None:
             instance.nfes.set(nfes)
+            logger.info(f'   NFes setadas: {nfes}')
         if insumos is not None:
             instance.insumos = insumos
             instance.save(update_fields=['insumos'])
+            logger.info(f'   insumos salvos: {len(insumos)} itens')
+        
+        logger.info(f'   status FINAL após update: {instance.status}')
+        logger.info('═══════════════════════════════════════════════════════════════')
         return instance
 
 

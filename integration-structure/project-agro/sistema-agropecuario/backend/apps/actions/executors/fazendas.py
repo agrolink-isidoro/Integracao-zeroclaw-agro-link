@@ -317,7 +317,9 @@ def execute_criar_talhao(action) -> None:
                 "Informe 'area' e/ou 'fazenda' no draft_data."
             )
 
-        area_size = _parse_decimal(data.get("area_hectares") or data.get("area_size"), "0") or None
+        area_size = _parse_decimal(
+            data.get("area_hectares") or data.get("area_size") or data.get("area_ha"), "0"
+        ) or None
 
         talhao = Talhao(
             area=area,

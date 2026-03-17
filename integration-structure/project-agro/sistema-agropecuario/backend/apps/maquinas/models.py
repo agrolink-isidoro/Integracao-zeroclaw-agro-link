@@ -368,8 +368,9 @@ class Equipamento(TenantModel):
     @property
     def depreciacao_estimada(self):
         """Retorna depreciação estimada (simplificada - 10% ao ano)"""
+        from decimal import Decimal
+        
         if self.valor_aquisicao and self.idade_equipamento:
-            from decimal import Decimal
             taxa_depreciacao_anual = Decimal('0.10')  # 10% ao ano
             valor_depreciado = self.valor_aquisicao * ((Decimal('1') - taxa_depreciacao_anual) ** self.idade_equipamento)
             return max(valor_depreciado, Decimal('0'))

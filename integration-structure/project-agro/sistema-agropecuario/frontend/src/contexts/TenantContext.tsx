@@ -56,16 +56,30 @@ export const TenantProvider: React.FC<TenantProviderProps> = ({ children, isSupe
 
   const refreshTenants = useCallback(async () => {
     // Only load tenants for authenticated superusers
-    if (!isSuperuser || typeof isSuperuser !== 'boolean') return;
+    // Note: isSuperuser should be 'true' boolean, not just truthy
+    if (isSuperuser !== true) {
+      console.debug('[TenantContext] Skipping tenant list: isSuperuser is not true', { isSuperuser });
+      return;
+    }
+    
     // Only attempt if we actually have a token stored
-    if (!getStoredTokens()?.access) return;
+    const tokens = getStoredTokens();
+    if (!tokens?.access) {
+      console.debug('[TenantContext] Skipping tenant list: no access token available');
+      return;
+    }
+    
     setLoadingTenants(true);
     try {
       const tenants = await tenantsService.list();
       setTenantList(tenants);
+      console.debug('[TenantContext] Tenant list loaded successfully', { count: tenants?.length });
     } catch (e) {
       // Silently fail 403 errors for non-superusers — this is expected
-      if ((e as any)?.response?.status !== 403) {
+      // 403 means the user doesn't have admin permissions, which is normal for regular users
+      if ((e as any)?.response?.status === 403) {
+        console.debug('[TenantContext] Access denied to tenant list (403) — user does not have admin permissions');
+      } else {
         console.warn('[TenantContext] Erro ao carregar lista de tenants', e);
       }
     } finally {

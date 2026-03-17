@@ -514,8 +514,10 @@ def agricultura_view(request):
     )["total_kg"]
 
     # Produção via HarvestSessionItems (novo fluxo de sessão)
+    # HarvestSessionItem não tem campo tenant direto - filtrar via session__tenant
+    tf_harvest = {"session__tenant": tf["tenant"]} if tf.get("tenant") else {}
     producao_sessoes_kg = HarvestSessionItem.objects.filter(
-        **tf,
+        **tf_harvest,
         session__data_inicio__year=current_year,
         session__status__in=["em_andamento", "finalizada"],
     ).aggregate(
@@ -527,7 +529,7 @@ def agricultura_view(request):
 
     # Peso médio por talhão — inclui sessões além de ColheitaItem
     peso_por_talhao_sessoes = (
-        HarvestSessionItem.objects.filter(**tf, session__data_inicio__year=current_year)
+        HarvestSessionItem.objects.filter(**tf_harvest, session__data_inicio__year=current_year)
         .values("talhao__name", "talhao__id")
         .annotate(
             total_kg=Coalesce(Sum("quantidade_colhida"), Decimal("0")),

@@ -148,7 +148,14 @@ const responseRejected = async (error) => {
     // and redirecting to login on every 403 causes unexpected logouts. Instead, surface the error
     // to the caller and let components decide whether to force a logout or show a friendly message.
     if (err.response?.status === 403) {
-        console.warn('[API] Received 403 Forbidden (permission denied). Not clearing tokens automatically.');
+        // Don't warn for expected 403s from tenants endpoint — non-admin users are expected to get 403
+        const url = err.config?.url || '';
+        const isTenantsForbidden = url.includes('tenants');
+        if (!isTenantsForbidden) {
+            console.warn('[API] Received 403 Forbidden (permission denied). Not clearing tokens automatically.');
+        } else {
+            console.debug('[API] Received 403 Forbidden from tenants endpoint — user does not have admin permissions');
+        }
         return Promise.reject(error);
     }
     return Promise.reject(error);

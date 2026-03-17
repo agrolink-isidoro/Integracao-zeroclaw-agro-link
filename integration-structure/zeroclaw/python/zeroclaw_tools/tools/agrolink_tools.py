@@ -889,6 +889,9 @@ def get_agrolink_tools(base_url: str, jwt_token: str, tenant_id: str = "") -> li
         implemento: str = "",
         produto_insumo: str = "",
         quantidade_insumo: float = 0.0,
+        custo_mao_obra: float = 0.0,
+        custo_maquina: float = 0.0,
+        custo_insumos: float = 0.0,
         observacoes: str = "",
     ) -> str:
         """
@@ -952,6 +955,9 @@ def get_agrolink_tools(base_url: str, jwt_token: str, tenant_id: str = "") -> li
             produto_insumo: Nome do produto/insumo do estoque utilizado (opcional).
                             Pergunte ao usuário se aplicável à operação.
             quantidade_insumo: Quantidade do insumo utilizado (opcional).
+            custo_mao_obra: Custo com mão de obra em R$ (opcional). Ex: 150.50
+            custo_maquina: Custo com máquinas/combustível em R$ (opcional). Ex: 250.00
+            custo_insumos: Custo com insumos/produtos em R$ (opcional). Ex: 100.00
             observacoes: Observações adicionais (operador, condições climáticas, etc.)
         """
         # ── Fuzzy resolve talhão ──────────────────────────────────────────
@@ -1010,6 +1016,9 @@ def get_agrolink_tools(base_url: str, jwt_token: str, tenant_id: str = "") -> li
             "tipo_operacao": tipo_operacao,
             "trator": trator_resolvido,
             "implemento": implemento_resolvido,
+            "custo_mao_obra": custo_mao_obra,
+            "custo_maquina": custo_maquina,
+            "custo_insumos": custo_insumos,
             "observacoes": observacoes,
         }
 

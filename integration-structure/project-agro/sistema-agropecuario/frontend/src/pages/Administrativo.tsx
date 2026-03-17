@@ -1,9 +1,13 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import CentrosCustoList from '@/components/administrativo/CentrosCustoList';
 import CentroCustoForm from '@/components/administrativo/CentroCustoForm';
 import FuncionariosList from '@/components/administrativo/FuncionariosList';
 import FolhaPagamento from '@/components/administrativo/FolhaPagamento';
+import DashboardService from '@/services/dashboard';
+import type { AdministrativoKpis } from '@/services/dashboard';
+import { formatCurrency } from '@/utils/formatters';
 import { useRBAC } from '@/hooks/useRBAC';
 import { useAuthContext } from '@/contexts/AuthContext';
 const FolhaSummaryCards = React.lazy(() => import('@/components/administrativo/FolhaSummaryCards'));
@@ -17,6 +21,17 @@ const Administrativo: React.FC = () => {
   const { isAdmin, isSuperuser } = useRBAC();
   const { user } = useAuthContext();
   const navigate = useNavigate();
+
+  // Carregar KPIs do dashboard administrativo
+  const { data: adminDash, isLoading: adminLoading } = useQuery<AdministrativoKpis>({
+    queryKey: ['dashboard-administrativo'],
+    queryFn: () => DashboardService.getAdministrativo(),
+    staleTime: 30_000,
+    enabled: activeTab === 'dashboard',
+  });
+  const adminKpis = adminDash?.kpis;
+
+  const fmt = (n: number | undefined) => n != null ? n.toLocaleString('pt-BR') : '—';
   // isSystemAdmin: only true Django staff users can manage tenants globally.
   // NOTE: is_superuser is synthetically set to true for proprietário (farm owner)
   // users by the RBAC serializer — do NOT use it here. Only real Django is_staff
@@ -74,6 +89,77 @@ const Administrativo: React.FC = () => {
   // Simplified dashboard layout focused on active MVP features
   const renderDashboard = () => (
     <div className="row">
+      {/* KPI Cards */}
+      <div className="col-lg-3 col-md-6 mb-4">
+        <div className="card border-start border-primary border-4 h-100">
+          <div className="card-body">
+            <div className="d-flex align-items-center">
+              <i className="bi bi-cash fs-2 text-primary flex-shrink-0"></i>
+              <div className="ms-3">
+                <h6 className="card-title mb-1 text-muted">Folha (Mês)</h6>
+                <h4 className="mb-0">
+                  {adminLoading ? <span className="placeholder col-6"></span> : formatCurrency(adminKpis?.folha_mes?.total ?? 0)}
+                </h4>
+                <small className="text-muted">{adminKpis ? `${fmt(adminKpis.folha_mes?.count)} registros` : ''}</small>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="col-lg-3 col-md-6 mb-4">
+        <div className="card border-start border-warning border-4 h-100">
+          <div className="card-body">
+            <div className="d-flex align-items-center">
+              <i className="bi bi-receipt fs-2 text-warning flex-shrink-0"></i>
+              <div className="ms-3">
+                <h6 className="card-title mb-1 text-muted">Despesas Admin (Mês)</h6>
+                <h4 className="mb-0">
+                  {adminLoading ? <span className="placeholder col-6"></span> : formatCurrency(adminKpis?.despesas_administrativas_mes?.total ?? 0)}
+                </h4>
+                <small className="text-muted">{adminKpis ? `${fmt(adminKpis.despesas_administrativas_mes?.count)} lançamentos` : ''}</small>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="col-lg-3 col-md-6 mb-4">
+        <div className="card border-start border-success border-4 h-100">
+          <div className="card-body">
+            <div className="d-flex align-items-center">
+              <i className="bi bi-people fs-2 text-success flex-shrink-0"></i>
+              <div className="ms-3">
+                <h6 className="card-title mb-1 text-muted">Funcionários</h6>
+                <h4 className="mb-0">
+                  {adminLoading ? <span className="placeholder col-4"></span> : fmt(adminKpis?.funcionarios?.ativos)}
+                </h4>
+                <small className="text-success">{adminKpis ? `de ${fmt(adminKpis.funcionarios?.total)} total` : ''}</small>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="col-lg-3 col-md-6 mb-4">
+        <div className="card border-start border-info border-4 h-100">
+          <div className="card-body">
+            <div className="d-flex align-items-center">
+              <i className="bi bi-percent fs-2 text-info flex-shrink-0"></i>
+              <div className="ms-3">
+                <h6 className="card-title mb-1 text-muted">Taxa Ocupação</h6>
+                <h4 className="mb-0">
+                  {adminLoading || !adminKpis?.funcionarios?.total ? <span className="placeholder col-4"></span> : (
+                    `${Math.round((adminKpis.funcionarios.ativos / adminKpis.funcionarios.total) * 100)}%`
+                  )}
+                </h4>
+                <small className="text-muted">Funcionários ativos</small>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div className="col-lg-8 mb-4">
         <div className="card">
           <div className="card-header d-flex justify-content-between align-items-center">

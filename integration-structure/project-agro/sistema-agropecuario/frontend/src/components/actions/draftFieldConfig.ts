@@ -533,6 +533,8 @@ export const DRAFT_FIELD_CONFIG: Record<string, Record<string, FieldDef>> = {
       select: { label: 'Talhão', source: 'talhoes', displayField: 'name', valueField: 'name' },
     },
     data_operacao: { label: 'Data da Operação' },
+    data_inicio: { label: 'Data de Início' },
+    data_fim: { label: 'Data de Término' },
     tipo_operacao: {
       label: 'Tipo de Operação',
       select: {
@@ -578,6 +580,9 @@ export const DRAFT_FIELD_CONFIG: Record<string, Record<string, FieldDef>> = {
       dynamic: { endpoint: '/estoque/produtos/', searchParam: 'search', displayField: 'nome', valueField: 'nome' },
     },
     quantidade_insumo: { label: 'Quantidade do Insumo' },
+    custo_mao_obra: { label: 'Custo de Mão de Obra (R$)' },
+    custo_maquina: { label: 'Custo de Máquina (R$)' },
+    custo_insumos: { label: 'Custo de Insumos (R$)' },
     observacoes: { label: 'Observações' },
   },
 
