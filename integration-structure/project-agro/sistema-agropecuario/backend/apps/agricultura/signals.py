@@ -212,105 +212,53 @@ def colheita_create_finance(sender, instance, created, **kwargs):
 # MOVIMENTAÇÃO DE CARGA — CUSTO DE TRANSPORTE
 # ============================================
 
-@receiver(post_save, sender=MovimentacaoCarga, dispatch_uid='movimentacao_carga_post_save')
-def movimentacao_carga_post_save(sender, instance, created, **kwargs):
-    """Processa MovimentacaoCarga ao ser criada:
-    1. Cria entrada de estoque (colheita)
-    2. Cria rateio de custo de transporte
-    """
+@receiver(post_save, sender=MovimentacaoCarga)
+def movimentacao_carga_transport_rateio(sender, instance, created, **kwargs):
+    """Cria rateio de custo de transporte quando uma MovimentacaoCarga é registrada."""
     if not created:
         return
-
-    # === 1. CRIAR ENTRADA DE ESTOQUE ===
-    if instance.peso_liquido and instance.peso_liquido > 0:
-        try:
-            from decimal import Decimal
-            from apps.estoque.services import create_movimentacao
-            from apps.estoque.models import Produto, MovimentacaoEstoque
-            
-            # Extrair informações do plantio via session_item
-            plantio = None
-            if instance.session_item and instance.session_item.session:
-                plantio = instance.session_item.session.plantio
-            
-            if plantio and plantio.cultura:
-                # Procurar o Produto correspondente à Cultura
-                try:
-                    produto = Produto.objects.get(nome__icontains=plantio.cultura.nome)
-                    
-                    # Verificar idempotência
-                    movimentacao_exists = MovimentacaoEstoque.objects.filter(
-                        documento_referencia=f'MovimentacaoCarga #{instance.pk}',
-                        tipo='entrada',
-                        origem='colheita'
-                    ).exists()
-                    
-                    if not movimentacao_exists:
-                        # Determinar talhão
-                        talhao = instance.session_item.talhao if instance.session_item else instance.talhao
-                        
-                        # Criar movimentação de estoque (entrada)
-                        movimentacao = create_movimentacao(
-                            produto=produto,
-                            tipo='entrada',
-                            quantidade=Decimal(str(instance.peso_liquido)),
-                            criado_por=instance.criado_por,
-                            origem='colheita',
-                            talhao=talhao,
-                            local_armazenamento=instance.local_destino,
-                            documento_referencia=f'MovimentacaoCarga #{instance.pk}',
-                            motivo=f"Entrada de colheita registrada via carga (plantio: {plantio.nome_safra})",
-                        )
-                        logger.info("Entrada de estoque criada para MovimentacaoCarga %s: %s %s de %s",
-                                   instance.pk, instance.peso_liquido, produto.unidade, produto.nome)
-                except Produto.DoesNotExist:
-                    logger.warning("Produto para cultura %s (MovimentacaoCarga %s) não encontrado", 
-                                  plantio.cultura.nome, instance.pk)
-        except Exception as e:
-            logger.exception("Erro ao criar entrada de estoque para MovimentacaoCarga %s: %s", instance.pk, str(e))
-
-    # === 2. CRIAR RATEIO DE TRANSPORTE ===
     custo = getattr(instance, 'custo_transporte', None)
-    if custo and float(custo) > 0:
+    if not custo or float(custo) == 0:
+        return
+    try:
+        from django.utils import timezone
+        from django.contrib.contenttypes.models import ContentType
+        from apps.financeiro.models import RateioCusto
+
+        plantio = None
         try:
-            from django.utils import timezone
-            from django.contrib.contenttypes.models import ContentType
-            from apps.financeiro.models import RateioCusto
-
-            plantio = None
-            try:
-                if instance.session_item and instance.session_item.session and instance.session_item.session.plantio:
-                    plantio = instance.session_item.session.plantio
-            except Exception:
-                pass
-
-            data_rateio = instance.criado_em.date() if instance.criado_em else timezone.now().date()
-            rateio = RateioCusto.objects.create(
-                titulo=f"Custo de Transporte - Movimentação #{instance.pk}",
-                descricao=(
-                    f"Custo de transporte da movimentação de carga #{instance.pk}"
-                    f" (placa: {instance.placa or '?'})"
-                ),
-                valor_total=custo,
-                data_rateio=data_rateio,
-                criado_por=instance.criado_por,
-                safra=plantio,
-                destino='operacional',
-            )
-            ct = ContentType.objects.get_for_model(instance)
-            RateioCusto.objects.filter(pk=rateio.pk).update(
-                origem_content_type=ct,
-                origem_object_id=instance.pk,
-            )
-            rateio.refresh_from_db()
-            if instance.talhao:
-                rateio.talhoes.add(instance.talhao)
-            elif plantio:
-                for t in plantio.talhoes.all():
-                    rateio.talhoes.add(t)
-            logger.info("Rateio de transporte criado para MovimentacaoCarga %s", instance.pk)
+            if instance.session_item and instance.session_item.session and instance.session_item.session.plantio:
+                plantio = instance.session_item.session.plantio
         except Exception:
-            logger.exception("Erro ao criar rateio de transporte para MovimentacaoCarga %s", instance.pk)
+            pass
+
+        data_rateio = instance.criado_em.date() if instance.criado_em else timezone.now().date()
+        rateio = RateioCusto.objects.create(
+            titulo=f"Custo de Transporte - Movimentação #{instance.pk}",
+            descricao=(
+                f"Custo de transporte da movimentação de carga #{instance.pk}"
+                f" (placa: {instance.placa or '?'})"
+            ),
+            valor_total=custo,
+            data_rateio=data_rateio,
+            criado_por=instance.criado_por,
+            safra=plantio,
+            destino='operacional',
+        )
+        ct = ContentType.objects.get_for_model(instance)
+        RateioCusto.objects.filter(pk=rateio.pk).update(
+            origem_content_type=ct,
+            origem_object_id=instance.pk,
+        )
+        rateio.refresh_from_db()
+        if instance.talhao:
+            rateio.talhoes.add(instance.talhao)
+        elif plantio:
+            for t in plantio.talhoes.all():
+                rateio.talhoes.add(t)
+        logger.info("Rateio de transporte criado para MovimentacaoCarga %s", instance.pk)
+    except Exception:
+        logger.exception("Erro ao criar rateio de transporte para MovimentacaoCarga %s", instance.pk)
 
 
 # ============================================
