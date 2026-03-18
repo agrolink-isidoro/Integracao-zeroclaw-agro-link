@@ -452,13 +452,16 @@ def auto_add_tenant_to_users(request):
     original_create_user = User.objects.create_user
     
     def patched_create(*args, **kwargs):
-        """Wrapper para User.objects.create que adiciona tenant automaticamente."""
+        """Wrapper para User.objects.create que adiciona tenant e is_staff automaticamente."""
         # Se tenant não foi fornecido, tentar adicionar o padrão
         if 'tenant' not in kwargs:
             default_tenant = get_default_tenant()
             if default_tenant:
                 kwargs['tenant'] = default_tenant
-        # Não adicionar is_staff aqui pois .create() pode ser usado para dados específicos
+        # IMPORTANTE: Adicionar is_staff=True por padrão mesmo em create() 
+        # pois é necessário para passar no middleware de RBAC (owner_level)
+        if 'is_staff' not in kwargs:
+            kwargs['is_staff'] = True
         return original_create(*args, **kwargs)
     
     def patched_create_user(*args, **kwargs):
