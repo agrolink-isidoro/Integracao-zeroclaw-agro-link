@@ -220,14 +220,18 @@ def reserve_operacao_stock(operacao, criado_por=None):
 
 
 def commit_reservations_for_operacao(operacao, criado_por=None):
-    """Conclui reservas para uma operação e gera as saídas correspondentes.
+    """Conclui reservas para uma operação e gera as saídas correspondentes (IDEMPOTENTE).
 
     Para cada produto reservado para a operação, cria:
       1) movimentação 'liberacao' para reduzir quantidade_reservada
       2) movimentação 'saida' que consome o estoque (com custo unitário do produto)
     Após as movimentações, atualiza custo_insumos e custo_total na Operacao.
+    
+    Idempotente: Verifica se as movimentações já foram criadas antes de criar novas.
     """
     from decimal import Decimal
+    from apps.estoque.models import MovimentacaoEstoque
+    
     with transaction.atomic():
         total_custo_insumos = Decimal('0')
 
@@ -238,20 +242,38 @@ def commit_reservations_for_operacao(operacao, criado_por=None):
 
             doc_ref = f'Operação #{operacao.pk}'
 
-            # First release reservation (validates reserved quantity)
-            create_movimentacao(
-                produto=produto, tipo='liberacao', quantidade=q,
-                criado_por=criado_por, operacao=operacao, origem='agricultura',
-                documento_referencia=doc_ref,
-            )
+            # Verificar se a movimentação de liberação já foi feita (idempotência)
+            liberacao_exists = MovimentacaoEstoque.objects.filter(
+                operacao=operacao,
+                produto=produto,
+                tipo='liberacao',
+                quantidade=q
+            ).exists()
 
-            # Then create the actual exit (saida) with unit cost for cost tracking
-            create_movimentacao(
-                produto=produto, tipo='saida', quantidade=q,
-                valor_unitario=custo_unit,
-                criado_por=criado_por, operacao=operacao, origem='agricultura',
-                documento_referencia=doc_ref,
-            )
+            if not liberacao_exists:
+                # First release reservation (validates reserved quantity)
+                create_movimentacao(
+                    produto=produto, tipo='liberacao', quantidade=q,
+                    criado_por=criado_por, operacao=operacao, origem='agricultura',
+                    documento_referencia=doc_ref,
+                )
+
+            # Verificar se a movimentação de saída já foi feita (idempotência)
+            saida_exists = MovimentacaoEstoque.objects.filter(
+                operacao=operacao,
+                produto=produto,
+                tipo='saida',
+                quantidade=q
+            ).exists()
+
+            if not saida_exists:
+                # Then create the actual exit (saida) with unit cost for cost tracking
+                create_movimentacao(
+                    produto=produto, tipo='saida', quantidade=q,
+                    valor_unitario=custo_unit,
+                    criado_por=criado_por, operacao=operacao, origem='agricultura',
+                    documento_referencia=doc_ref,
+                )
 
             if custo_unit:
                 total_custo_insumos += Decimal(str(custo_unit)) * Decimal(str(q))
@@ -266,16 +288,32 @@ def commit_reservations_for_operacao(operacao, criado_por=None):
 
 
 def release_reservations_for_operacao(operacao, criado_por=None):
-    """Libera as reservas associadas a uma operação (por exemplo, ao cancelar).
+    """Libera as reservas associadas a uma operação (por exemplo, ao cancelar) - IDEMPOTENTE.
 
     Cria movimentações 'liberacao' para cada produto reservado na operação.
+    Idempotente: Verifica se a movimentação já foi criada antes de criar uma nova.
     """
+    from apps.estoque.models import MovimentacaoEstoque
+    
     with transaction.atomic():
         for item in operacao.produtos_operacao.select_related('produto').all():
             produto = Produto.objects.select_for_update().get(pk=item.produto.pk)
             q = item.quantidade_total
-            # If there is less reserved than q, we still call liberacao which will raise if inconsistent
-            create_movimentacao(produto=produto, tipo='liberacao', quantidade=q, criado_por=criado_por, operacao=operacao, origem='agricultura')
+            
+            # Verificar se a movimentação de liberação já foi feita (idempotência)
+            liberacao_exists = MovimentacaoEstoque.objects.filter(
+                operacao=operacao,
+                produto=produto,
+                tipo='liberacao',
+                quantidade=q
+            ).exists()
+            
+            if not liberacao_exists:
+                # If there is less reserved than q, we still call liberacao which will raise if inconsistent
+                create_movimentacao(
+                    produto=produto, tipo='liberacao', quantidade=q, 
+                    criado_por=criado_por, operacao=operacao, origem='agricultura'
+                )
 
 
 # ============================================

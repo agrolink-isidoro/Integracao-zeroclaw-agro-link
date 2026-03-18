@@ -19,6 +19,23 @@ class TalhaoVariedadeSerializer(serializers.Serializer):
     variedade = serializers.CharField(allow_blank=True, required=False, default='')
 
 
+class PlantioTalhaoSerializer(serializers.ModelSerializer):
+    """Serializer para PlantioTalhao com informações do talhão aninhadas"""
+    talhao_name = serializers.CharField(source='talhao.name', read_only=True)
+    talhao_area_hectares = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = PlantioTalhao
+        fields = ['id', 'plantio', 'talhao', 'talhao_name', 'talhao_area_hectares', 'variedade', 'criado_em']
+        read_only_fields = ['plantio', 'criado_em']
+    
+    def get_talhao_area_hectares(self, obj):
+        """Retorna área do talhão em hectares"""
+        if obj.talhao:
+            return float(obj.talhao.area_hectares or obj.talhao.area_size or 0)
+        return 0
+
+
 class PlantioSerializer(serializers.ModelSerializer):
     cultura_nome = serializers.CharField(source='cultura.nome', read_only=True)
     fazenda_nome = serializers.CharField(source='fazenda.name', read_only=True)
@@ -435,7 +452,7 @@ class OperacaoSerializer(serializers.ModelSerializer):
     
     # Relacionamentos
     plantio_info = serializers.SerializerMethodField()
-    fazenda_nome = serializers.CharField(source='fazenda.name', read_only=True)
+    fazenda_nome = serializers.SerializerMethodField()
     talhoes_info = serializers.SerializerMethodField()
     
     # Equipamentos
@@ -484,6 +501,12 @@ class OperacaoSerializer(serializers.ModelSerializer):
                 'nome_safra': obj.plantio.nome_safra,
                 'status': obj.plantio.status
             }
+        return None
+    
+    def get_fazenda_nome(self, obj):
+        """Nome da fazenda (seguro quando fazenda é None)"""
+        if obj.fazenda:
+            return obj.fazenda.name
         return None
     
     def get_talhoes_info(self, obj):
