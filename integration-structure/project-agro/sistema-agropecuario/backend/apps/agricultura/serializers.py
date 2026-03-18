@@ -653,6 +653,7 @@ class OperacaoListSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'categoria', 'categoria_display', 'tipo', 'tipo_display',
             'data_operacao', 'cultura_nome', 'area_total_ha',
+            'custo_total',
             'status', 'status_display', 'criado_em'
         ]
     

@@ -613,20 +613,43 @@ def execute_operacao_agricola(action) -> None:
         quantidade_insumo = data.get("quantidade_insumo") or data.get("quantidade") or 0
         if produto_nome:
             from apps.estoque.models import Produto as EstoqueProduto
+            from apps.estoque.models import MovimentacaoEstoque
+            
             produto_obj = (
                 EstoqueProduto.objects.filter(tenant=tenant, nome__iexact=produto_nome).first()
                 or EstoqueProduto.objects.filter(tenant=tenant, nome__icontains=produto_nome).first()
             )
             if produto_obj:
-                OperacaoProduto.objects.create(
+                # ── Criar vinculação Operacao → Produto ──
+                operacao_produto = OperacaoProduto.objects.create(
                     operacao=operacao,
                     produto=produto_obj,
                     dosagem=_parse_decimal(quantidade_insumo, "0"),
                     unidade_dosagem=data.get("unidade", ""),
                 )
                 logger.info(f'   📦 Produto vinculado: {produto_obj.nome} (id={produto_obj.id}), dosagem={quantidade_insumo}')
+                
+                # ── Criar movimentação de SAÍDA de estoque ──
+                try:
+                    if quantidade_insumo and quantidade_insumo > 0:
+                        movimentacao = MovimentacaoEstoque.objects.create(
+                            tenant=tenant,
+                            tipo='saida',
+                            produto=produto_obj,
+                            quantidade=_parse_decimal(quantidade_insumo, "0"),
+                            data=data_inicio_date or datetime.now().date(),
+                            motivo=f'Operação agrícola #{operacao.id}: {operacao.get_tipo_display()}',
+                            documento_referencia=f'OP#{operacao.id}',
+                            criado_por=criado_por,
+                        )
+                        logger.info(f'   ✅ Movimentação de estoque criada: id={movimentacao.id}, saída de {quantidade_insumo} unidades')
+                    else:
+                        logger.warning(f'   ⚠️  Quantidade {quantidade_insumo} inválida para movimentação de estoque')
+                except Exception as e:
+                    logger.warning(f'   ⚠️  Erro ao criar movimentação de estoque: {str(e)}')
             else:
                 logger.warning(f'   ⚠️  Produto não encontrado no estoque: {produto_nome}')
+
 
     action.mark_executed({
         "operacao_id": operacao.pk,
