@@ -960,6 +960,26 @@ def get_agrolink_tools(base_url: str, jwt_token: str, tenant_id: str = "") -> li
             custo_insumos: Custo com insumos/produtos em R$ (opcional). Ex: 100.00
             observacoes: Observações adicionais (operador, condições climáticas, etc.)
         """
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        logger.info("═" * 70)
+        logger.info("🟡 [registrar_operacao_agricola] CHAMADA COM PARÂMETROS:")
+        logger.info(f"  safra: {safra}")
+        logger.info(f"  talhao: {talhao}")
+        logger.info(f"  data_inicio: {data_inicio}")
+        logger.info(f"  data_fim: {data_fim}")
+        logger.info(f"  tipo_operacao: {tipo_operacao}")
+        logger.info(f"  trator: {trator}")
+        logger.info(f"  implemento: {implemento}")
+        logger.info(f"  produto_insumo: {produto_insumo}")
+        logger.info(f"  quantidade_insumo: {quantidade_insumo}")
+        logger.info(f"  custo_mao_obra: {custo_mao_obra}")
+        logger.info(f"  custo_maquina: {custo_maquina}")
+        logger.info(f"  custo_insumos: {custo_insumos}")
+        logger.info(f"  observacoes: {observacoes}")
+        logger.info("═" * 70)
+        
         # ── Fuzzy resolve talhão ──────────────────────────────────────────
         talhao_resolvido = talhao
         if talhao:

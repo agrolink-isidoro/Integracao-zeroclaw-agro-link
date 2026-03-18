@@ -642,7 +642,7 @@ def execute_operacao_agricola(action) -> None:
     logger.info(f'✅ [execute_operacao_agricola] CONCLUÍDO')
     logger.info(f'   operacao_id={operacao.pk}')
     logger.info(f'   talhoes_count={operacao.talhoes.count()}')
-    logger.info(f'   produtos_count={operacao.operacaoproduto_set.count()}')
+    logger.info(f'   produtos_count={operacao.produtos_operacao.count()}')
     logger.info('═══════════════════════════════════════════════════════════════')
 
 
