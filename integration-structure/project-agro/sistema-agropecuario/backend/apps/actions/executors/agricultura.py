@@ -635,10 +635,11 @@ def execute_operacao_agricola(action) -> None:
                         movimentacao = MovimentacaoEstoque.objects.create(
                             tenant=tenant,
                             tipo='saida',
+                            origem='agricultura',
                             produto=produto_obj,
                             quantidade=_parse_decimal(quantidade_insumo, "0"),
-                            data=data_inicio_date or datetime.now().date(),
-                            motivo=f'Operação agrícola #{operacao.id}: {operacao.get_tipo_display()}',
+                            operacao=operacao,  # ← Link direto para Operacao
+                            motivo=f'Operação agrícola: {operacao.get_tipo_display()}',
                             documento_referencia=f'OP#{operacao.id}',
                             criado_por=criado_por,
                         )
