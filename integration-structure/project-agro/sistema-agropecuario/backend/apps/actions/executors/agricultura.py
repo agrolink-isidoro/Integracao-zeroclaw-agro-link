@@ -620,14 +620,22 @@ def execute_operacao_agricola(action) -> None:
                 or EstoqueProduto.objects.filter(tenant=tenant, nome__icontains=produto_nome).first()
             )
             if produto_obj:
+                # ── Calcular dosagem a partir da quantidade total ──
+                # quantidade_insumo é a QUANTIDADE TOTAL, calcular dosagem = total / area_ha
+                area_total = Decimal(str(operacao.area_total_ha or 1))
+                quantidade_total = _parse_decimal(quantidade_insumo, "0")
+                dosagem = quantidade_total / area_total if area_total > 0 else quantidade_total
+                
                 # ── Criar vinculação Operacao → Produto ──
                 operacao_produto = OperacaoProduto.objects.create(
                     operacao=operacao,
                     produto=produto_obj,
-                    dosagem=_parse_decimal(quantidade_insumo, "0"),
-                    unidade_dosagem=data.get("unidade", ""),
+                    dosagem=dosagem,  # ← Agora correto: total / area_ha
+                    unidade_dosagem=data.get("unidade", "L/ha"),
                 )
-                logger.info(f'   📦 Produto vinculado: {produto_obj.nome} (id={produto_obj.id}), dosagem={quantidade_insumo}')
+                logger.info(f'   📦 Produto vinculado: {produto_obj.nome} (id={produto_obj.id})')
+                logger.info(f'      Dosagem: {dosagem:.3f} {operacao_produto.unidade_dosagem}')
+                logger.info(f'      Quantidade Total: {operacao_produto.quantidade_total:.3f} {operacao_produto.unidade_dosagem.split("/")[0]}')
                 
                 # ── Criar movimentação de SAÍDA de estoque ──
                 try:
@@ -637,17 +645,20 @@ def execute_operacao_agricola(action) -> None:
                             tipo='saida',
                             origem='agricultura',
                             produto=produto_obj,
-                            quantidade=_parse_decimal(quantidade_insumo, "0"),
+                            quantidade=quantidade_total,
                             operacao=operacao,  # ← Link direto para Operacao
                             motivo=f'Operação agrícola: {operacao.get_tipo_display()}',
                             documento_referencia=f'OP#{operacao.id}',
                             criado_por=criado_por,
                         )
-                        logger.info(f'   ✅ Movimentação de estoque criada: id={movimentacao.id}, saída de {quantidade_insumo} unidades')
+                        logger.info(f'   ✅ Movimentação de estoque criada: id={movimentacao.id}')
+                        logger.info(f'      Tipo: saida | Quantidade: {quantidade_total:.3f} {operacao_produto.unidade_dosagem.split("/")[0]}')
                     else:
                         logger.warning(f'   ⚠️  Quantidade {quantidade_insumo} inválida para movimentação de estoque')
                 except Exception as e:
                     logger.warning(f'   ⚠️  Erro ao criar movimentação de estoque: {str(e)}')
+            else:
+                logger.warning(f'   ⚠️  Produto não encontrado no estoque: {produto_nome}')
             else:
                 logger.warning(f'   ⚠️  Produto não encontrado no estoque: {produto_nome}')
 
