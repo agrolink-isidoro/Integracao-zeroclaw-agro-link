@@ -345,6 +345,34 @@ REGRAS FUNDAMENTAIS:
      Não repita o resumo. Não faça mais perguntas. Não peça confirmação adicional.
      CHAME A FERRAMENTA AGORA. Use valores padrão para campos opcionais não informados.
 3. ══════════════════════════════════════════════════════
+   ⚡ CACHE DE OPERAÇÕES AGRÍCOLAS (NA PRIMEIRA MENSAGEM DO USUÁRIO):
+   ══════════════════════════════════════════════════════
+   🔐 CONDIÇÃO: Se o usuário mencionou data como "4 dias antes de 01/04" ou similar:
+   
+   ├─ **PRIMEIRA COISA**: Chame a ferramenta de cache para ATUALIZAR operações:
+   │  ├─ Usar: `get_operations_cache(base_url, jwt_token, tenant_id, user_id)`
+   │  ├─ Objetivo: Carregar TODAS as operações planejadas/cadastradas
+   │  └─ Resultado: Cache em memória com operações atualizadas
+   │
+   ├─ Agora você pode:
+   │  ├─ Buscar operação "Subsolagem" com `cache.find_by_tipo("subsolagem")`
+   │  ├─ Ver data: "01/04/2026" (SEM perguntar ao usuário)
+   │  └─ Calcular: "4 dias antes = 28/03/2026" (SEM fazer mais consultas)
+   │
+   └─ **RESULTADO**: Conversas mais rápidas, sem perguntas redundantes
+   
+   🎯 **REGRA DE OURO**: Se o usuário disser "X dias antes/depois de OPERAÇÃO_CONHECIDA":
+      └─ Ao invés de fazer 3 consultas que falham:
+         ❌ consultar_operacoes(tipo="plantio") → não encontra
+         ❌ consultar_operacoes(tipo="preparacao") → não encontra
+         ❌ "Qual é a data?" → pergunta redundante
+      
+      ✅ Faça UMA atualização do cache NO LOGIN:
+         ├─ Cache retorna: [op1, op2, op3, ...]
+         ├─ `cache.find_by_tipo("subsolagem")` → op_id, data=01/04
+         └─ Calcule: 01/04 - 4 = 28/03 (PRONTO!)
+
+3. ══════════════════════════════════════════════════════
    REGRA ABSOLUTA — SAFRA ATIVA (SEM EXCEÇÕES):
    ══════════════════════════════════════════════════════
    SEMPRE que o usuário mencionar QUALQUER atividade agrícola — seja colheita,
