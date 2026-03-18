@@ -611,6 +611,8 @@ def execute_operacao_agricola(action) -> None:
         # ── Vincular produto/insumo ───────────────────────────────────────
         produto_nome = (data.get("produto_insumo") or data.get("insumo") or "").strip()
         quantidade_insumo = data.get("quantidade_insumo") or data.get("quantidade") or 0
+        unidade_insumo = (data.get("unidade") or "").strip()
+        
         if produto_nome:
             from apps.estoque.models import Produto as EstoqueProduto
             from apps.estoque.models import MovimentacaoEstoque
@@ -620,43 +622,91 @@ def execute_operacao_agricola(action) -> None:
                 or EstoqueProduto.objects.filter(tenant=tenant, nome__icontains=produto_nome).first()
             )
             if produto_obj:
-                # ── Calcular dosagem a partir da quantidade total ──
-                # quantidade_insumo é a QUANTIDADE TOTAL, calcular dosagem = total / area_ha
+                # ── Detectar tipo de quantidade recebida e calcular corretamente ──
+                quantidade_decimal = _parse_decimal(quantidade_insumo, "0")
                 area_total = Decimal(str(operacao.area_total_ha or 1))
-                quantidade_total = _parse_decimal(quantidade_insumo, "0")
-                dosagem = quantidade_total / area_total if area_total > 0 else quantidade_total
+                
+                dosagem = None
+                quantidade_total = None
+                unidade_padrao = "L/ha"
+                metodo_deteccao = None
+                
+                logger.info(f'   🔍 Analisando quantidade_insumo={quantidade_decimal}, unidade={unidade_insumo}, área={area_total} ha')
+                
+                # MÉTODO 1: Detectar pela UNIDADE fornecida
+                if unidade_insumo:
+                    # Se contém "/ha" → é dosagem; se não → é quantidade total
+                    if "/ha" in unidade_insumo.lower() or "/hectare" in unidade_insumo.lower():
+                        # CASO 1A: Dosagem fornecida diretamente (ex: "0.3 L/ha")
+                        dosagem = quantidade_decimal
+                        quantidade_total = dosagem * area_total
+                        unidade_padrao = unidade_insumo
+                        metodo_deteccao = "DOSAGEM (detectada pela unidade /ha)"
+                    else:
+                        # CASO 1B: Quantidade total com unidade simples (ex: "24 L", "10 kg")
+                        quantidade_total = quantidade_decimal
+                        dosagem = quantidade_total / area_total if area_total > 0 else Decimal("0")
+                        unidade_padrao = f"{unidade_insumo}/ha" if unidade_insumo else "un/ha"
+                        metodo_deteccao = f"QUANTIDADE TOTAL (unidade: {unidade_insumo})"
+                
+                # MÉTODO 2: Se unidade não informada, usar HEURÍSTICA
+                elif not unidade_insumo:
+                    # Se quantidade > 5: provavelmente é quantidade TOTAL (usuário não divide por 80)
+                    # Se quantidade < 5: provavelmente é DOSAGEM (ex: 0.3 L/ha)
+                    if quantidade_decimal >= 5:
+                        # CASO 2A: Quantidade total (heurística: valor grande)
+                        quantidade_total = quantidade_decimal
+                        dosagem = quantidade_total / area_total if area_total > 0 else Decimal("0")
+                        unidade_padrao = "L/ha"  # Assume litros
+                        metodo_deteccao = f"QUANTIDADE TOTAL (heurística: valor {quantidade_decimal} >= 5)"
+                    else:
+                        # CASO 2B: Dosagem (heurística: valor pequeno)
+                        dosagem = quantidade_decimal
+                        quantidade_total = dosagem * area_total
+                        unidade_padrao = "L/ha"
+                        metodo_deteccao = f"DOSAGEM (heurística: valor {quantidade_decimal} < 5)"
+                
+                # FALLBACK: Se nenhum método funcionou, assumir quantidade total
+                if dosagem is None or quantidade_total is None:
+                    quantidade_total = quantidade_decimal
+                    dosagem = quantidade_total / area_total if area_total > 0 else Decimal("0")
+                    metodo_deteccao = "QUANTIDADE TOTAL (fallback)"
+                
+                logger.info(f'   ✅ Detecção: {metodo_deteccao}')
+                logger.info(f'      Dosagem: {dosagem:.3f} {unidade_padrao}')
+                logger.info(f'      Quantidade Total: {quantidade_total:.3f} (para {area_total} ha)')
                 
                 # ── Criar vinculação Operacao → Produto ──
                 operacao_produto = OperacaoProduto.objects.create(
                     operacao=operacao,
                     produto=produto_obj,
-                    dosagem=dosagem,  # ← Agora correto: total / area_ha
-                    unidade_dosagem=data.get("unidade", "L/ha"),
+                    dosagem=dosagem,
+                    unidade_dosagem=unidade_padrao,
                 )
                 logger.info(f'   📦 Produto vinculado: {produto_obj.nome} (id={produto_obj.id})')
-                logger.info(f'      Dosagem: {dosagem:.3f} {operacao_produto.unidade_dosagem}')
-                logger.info(f'      Quantidade Total: {operacao_produto.quantidade_total:.3f} {operacao_produto.unidade_dosagem.split("/")[0]}')
                 
                 # ── Criar movimentação de SAÍDA de estoque ──
                 try:
-                    if quantidade_insumo and quantidade_insumo > 0:
+                    if quantidade_total and quantidade_total > 0:
                         movimentacao = MovimentacaoEstoque.objects.create(
                             tenant=tenant,
                             tipo='saida',
                             origem='agricultura',
                             produto=produto_obj,
                             quantidade=quantidade_total,
-                            operacao=operacao,  # ← Link direto para Operacao
+                            operacao=operacao,
                             motivo=f'Operação agrícola: {operacao.get_tipo_display()}',
                             documento_referencia=f'OP#{operacao.id}',
                             criado_por=criado_por,
                         )
-                        logger.info(f'   ✅ Movimentação de estoque criada: id={movimentacao.id}')
-                        logger.info(f'      Tipo: saida | Quantidade: {quantidade_total:.3f} {operacao_produto.unidade_dosagem.split("/")[0]}')
+                        logger.info(f'   ✅ Movimentação criada: saída de {quantidade_total:.3f} {unidade_padrao.split("/")[0]}')
+                        logger.info(f'      Método de cálculo: {metodo_deteccao}')
                     else:
-                        logger.warning(f'   ⚠️  Quantidade {quantidade_insumo} inválida para movimentação de estoque')
+                        logger.warning(f'   ⚠️  Quantidade inválida ({quantidade_total}) para movimentação')
                 except Exception as e:
                     logger.warning(f'   ⚠️  Erro ao criar movimentação de estoque: {str(e)}')
+            else:
+                logger.warning(f'   ⚠️  Produto não encontrado no estoque: {produto_nome}')
             else:
                 logger.warning(f'   ⚠️  Produto não encontrado no estoque: {produto_nome}')
             else:
