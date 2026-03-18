@@ -18,7 +18,15 @@ def client_with_tenant(user_with_tenant):
 
 def test_create_and_list_funcionario(client_with_tenant):
     client = client_with_tenant
-    payload = {'nome': 'João', 'cpf': '12345678901', 'cargo': 'Operador', 'salario_bruto': '2000.00'}
+    # Include pix_key since recebe_por defaults to 'pix' and serializer requires it
+    payload = {
+        'nome': 'João',
+        'cpf': '12345678901',
+        'cargo': 'Operador',
+        'salario_bruto': '2000.00',
+        'recebe_por': 'pix',
+        'pix_key': '12345678901'  # CPF works as PIX key
+    }
     r = client.post(BASE, payload, format='json')
     assert r.status_code == 201
     data = r.json()
@@ -31,11 +39,18 @@ def test_create_and_list_funcionario(client_with_tenant):
 
 def test_update_and_delete_funcionario(client_with_tenant):
     client = client_with_tenant
-    r = client.post(BASE, {'nome': 'Maria'}, format='json')
+    # Create with minimal required fields
+    r = client.post(BASE, {
+        'nome': 'Maria',
+        'recebe_por': 'pix',
+        'pix_key': '12345678902'  # CPF works as PIX key
+    }, format='json')
+    assert r.status_code == 201, f"POST failed: {r.content}"
     fid = r.json()['id']
 
+    # Update cargo (PATCH allows partial updates)
     patch = client.patch(f'{BASE}{fid}/', {'cargo': 'Analista'}, format='json')
-    assert patch.status_code == 200
+    assert patch.status_code == 200, f"PATCH failed: {patch.content}"
     assert patch.json()['cargo'] == 'Analista'
 
     delete = client.delete(f'{BASE}{fid}/')
