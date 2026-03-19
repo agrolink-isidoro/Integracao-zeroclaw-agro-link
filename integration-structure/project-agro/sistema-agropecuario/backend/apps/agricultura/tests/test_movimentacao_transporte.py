@@ -3,28 +3,33 @@ from django.contrib.auth import get_user_model
 from rest_framework.test import APIClient
 from apps.fazendas.models import Fazenda, Area, Talhao
 from apps.agricultura.models import Plantio, Cultura, HarvestSession, HarvestSessionItem
+from apps.multi_tenancy.models import Tenant
 
 User = get_user_model()
 
 
 class MovimentacaoTransporteTests(TestCase):
     def setUp(self):
-        self.user = User.objects.create_user(username='tester', is_staff=False)
+        self.tenant = Tenant.objects.create(
+            nome='test_tenant_agricultura_movimentacao_transporte',
+            slug='test-tenant-agricultura-movimentacao-transporte'
+        )
+        self.user = User.objects.create_user(username='tester', is_staff=False, tenant=self.tenant)
         self.client = APIClient()
         self.client.force_authenticate(self.user)
 
         from apps.fazendas.models import Proprietario
-        self.proprietario = Proprietario.objects.create(nome='Produtor Test', cpf_cnpj='000000000')
-        self.fazenda = Fazenda.objects.create(proprietario=self.proprietario, name='F', matricula='M1')
-        self.cultura = Cultura.objects.create(nome='Soja')
-        self.plantio = Plantio.objects.create(fazenda=self.fazenda, cultura=self.cultura, data_plantio='2025-01-01')
-        self.area = Area.objects.create(proprietario=self.proprietario, fazenda=self.fazenda, name='Area')
-        self.talhao1 = Talhao.objects.create(area=self.area, name='T1', area_size=10)
+        self.proprietario = Proprietario.objects.create(nome='Produtor Test', cpf_cnpj='000000000', tenant=self.tenant)
+        self.fazenda = Fazenda.objects.create(proprietario=self.proprietario, name='F', matricula='M1', tenant=self.tenant)
+        self.cultura = Cultura.objects.create(nome='Soja', tenant=self.tenant)
+        self.plantio = Plantio.objects.create(fazenda=self.fazenda, cultura=self.cultura, data_plantio='2025-01-01', tenant=self.tenant)
+        self.area = Area.objects.create(proprietario=self.proprietario, fazenda=self.fazenda, name='Area', tenant=self.tenant)
+        self.talhao1 = Talhao.objects.create(area=self.area, name='T1', area_size=10, tenant=self.tenant)
         self.plantio.talhoes.add(self.talhao1)
 
         # create a product for this cultura so reconcile can create MovimentacaoEstoque
         from apps.estoque.models import Produto
-        Produto.objects.create(codigo='SOJA-1', nome='Soja Produto', unidade='kg', quantidade_estoque=0)
+        Produto.objects.create(codigo='SOJA-1', nome='Soja Produto', unidade='kg', quantidade_estoque=0, tenant=self.tenant)
 
         # create a session with one item
         url = '/api/agricultura/harvest-sessions/'

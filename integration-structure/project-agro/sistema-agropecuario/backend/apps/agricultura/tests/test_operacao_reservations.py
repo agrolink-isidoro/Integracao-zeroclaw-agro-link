@@ -1,21 +1,28 @@
 from decimal import Decimal
 from django.test import TestCase
 from datetime import date
+from django.contrib.auth import get_user_model
 from apps.estoque.models import Produto
 from apps.agricultura.serializers import OperacaoSerializer
-from apps.core.models import CustomUser
+from apps.multi_tenancy.models import Tenant
+
+User = get_user_model()
 
 
 class OperacaoReservationSerializerTests(TestCase):
     def setUp(self):
-        self.user = CustomUser.objects.create(username='opuser')
-        self.prod = Produto.objects.create(codigo='PX', nome='Produto X', unidade='kg', quantidade_estoque=Decimal('20'), estoque_minimo=Decimal('0'))
+        self.tenant = Tenant.objects.create(
+            nome='test_tenant_agricultura_operacao_reservations',
+            slug='test-tenant-agricultura-operacao-reservations'
+        )
+        self.user = User.objects.create_user(username='opuser', tenant=self.tenant)
+        self.prod = Produto.objects.create(codigo='PX', nome='Produto X', unidade='kg', quantidade_estoque=Decimal('20'), estoque_minimo=Decimal('0'), tenant=self.tenant)
         from apps.fazendas.models import Fazenda, Talhao, Proprietario
-        self.owner = Proprietario.objects.create(nome='Owner', cpf_cnpj='00000000000')
-        self.fazenda = Fazenda.objects.create(name='Fazenda Teste', proprietario=self.owner, matricula='M-1')
+        self.owner = Proprietario.objects.create(nome='Owner', cpf_cnpj='00000000000', tenant=self.tenant)
+        self.fazenda = Fazenda.objects.create(name='Fazenda Teste', proprietario=self.owner, matricula='M-1', tenant=self.tenant)
         from apps.fazendas.models import Area
-        self.area = Area.objects.create(proprietario=self.owner, fazenda=self.fazenda, name='Area 1')
-        self.talhao = Talhao.objects.create(name='Talhao 1', area_size=1.0, area=self.area)
+        self.area = Area.objects.create(proprietario=self.owner, fazenda=self.fazenda, name='Area 1', tenant=self.tenant)
+        self.talhao = Talhao.objects.create(name='Talhao 1', area_size=1.0, area=self.area, tenant=self.tenant)
 
     def test_serializer_create_reserves_stock(self):
         payload = {

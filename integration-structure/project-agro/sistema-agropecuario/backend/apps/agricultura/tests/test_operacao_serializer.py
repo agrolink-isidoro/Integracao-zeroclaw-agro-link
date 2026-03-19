@@ -1,20 +1,27 @@
 from rest_framework.test import APITestCase
 from django.urls import reverse
+from django.contrib.auth import get_user_model
 from apps.estoque.models import Produto
 from apps.fazendas.models import Fazenda, Talhao
-from apps.core.models import CustomUser
+from apps.multi_tenancy.models import Tenant
+
+User = get_user_model()
 
 
 class OperacaoSerializerTests(APITestCase):
     def setUp(self):
-        self.user = CustomUser.objects.create_user(username='tester', password='pass', is_staff=False)
+        self.tenant = Tenant.objects.create(
+            nome='test_tenant_agricultura_operacao_serializer',
+            slug='test-tenant-agricultura-operacao-serializer'
+        )
+        self.user = User.objects.create_user(username='tester', password='pass', is_staff=False, tenant=self.tenant)
         self.client.force_authenticate(user=self.user)
         from apps.fazendas.models import Proprietario
-        proprietario = Proprietario.objects.create(nome='Produtor Teste', cpf_cnpj='00011122233')
-        self.fazenda = Fazenda.objects.create(name='Fazenda Teste', proprietario=proprietario, matricula='TEST-001')
+        proprietario = Proprietario.objects.create(nome='Produtor Teste', cpf_cnpj='00011122233', tenant=self.tenant)
+        self.fazenda = Fazenda.objects.create(name='Fazenda Teste', proprietario=proprietario, matricula='TEST-001', tenant=self.tenant)
         from apps.fazendas.models import Area
-        self.area = Area.objects.create(name='Area 1', tipo='propria', geom='', fazenda=self.fazenda, proprietario=proprietario)
-        self.talhao = Talhao.objects.create(name='T1', area_size=10, area=self.area)
+        self.area = Area.objects.create(name='Area 1', tipo='propria', geom='', fazenda=self.fazenda, proprietario=proprietario, tenant=self.tenant)
+        self.talhao = Talhao.objects.create(name='T1', area_size=10, area=self.area, tenant=self.tenant)
 
     def test_create_operacao_with_produto_without_dosagem_uses_produto_defaults(self):
         # Create product with dosagem_padrao and unidade_dosagem

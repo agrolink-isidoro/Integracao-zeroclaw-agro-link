@@ -3,22 +3,27 @@ from django.contrib.auth import get_user_model
 from apps.agricultura.models import MovimentacaoCarga
 from apps.estoque.models import Produto, MovimentacaoEstoque, Lote
 from django.urls import reverse
+from apps.multi_tenancy.models import Tenant
 
 User = get_user_model()
 
 
 class MovimentacaoAdjustmentTests(TestCase):
     def setUp(self):
+        self.tenant = Tenant.objects.create(
+            nome='test_tenant_agricultura_movimentacao_adjustments',
+            slug='test-tenant-agricultura-movimentacao-adjustments'
+        )
         # create user
-        self.user = User.objects.create_superuser('admin', 'admin@example.com', 'admin123')
+        self.user = User.objects.create_superuser('admin', 'admin@example.com', 'admin123', tenant=self.tenant)
         # create product and local
-        self.produto = Produto.objects.create(nome='Soja Test', codigo='SJT', local_armazenamento=None)
+        self.produto = Produto.objects.create(nome='Soja Test', codigo='SJT', local_armazenamento=None, tenant=self.tenant)
 
         # create a movement (simulate reconciled state by creating MovimentacaoEstoque)
-        self.mov = MovimentacaoCarga.objects.create(peso_bruto=1000, tara=0, descontos=0, peso_liquido=1000, destino_tipo='armazenagem_interna')
+        self.mov = MovimentacaoCarga.objects.create(peso_bruto=1000, tara=0, descontos=0, peso_liquido=1000, destino_tipo='armazenagem_interna', tenant=self.tenant)
         # create lote and movimentacao estoque representing reconcile
-        self.lote = Lote.objects.create(produto=self.produto, numero_lote='COL-1', quantidade_inicial=1000, quantidade_atual=1000, local_armazenamento='Silo A')
-        self.mest = MovimentacaoEstoque.objects.create(produto=self.produto, lote=self.lote, tipo='entrada', origem='colheita', quantidade=1000, documento_referencia=f"MovimentacaoCarga #{self.mov.id}", motivo='Entry', criado_por=self.user)
+        self.lote = Lote.objects.create(produto=self.produto, numero_lote='COL-1', quantidade_inicial=1000, quantidade_atual=1000, local_armazenamento='Silo A', tenant=self.tenant)
+        self.mest = MovimentacaoEstoque.objects.create(produto=self.produto, lote=self.lote, tipo='entrada', origem='colheita', quantidade=1000, documento_referencia=f"MovimentacaoCarga #{self.mov.id}", motivo='Entry', criado_por=self.user, tenant=self.tenant)
 
     def test_adjust_increase_creates_entrada_and_updates_lote(self):
         self.client.force_login(self.user)

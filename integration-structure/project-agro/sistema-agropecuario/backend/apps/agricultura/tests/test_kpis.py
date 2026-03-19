@@ -10,6 +10,7 @@ from apps.fazendas.models import Fazenda, Talhao, Proprietario, Area
 from apps.agricultura.models import Plantio, Cultura, Colheita
 from apps.financeiro.models import RateioCusto, RateioTalhao
 from apps.administrativo.models import CentroCusto
+from apps.multi_tenancy.models import Tenant
 
 User = get_user_model()
 
@@ -18,16 +19,20 @@ class SafraKPIsAPITests(TestCase):
     """Testa GET /api/agricultura/plantios/{id}/kpis/"""
 
     def setUp(self):
-        self.user = User.objects.create_user(username='kpi_user', password='test123', is_staff=False)
+        self.tenant = Tenant.objects.create(
+            nome='test_tenant_agricultura_kpis',
+            slug='test-tenant-agricultura-kpis'
+        )
+        self.user = User.objects.create_user(username='kpi_user', password='test123', is_staff=False, tenant=self.tenant)
         self.client = APIClient()
         self.client.force_authenticate(user=self.user)
 
-        self.proprietario = Proprietario.objects.create(nome='Produtor', cpf_cnpj='00000000001')
-        self.fazenda = Fazenda.objects.create(proprietario=self.proprietario, name='Fazenda KPI', matricula='M-KPI')
-        self.area = Area.objects.create(proprietario=self.proprietario, fazenda=self.fazenda, name='Area KPI', geom='POINT(0 0)')
-        self.talhao1 = Talhao.objects.create(area=self.area, name='T1', area_size=50)
-        self.talhao2 = Talhao.objects.create(area=self.area, name='T2', area_size=30)
-        self.cultura = Cultura.objects.create(nome='Soja')
+        self.proprietario = Proprietario.objects.create(nome='Produtor', cpf_cnpj='00000000001', tenant=self.tenant)
+        self.fazenda = Fazenda.objects.create(proprietario=self.proprietario, name='Fazenda KPI', matricula='M-KPI', tenant=self.tenant)
+        self.area = Area.objects.create(proprietario=self.proprietario, fazenda=self.fazenda, name='Area KPI', geom='POINT(0 0)', tenant=self.tenant)
+        self.talhao1 = Talhao.objects.create(area=self.area, name='T1', area_size=50, tenant=self.tenant)
+        self.talhao2 = Talhao.objects.create(area=self.area, name='T2', area_size=30, tenant=self.tenant)
+        self.cultura = Cultura.objects.create(nome='Soja', tenant=self.tenant)
 
         self.plantio = Plantio.objects.create(
             cultura=self.cultura,
