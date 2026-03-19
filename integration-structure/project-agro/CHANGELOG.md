@@ -2,6 +2,22 @@
 
 All notable changes to this project are documented in this file.
 
+## 2026-03-19 (cont.) — Fazendas: Testes KML Multi-Geometry (Tarefa 1.2)
+
+### 🧪 Tests
+- **test(fazendas/tests)**: Novos 2 testes de alto valor para multi-geometry KML (conforme TEST_VALUE_GATE):
+  - `test_create_area_with_multipolygon_placemark_kml()` — Valida que MULTIPOLYGON dentro de Placemark é parseado corretamente
+    - Edge case: WKT parsing diferente de múltiplos Placemarks
+    - Protege comportamento observável crítico (WKT coordenadas ambas presentes)
+  - `test_create_area_with_empty_kml_error()` — Valida error handling para KML sem geometria
+    - Protege contrato: deve retornar HTTP 400 + ValidationError
+    - Previne crashes por acesso a None
+
+### 📝 Docs
+- Novo arquivo: `TESTS_KML_MULTIGEOMETRY.md` documenta escopo, motivação, e conformidade com TEST_POLICY_CORE
+
+---
+
 ## 2026-03-19 — Fazendas: Suporte Multi-Geometry em KML (Tarefa 1.1)
 
 ### ✨ Features

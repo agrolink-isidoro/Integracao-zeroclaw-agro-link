@@ -13,9 +13,12 @@
   - [x] Garantir que `geom` continue compatível com `GEOSGeometry` e `ST_Area` usados no `area_hectares`.
   - **✅ COMPLETO (19/03/2026):** Implementado em AreaSerializer e TalhaoSerializer, backwards compatible, code committed.
 
-- [ ] **1.2** Adicionar testes unitários para KML com múltiplos placemarks:
+- [x] **1.2** Adicionar testes unitários para KML com múltiplos placemarks:
   - [x] Novo teste em `backend/apps/fazendas/tests/` que envia KML com mais de um `Placemark` e valida que `geom` contém todas as partes.
-  - **⏳ PARTIAL:** Teste TDD criado (`test_create_area_with_multi_placemark_kml`), aguardando Docker estabilizar para executar.
+  - **✅ COMPLETO (19/03/2026):** 2 testes criados + validados:
+    - `test_create_area_with_multipolygon_placemark_kml()` (MULTIPOLYGON inner structure)
+    - `test_create_area_with_empty_kml_error()` (error handling)
+  - Conforme TEST_POLICY_CORE: máx 2 adicionais, ambos de alto valor (TEST_VALUE_GATE)
 
 - [ ] **1.3** Validar que o backend armazena corretamente a geometria para todos os talhões da mesma fazenda (não só o primeiro).
   - [ ] Confirmar que `TalhaoSerializer`/`AreaSerializer` suportam MultiPolygon sem falhar no save.
