@@ -811,15 +811,15 @@ def get_agrolink_tools(base_url: str, jwt_token: str, tenant_id: str = "") -> li
     def registrar_movimentacao_carga(
         safra: str,
         talhao: str,
+        placa: str,
+        motorista: str,
         peso_bruto: float,
         tara: float,
         custo_transporte: float,
         destino_tipo: str,
         local_destino: str,
-        placa: str = "",
-        motorista: str = "",
         empresa_destino: str = "",
-        custo_transporte_unidade: str = "tonelada",
+        custo_transporte_unidade: str = "",
         descontos: float = 0.0,
         condicoes_graos: str = "",
         contrato_ref: str = "",
@@ -828,51 +828,32 @@ def get_agrolink_tools(base_url: str, jwt_token: str, tenant_id: str = "") -> li
         """
         Registra uma movimentação de carga (caminhão carregado) durante a colheita.
 
-        FLUXO OBRIGATÓRIO — 5 PASSOS (SEM EXCEÇÕES):
+        FLUXO OBRIGATÓRIO — COLETE NESTA ORDEM EXATA:
         
-        PASSO 1️⃣: Verificar sessão ativa
-          └─ Chame: consultar_sessoes_colheita_ativas()
-             ├─ SEM sessão: "Inicie uma sessão de colheita no sistema antes"
-             └─ COM sessão: "Sessão ativa de [SAFRA]. Qual talhão vamos registrar?"
-        
-        PASSO 2️⃣: Coletar OBRIGATÓRIOS (não pule nenhum):
-          1. PESO BRUTO 🚫 → "Qual o peso bruto da carga em kg?"
-          2. TARA 🚫 → "Qual o peso da tara do caminhão em kg?"
-          3. CUSTO DE TRANSPORTE 🚫 → "Qual o custo TOTAL do transporte em R$?"
-          4. TIPO DE DESTINO 🚫 → "Para onde vai? (armazenagem_interna / externa / venda_direta)"
-          5. LOCAL DE ARMAZENAMENTO/DESTINO 🚫 → "Qual o local exato?"
-        
-        PASSO 3️⃣: SEMPRE perguntar (recomendado, não obrigatório):
-          6. PLACA DO CAMINHÃO 🚨 → "Qual a placa do caminhão?"
-          7. MOTORISTA 🚨 → "Quem é o motorista?"
-        
-        PASSO 4️⃣: Perguntar OPCIONAIS (uma única vez, agrupado):
-          └─ "Antes de registrar, há descontos por umidade, condições especiais dos grãos, NF/contrato?"
-             ├─ Se SIM: pergunte cada um sequencialmente
-             └─ Se NÃO: prossiga para Passo 5
-        
-        PASSO 5️⃣: Confirmar e chamar ferramenta:
-          ├─ Resuma TODOS os obrigatórios
-          ├─ "Está tudo correto?"
-          └─ Se SIM: CHAME AGORA sem mais perguntas
+        1️⃣ Verificar sessão ativa com consultar_sessoes_colheita_ativas()
+        2️⃣ PLACA do caminhão (ex: KOG-2020, ABC-1234)
+        3️⃣ MOTORISTA (ex: José, João da Silva)
+        4️⃣ PESO BRUTO em kg (ex: 67650)
+        5️⃣ TARA em kg (ex: 17650)
+        6️⃣ CUSTO DE TRANSPORTE em R$ — pergunte se é valor total, por tonelada ou por saca
+        7️⃣ TIPO DE DESTINO (armazenagem_interna / armazenagem_externa / venda_direta)
+        8️⃣ LOCAL DE DESTINO — SEMPRE consulte lista do sistema antes (consultar_locais_armazenamento, consultar_empresas ou consultar_clientes)
+        9️⃣ OPCIONAIS: descontos, condições dos grãos, contrato/NF, observações
 
         Args:
-            safra: Nome ou identificação da safra ATIVA (ex: "Soja", "Safra Soja") — OBRIGATÓRIO
+            safra: Nome ou identificação da safra ATIVA (ex: "Soja", "Safra Milho") — OBRIGATÓRIO
             talhao: Nome ou código do talhão — OBRIGATÓRIO
+            placa: Placa do caminhão (ex: KOG-2020, ABC1D23) — OBRIGATÓRIO, pergunte PRIMEIRO
+            motorista: Nome do motorista (ex: José da Silva) — OBRIGATÓRIO, pergunte SEGUNDO
             peso_bruto: Peso bruto em kg — OBRIGATÓRIO
             tara: Peso tara em kg — OBRIGATÓRIO
             custo_transporte: Custo do frete em R$ — OBRIGATÓRIO
+                          Pode ser valor total ou valor por unidade (depende de custo_transporte_unidade)
             destino_tipo: Tipo de destino — OBRIGATÓRIO
-                          'armazenagem_interna' = Armazenagem na Propriedade
-                          'armazenagem_externa' = Armazenagem Externa
-                          'venda_direta' = Venda Direta
+                          'armazenagem_interna' | 'armazenagem_externa' | 'venda_direta'
             local_destino: Local específico ou empresa — OBRIGATÓRIO
-                          Se armazenagem_interna: nome do local (ex: "Silo Central", "Galpão A")
-                          Se armazenagem_externa/venda_direta: nome da empresa
-            placa: Placa do veículo (recomendado, ex: ABC1D23)
-            motorista: Nome do motorista (recomendado)
             empresa_destino: (compatibilidade legada)
-            custo_transporte_unidade: Unidade ('tonelada', 'saca', 'unidade') — padrão: 'tonelada'
+            custo_transporte_unidade: "" = custo total | "tonelada" = R$/ton | "saca" = R$/saca
             descontos: Descontos em kg (umidade, impureza) — padrão: 0
             condicoes_graos: Condições (ex: "Boa", "Avariada")
             contrato_ref: Referência NF/contrato
@@ -1949,6 +1930,61 @@ def get_agrolink_tools(base_url: str, jwt_token: str, tenant_id: str = "") -> li
         if search:
             params["search"] = search
         return _get(base_url, jwt_token, tenant_id, "/estoque/locais-armazenamento/", params)
+
+    @tool
+    def consultar_empresas(search: str = "") -> str:
+        """
+        Lista as EMPRESAS cadastradas no sistema que podem receber carregamentos.
+        Use para destino_tipo='armazenagem_externa' ou 'venda_direta'.
+
+        Retorna lista com: Nome, CNPJ, Localização e tipo de operação.
+
+        Use quando o usuário pedir: "para qual empresa enviar?", "empresas disponíveis",
+        "Cargill", "Bunge", "cooperativa", "tradings de grãos".
+
+        Args:
+            search: Texto para filtrar empresas por nome ou localização.
+        """
+        params = {}
+        if search:
+            params["search"] = search
+        return _get(base_url, jwt_token, tenant_id, "/comercial/empresas/", params)
+
+    @tool
+    def consultar_clientes(search: str = "") -> str:
+        """
+        Lista os CLIENTES cadastrados para VENDA DIRETA (destino_tipo='venda_direta').
+        
+        Retorna lista com: Nome, CPF/CNPJ, Localização e histórico de compras.
+
+        Use quando o usuário pedir: "quem pode comprar?", "clientes", "compradores",
+        "para qual cliente vender?", "lista de clientes".
+
+        Args:
+            search: Texto para filtrar clientes por nome ou localização.
+        """
+        params = {}
+        if search:
+            params["search"] = search
+        return _get(base_url, jwt_token, tenant_id, "/comercial/clientes/", params)
+
+    @tool
+    def consultar_fornecedores(search: str = "") -> str:
+        """
+        Lista os FORNECEDORES cadastrados no sistema.
+        Útil para referência, mas não é diretamente usado para destino de movimentação de carga.
+
+        Retorna lista com: Nome, CPF/CNPJ, Produto/Serviço, Localização e status.
+
+        Use quando o usuário pedir: "fornecedores", "quem fornece?", "contatos de fornecedores".
+
+        Args:
+            search: Texto para filtrar fornecedores por nome ou produto.
+        """
+        params = {}
+        if search:
+            params["search"] = search
+        return _get(base_url, jwt_token, tenant_id, "/comercial/fornecedores/", params)
 
     # ── Relatórios / Analytics ────────────────────────────────────────────────
 

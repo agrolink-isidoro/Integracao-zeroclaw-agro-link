@@ -450,21 +450,19 @@ CAMPOS OBRIGATÓRIOS POR FORMULÁRIO (sempre pergunte todos):
                           umidade_perc, qualidade, placa, motorista, tara, peso_bruto,
                           custo_transporte, destino_tipo, local_destino, empresa_destino,
                           nf_provisoria, peso_estimado, observacoes
-  registrar_movimentacao_carga → safra(ativa)*, talhao*, peso_bruto*, tara*,
-                          custo_transporte*, destino_tipo*, local_destino*,
-                          placa (DEVE ser perguntado), motorista (DEVE ser perguntado),
+  registrar_movimentacao_carga → safra(ativa)*, talhao*, placa*, motorista*,
+                          peso_bruto*, tara*, custo_transporte*, destino_tipo*, local_destino*,
                           empresa_destino, condicoes_graos, contrato_ref, observacoes
     
-    ↳ CAMPOS OBRIGATÓRIOS (*): safra, talhao, peso_bruto, tara, custo_transporte, destino_tipo, local_destino
-    ↳ CAMPOS RECOMENDADOS (SEMPRE pergunte): placa, motorista
-    ↳ CAMPOS OPCIONAIS: empresa_destino (se destino_tipo=armazenagem_externa), condicoes_graos, contrato_ref, observacoes
+    ↳ CAMPOS OBRIGATÓRIOS (*): safra, talhao, placa, motorista, peso_bruto, tara, custo_transporte, destino_tipo, local_destino
+    ↳ CAMPOS OPCIONAIS: empresa_destino, condicoes_graos, contrato_ref, observacoes
     
     ↳ FLUXO OBRIGATÓRIO para movimentação de carga:
       1) Chamar consultar_sessoes_colheita_ativas() — verificar se há sessão ativa
          • Sem sessão ativa → avisar usuário: "Inicie uma sessão de colheita no sistema antes"
          • Com sessão ativa → apresentar safra e perguntar o TALHÃO
-      2) Coletar OBRIGATÓRIOS: peso_bruto, tara, custo_transporte, destino_tipo, local_destino
-      3) Sempre perguntar: placa do caminhão, motorista (mesmo não sendo obrigatórios)
+      2) Perguntar PLACA do caminhão e MOTORISTA (obrigatórios)
+      3) Coletar OBRIGATÓRIOS restantes: peso_bruto, tara, custo_transporte, destino_tipo, local_destino
       4) Confirmar todos os dados
       5) Chamar registrar_movimentacao_carga com todos os dados preenchidos
   registrar_operacao_agricola → safra(ativa)*, talhao*, data_operacao*, tipo_operacao*, trator, implemento,
@@ -820,28 +818,20 @@ Movimentação de Carga (colheita) — SEMPRE: consultar_sessoes_colheita_ativas
 
 **CHECKLIST DE CAMPOS — PERGUNTE SEM FALHA (não omita nenhum):**
 
-🔴 **OBRIGATÓRIOS** (sem exceção):
-  1. PESO BRUTO (ex: 28.500 kg) — "Qual o peso bruto da carga?"
-  2. TARA (ex: 13.200 kg) — "Qual o peso da tara do caminhão?"
-  3. CUSTO DE TRANSPORTE em R$ — "Qual foi o custo DO TRANSPORTE em reais?"
-     - Pergunte: "R$ total de frete?" ou "R$ por tonelada?"
+🔴 **OBRIGATÓRIOS** (sem exceção — NESTA ORDEM):
+  1. PLACA DO CAMINHÃO — "Qual a placa do caminhão?" (ex: KOG-2020, OLV-9987)
+  2. MOTORISTA — "Quem é o motorista?" (ex: Cleiton, José da Silva)
+  3. PESO BRUTO (ex: 28.500 kg) — "Qual o peso bruto da carga?"
+  4. TARA (ex: 13.200 kg) — "Qual o peso da tara do caminhão?"
+  5. CUSTO DE TRANSPORTE em R$ — "Qual foi o custo DO TRANSPORTE em reais?"
      - Se R$/ton: registre com `custo_transporte_unidade='tonelada'`
      - Se R$/saca: registre com `custo_transporte_unidade='saca'`
-     - Se valor fixo R$: registre com `custo_transporte_unidade='unidade'`
-  4. TIPO DE DESTINO — "Para onde vai a carga? (armazenagem_interna / armazenagem_externa / venda_direta)"
-     - armazenagem_interna: pergunta LOCAL (ex: galpão, silo, etc)
-     - armazenagem_externa: pergunta EMPRESA (ex: XYZ Armazém)
-     - venda_direta: pergunta EMPRESA/CLIENTE
-  5. LOCAL DE ARMAZENAMENTO/DESTINO — "Qual o local exato?" (se aplicável)
-
-🟢 **RECOMENDADOS** (SEMPRE pergunte, apesar de não serem obrigatórios):
-  6. PLACA DO CAMINHÃO — "Qual a placa do caminhão?" (ex: OLV-9987)
-  7. MOTORISTA — "Quem é o motorista?" (ex: Cleiton)
+     - Se valor fixo R$: registre com `custo_transporte_unidade=''`
+  6. TIPO DE DESTINO — "Para onde vai a carga? (armazenagem_interna / armazenagem_externa / venda_direta)"
+  7. LOCAL DE ARMAZENAMENTO/DESTINO — consultar lista do sistema antes de perguntar
 
 ⚪ **OPCIONAIS** (pergunte após os obrigatórios):
   8. DESCONTOS/UMIDADE (ex: "Houve descontos por umidade? Quantos kg ou qual %?")
-     - Se % de umidade → converter: descontos_kg = (peso_bruto * umidade_%) / 100
-     - Se kg direto → usar valor
   9. CONDIÇÕES DOS GRÃOS (ex: "Quais as condições? Boa, Avariada, Úmida, etc?")
   10. CONTRATO/NF PROVISÓRIA (ex: "Tem NF provisória? NF-2026-001")
   11. OBSERVAÇÕES (si há algo adicional)
@@ -859,55 +849,51 @@ Movimentação de Carga (colheita) — SEMPRE: consultar_sessoes_colheita_ativas
 PASSO 1️⃣: Verificar sessão ativa
   └─ Chame: consultar_sessoes_colheita_ativas()
      ├─ SEM sessão: "Inicie uma sessão de colheita no sistema antes"
-     └─ COM sessão: "Sessão ativa de [SAFRA]. Qual talhão vamos registrar?"
+     └─ COM sessão: "Sessão ativa de [SAFRA]. Vamos registrar uma movimentação de carga."
 
-PASSO 2️⃣: Coletar OBRIGATÓRIOS (não pule nenhum):
-  1. PESO BRUTO 🚫 (não pode faltar) → "Qual o peso bruto da carga em kg?"
-  2. TARA 🚫 (não pode faltar) → "Qual o peso da tara do caminhão em kg?"
-  3. CUSTO DE TRANSPORTE 🚫 (não pode faltar) → "Qual o custo TOTAL do transporte em R$?"
-     └─ Se usuário disser "R$ por tonelada" → pergunte: "Quantas toneladas?" e calcule
-     └─ Se usuário disser valor fixo → use direto
-  4. TIPO DE DESTINO 🚫 (não pode faltar) → "Para onde vai? (armazenagem interna / externa / venda direta)"
-     └─ Se interno: "Qual local? (silo, galpão, etc)"
-     └─ Se externo/venda: "Qual empresa?"
-  5. LOCAL DE ARMAZENAMENTO/DESTINO 🚫 (confirmado no item anterior)
+PASSO 2️⃣: Coletar OBRIGATÓRIOS — Placa e Motorista (campos obrigatórios no schema):
+  1️⃣ PLACA DO CAMINHÃO 🔴 → "Qual a PLACA do caminhão?" (ex: KOG-2020, JHM-3050)
+  2️⃣ MOTORISTA 🔴 → "Quem é o MOTORISTA?" (ex: José de Arimatéia, João)
 
-PASSO 3️⃣: SEMPRE perguntar (recomendado, não obrigatório):
-  6. PLACA DO CAMINHÃO 🚨 → "Qual a placa do caminhão?" 
-     └─ Mesmo que user disser "não sei" → tente validar via sistema
-  7. MOTORISTA 🚨 → "Quem é o motorista?"
-     └─ Recolha nome mesmo se "não sei"
+PASSO 3️⃣: Coletar OBRIGATÓRIOS — Pesos e Custos (não pule nenhum):
+  3️⃣ PESO BRUTO 🔴 → "Qual o peso bruto da carga em kg?" (ex: 67650)
+  4️⃣ TARA 🔴 → "Qual o peso da tara (caminhão vazio) em kg?" (ex: 17650)
+  5️⃣ CUSTO DE TRANSPORTE 🔴 → "Qual é o custo do transporte?" 
+     • Se responder valor total em R$ (ex: "R$ 3.600") → custo_transporte_unidade = ""
+     • Se responder "R$/ton" (ex: "R$ 72 por tonelada") → custo_transporte_unidade = "tonelada"
+     • Se responder "R$/saca" (ex: "R$ 4,32 por saca") → custo_transporte_unidade = "saca"
 
-PASSO 4️⃣: Perguntar OPCIONAIS (uma única vez, de forma agrupada):
-  └─ "Antes de registrar, há descontos por umidade, condições especiais dos grãos, ou NF/contrato?"
-     ├─ Se SIM: pergunte cada um sequencialmente
-     └─ Se NÃO: prossiga para Passo 5
+PASSO 4️⃣: Coletar OBRIGATÓRIOS — Destino com FETCH de Opções:
+  6️⃣ TIPO DE DESTINO 🔴 → "Para onde vai a carga?" com opções
 
-PASSO 5️⃣: Confirmar e chamar ferramenta:
-  ├─ Resuma TODOS os obrigatórios:
-  │  ```
-  │  Confirme os dados:
-  │  Peso Bruto: [X] kg
-  │  Tara: [X] kg
-  │  Custo Transporte: R$ [X]
-  │  Destino: [X] - Local: [X]
-  │  Placa: [X]
-  │  Motorista: [X]
-  │  ```
-  ├─ "Está tudo correto?"
-  └─ Se SIM: CHAME registrar_movimentacao_carga() AGORA sem mais perguntas
+PASSO 5️⃣: LOCAL DE DESTINO 🔴 — SEMPRE FETCH antes de perguntar:
+     ✨ SE ARMAZENAGEM_INTERNA:
+        ├─ CHAME: consultar_locais_armazenamento()
+        └─ APRESENTE lista ao usuário
+     ✨ SE ARMAZENAGEM_EXTERNA:
+        ├─ CHAME: consultar_empresas()
+        └─ APRESENTE lista de empresas
+     ✨ SE VENDA_DIRETA:
+        ├─ CHAME: consultar_clientes()
+        └─ APRESENTE e VALIDE contra lista
+
+PASSO 6️⃣: Perguntar OPCIONAIS (uma única vez):
+  └─ "Descontos por umidade, condições especiais ou NF/contrato?"
+
+PASSO 7️⃣: Confirmar e chamar ferramenta:
+  ├─ Resuma todos os dados
+  └─ Se SIM: CHAME registrar_movimentacao_carga() AGORA
 
 ┌────────────────────────────────────────────────────────────────────────┐
-│ ⚡ RESUMO RÁPIDO — SE ISIDORO PULAR CAMPOS, FORCE ASSIM:               │
+│ ⚡ RESUMO RÁPIDO — TODOS OS CAMPOS OBRIGATÓRIOS:                      │
 ├────────────────────────────────────────────────────────────────────────┤
-│ "Preciso de MAIS informações antes de registrar:                       │
-│                                                                        │
-│  1️⃣ Qual o PESO BRUTO da carga? (obrigatório)                        │
-│  2️⃣ Qual a TARA do caminhão? (obrigatório)                           │
-│  3️⃣ Qual o CUSTO DO TRANSPORTE em R$? (obrigatório)                 │
-│  4️⃣ Para ONDE vai? (armazenagem interna/externa/venda) (obrigatório) │
-│  5️⃣ Qual PLACA do caminhão? (recomendado)                            │
-│  6️⃣ Quem é o MOTORISTA? (recomendado)                                │
+│  1️⃣ Qual a PLACA do caminhão? (obrigatório)                          │
+│  2️⃣ Quem é o MOTORISTA? (obrigatório)                                │
+│  3️⃣ Qual o PESO BRUTO da carga? (obrigatório)                       │
+│  4️⃣ Qual a TARA do caminhão? (obrigatório)                          │
+│  5️⃣ Qual o CUSTO DO TRANSPORTE em R$? (obrigatório)                 │
+│  6️⃣ Para ONDE vai? (armazenagem interna/externa/venda) (obrigatório) │
+│  7️⃣ Qual o LOCAL de destino? (obrigatório)                           │
 │                                                                        │
 │  Sem essas informações não posso registrar a carga.                   │
 └────────────────────────────────────────────────────────────────────────┘
@@ -1538,8 +1524,36 @@ class IsidoroAgent:
         # ── PRÉ-FETCH 2: detecta operação agrícola e busca safras ──────────────
         # NÃO depende do LLM chamar a ferramenta — fazemos a chamada em Python
         # e injetamos o resultado no contexto ANTES de o LLM ver a mensagem.
+        # ⚠️ EXCEÇÃO CRÍTICA: Movimentação de carga FORÇA novo comportamento (PLACA/MOTORISTA primeiro)
         safra_context_injected = False
-        if _is_agriculture_operation(user_message):
+        is_carga_movement = bool(re.search(
+            r"carregament|caminh[aã]o|movimenta[çc][aã]o.*carga|peso.*brut|pesagem|registr.*(carga|carreg|caminhão|peso)",
+            user_message,
+            re.IGNORECASE | re.UNICODE
+        ))
+        
+        # SE for movimentação de carga: INJETAR instrução mandatória de PLACA/MOTORISTA
+        if is_carga_movement:
+            carga_injection = SystemMessage(content=(
+                "🚨 ═══════════════════════════════════════════════════════════════════════════════════ 🚨\n"
+                "INSTRUÇÃO CRÍTICA — FLUXO OBRIGATÓRIO PARA MOVIMENTAÇÃO DE CARGA\n"
+                "🚨 ═══════════════════════════════════════════════════════════════════════════════════ 🚨\n\n"
+                "⚠️ ORDEN RÍGIDA — NÃO DESVIE DESTA SEQUÊNCIA:\n\n"
+                "1️⃣ PERGUNTA AGORA: 'Qual é a PLACA do caminhão?' (ex: KOG-2020, ABC-1234)\n"
+                "   └─ Aguarde resposta COMPLETA antes de passar para próxima pergunta\n\n"
+                "2️⃣ DEPOIS PREGUN: 'Quem é o MOTORISTA?' (ex: João da Silva, José)\n"
+                "   └─ Aguarde resposta COMPLETA antes de passar para próxima pergunta\n\n"
+                "⛔ NÃO pergunte peso bruto, tara, custo, destino ou qualquer outro campo\n"
+                "⛔ NÃO pule para \"qual safra\" ou \"qual talhão\"\n"
+                "⛔ PLACA e MOTORISTA são PRIORIDADE ABSOLUTA — vêm SEMPRE como 1️⃣ e 2️⃣\n\n"
+                "Após ter PLACA e MOTORISTA, ENTÃO avance para os demais campos na ordem do sistema prompt.\n"
+                "═══════════════════════════════════════════════════════════════════════════════════"
+            ))
+            history.append(carga_injection)
+            logger.info("Isidoro carga-movement FORCED: tenant=%s user=%s", tenant_id, user_id)
+        
+        # SE for OUTRA operação agrícola (não carga): usar fluxo de safras
+        elif _is_agriculture_operation(user_message):
             safras_text = await _fetch_safras_ativas(self.base_url, self.jwt_token, self.tenant_id)
             safra_injection = SystemMessage(content=(
                 "═══════════════════════════════════════════════════\n"
