@@ -4,15 +4,17 @@ from rest_framework.test import APIClient
 from django.core.files.uploadedfile import SimpleUploadedFile
 import io
 from apps.financeiro.models import ContaBancaria, BankStatementImport, BankTransaction
+from apps.multi_tenancy.models import Tenant
 
 
 class BankStatementAPI(TestCase):
     def setUp(self):
         User = get_user_model()
-        self.user = User.objects.create_user(username='api_user', password='p', is_staff=False)
+        self.tenant = Tenant.objects.create(nome='test_tenant_bankstatements_api', slug='test-tenant-bankstatements-api')
+        self.user = User.objects.create_user(username='api_user', password='p', is_staff=False, tenant=self.tenant)
         self.client = APIClient()
         self.client.force_authenticate(self.user)
-        self.conta = ContaBancaria.objects.create(banco='Test Bank', conta='999')
+        self.conta = ContaBancaria.objects.create(banco='Test Bank', conta='999', tenant=self.tenant)
 
     def _make_csv(self):
         csv = 'date,amount,description,external_id,balance\n'

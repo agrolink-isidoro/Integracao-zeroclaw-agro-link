@@ -2,13 +2,15 @@ from django.test import TestCase
 from apps.financeiro.models import ContaBancaria, LancamentoFinanceiro
 from django.contrib.auth import get_user_model
 from django.urls import reverse
+from apps.multi_tenancy.models import Tenant
 
 class LancamentosApiTest(TestCase):
     def setUp(self):
         User = get_user_model()
-        self.user = User.objects.create_user(username='apiuser', password='test', is_staff=True)
+        self.tenant = Tenant.objects.create(nome='test_tenant_lancamentos_api', slug='test-tenant-lancamentos-api')
+        self.user = User.objects.create_user(username='apiuser', password='test', is_staff=False, tenant=self.tenant)
         self.client.force_login(self.user)
-        self.conta = ContaBancaria.objects.create(banco='Teste', agencia='0001', conta='12345', saldo_inicial=0)
+        self.conta = ContaBancaria.objects.create(banco='Teste', agencia='0001', conta='12345', saldo_inicial=0, tenant=self.tenant)
 
     def test_list_lancamentos(self):
         LancamentoFinanceiro.objects.create(conta=self.conta, tipo='saida', valor=100, data='2026-01-01', descricao='Teste')

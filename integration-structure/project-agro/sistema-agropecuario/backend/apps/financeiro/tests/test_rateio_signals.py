@@ -3,25 +3,29 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
 
 from apps.financeiro.models import RateioCusto
+from apps.multi_tenancy.models import Tenant
 
 User = get_user_model()
 
 
 class RateioSignalsTests(TestCase):
+    def setUp(self):
+        self.tenant = Tenant.objects.create(nome='test_tenant_rateio_signals', slug='test-tenant-rateio-signals')
+
     def test_rateio_creation_creates_pending_approval(self):
-        creator = User.objects.create_user(username='creator')
-        rateio = RateioCusto.objects.create(titulo='Signal Rateio', descricao='desc', valor_total=200.00, criado_por=creator)
+        creator = User.objects.create_user(username='creator', tenant=self.tenant)
+        rateio = RateioCusto.objects.create(titulo='Signal Rateio', descricao='desc', valor_total=200.00, criado_por=creator, tenant=self.tenant)
 
         self.assertTrue(hasattr(rateio, 'approval'))
         self.assertEqual(rateio.approval.status, 'pending')
         self.assertEqual(rateio.approval.criado_por.username, 'creator')
 
     def test_rateio_auto_approve_when_creator_in_approver_group(self):
-        approver = User.objects.create_user(username='approver')
+        approver = User.objects.create_user(username='approver', tenant=self.tenant)
         group, _ = Group.objects.get_or_create(name='financeiro.rateio_approver')
         approver.groups.add(group)
 
-        rateio = RateioCusto.objects.create(titulo='AutoApprove Rateio', descricao='desc', valor_total=500.00, criado_por=approver)
+        rateio = RateioCusto.objects.create(titulo='AutoApprove Rateio', descricao='desc', valor_total=500.00, criado_por=approver, tenant=self.tenant)
 
         self.assertTrue(hasattr(rateio, 'approval'))
         self.assertEqual(rateio.approval.status, 'approved')
