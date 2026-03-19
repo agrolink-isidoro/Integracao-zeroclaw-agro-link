@@ -3,12 +3,18 @@ from rest_framework.test import APITestCase
 from django.test import override_settings
 from apps.estoque.models import Produto
 from apps.core.models import CustomUser
+from apps.multi_tenancy.models import Tenant
 
 
 class ProdutoListPaginationTests(APITestCase):
     def setUp(self):
+        # create tenant first
+        self.tenant = Tenant.objects.create(
+            nome='test_tenant_produtopagination',
+            slug='test-tenant-produtopagination'
+        )
         # create a user to be the creator
-        self.user = CustomUser.objects.create_user(username='testuser', password='testpass')
+        self.user = CustomUser.objects.create_user(username='testuser', password='testpass', tenant=self.tenant)
         # create multiple products
         for i in range(3):
             Produto.objects.create(
@@ -16,7 +22,8 @@ class ProdutoListPaginationTests(APITestCase):
                 nome=f'Produto Teste {i}',
                 unidade='kg',
                 quantidade_estoque=10,
-                estoque_minimo=0
+                estoque_minimo=0,
+                tenant=self.tenant
             )
 
     def test_list_returns_paginated_object(self):
@@ -38,6 +45,7 @@ class ProdutoListPaginationTests(APITestCase):
                 nome=f'Produto Big {i}',
                 unidade='kg',
                 quantidade_estoque=5,
+                tenant=self.tenant
                 estoque_minimo=0
             )
         url = '/api/estoque/produtos/'
