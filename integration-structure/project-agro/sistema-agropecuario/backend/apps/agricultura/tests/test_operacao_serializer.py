@@ -7,7 +7,7 @@ from apps.core.models import CustomUser
 
 class OperacaoSerializerTests(APITestCase):
     def setUp(self):
-        self.user = CustomUser.objects.create_user(username='tester', password='pass')
+        self.user = CustomUser.objects.create_user(username='tester', password='pass', is_staff=False)
         self.client.force_authenticate(user=self.user)
         from apps.fazendas.models import Proprietario
         proprietario = Proprietario.objects.create(nome='Produtor Teste', cpf_cnpj='00011122233')

@@ -11,8 +11,8 @@ User = get_user_model()
 
 class FinanceIntegrationTests(TestCase):
     def setUp(self):
-        self.creator = User.objects.create_user(username='creator', password='pass')
-        self.approver = User.objects.create_user(username='approver', password='pass')
+        self.creator = User.objects.create_user(username='creator', password='pass', is_staff=False)
+        self.approver = User.objects.create_user(username='approver', password='pass', is_staff=False)
         g, _ = Group.objects.get_or_create(name='financeiro.rateio_approver')
         g.user_set.add(self.approver)
 

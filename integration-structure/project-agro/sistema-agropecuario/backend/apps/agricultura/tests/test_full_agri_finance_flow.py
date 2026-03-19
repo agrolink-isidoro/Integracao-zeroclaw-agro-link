@@ -19,8 +19,8 @@ User = get_user_model()
 class FullAgricultureFinanceFlowTests(TestCase):
     def setUp(self):
         # Users and groups
-        self.creator = User.objects.create_user(username='creator_flow', password='pass')
-        self.approver = User.objects.create_user(username='approver_flow', password='pass')
+        self.creator = User.objects.create_user(username='creator_flow', password='pass', is_staff=False)
+        self.approver = User.objects.create_user(username='approver_flow', password='pass', is_staff=False)
         g, _ = Group.objects.get_or_create(name='financeiro.rateio_approver')
         g.user_set.add(self.approver)
 
