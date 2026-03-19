@@ -42,8 +42,12 @@
     - `test_geo_endpoint_layer_parameter()` — layer filtering (areas/talhoes/all)
   - Conforme TEST_POLICY_CORE: 4 testes de alto valor, cada um foca em um aspecto crítico
 
-- [x] **2.2** Verificar filtros de tenant e `fazenda` funcionam corretamente no endpoint `/api/fazendas/geo/`.
+- [x] **2.2** Verificar filtros de tenant e `fazenda` funcionam corretamente no endpoint `/api/geo/`.
   - [x] Garantir que `fazenda` parametrizada traga somente talhões da fazenda selecionada (e não de outras fazendas do mesmo tenant).
+  - **✅ COMPLETO (19/03/2026):** 2 testes criados + todos PASSING:
+    - `test_geo_endpoint_tenant_isolation()` — tenant isolation validation (users from different tenants cannot see each other's data)
+    - `test_geo_endpoint_fazenda_filter_respects_tenant()` — fazenda filtering within tenant boundary
+  - Conforme TEST_POLICY_CORE: 2 testes de alto valor, cada um valida aspecto crítico de segurança (TEST_VALUE_GATE)
 
 ---
 
