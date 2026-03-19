@@ -8,6 +8,7 @@ import pytest
 from rest_framework.test import APIClient
 from django.contrib.auth import get_user_model
 
+from apps.core.models import Tenant
 from apps.fazendas.models import Area, Fazenda, Proprietario, Talhao
 
 
@@ -391,3 +392,219 @@ def test_geo_endpoint_layer_parameter():
     entity_types = [f["properties"]["entity_type"] for f in features]
     assert "area" in entity_types
     assert "talhao" in entity_types, "Should include both when layer=all"
+
+
+@pytest.mark.django_db
+def test_geo_endpoint_tenant_isolation():
+    """
+    Test that /api/geo/ respects tenant boundaries.
+    Users from different tenants must NOT see each other's data.
+    
+    Scenario:
+    - Tenant A: user_a, fazenda_a, talhao_a
+    - Tenant B: user_b, fazenda_b, talhao_b
+    - Verify: user_a sees only tenant A data, user_b sees only tenant B data
+    """
+    # Setup Tenant A
+    tenant_a = Tenant.objects.create(
+        nome="Tenant A",
+        slug="tenant-a",
+        plano="enterprise",
+        ativo=True
+    )
+    user_a = User.objects.create_user(
+        tenant=tenant_a,
+        username="user_tenant_a",
+        email="user_a@test.com",
+        password="pass123"
+    )
+    proprietario_a = Proprietario.objects.create(
+        nome="Proprietario A",
+        cpf_cnpj="12345678901234"
+    )
+    fazenda_a = Fazenda.objects.create(
+        tenant=tenant_a,
+        proprietario=proprietario_a,
+        name="Fazenda A",
+        matricula="00001"
+    )
+    area_a = Area.objects.create(
+        proprietario=proprietario_a,
+        fazenda=fazenda_a,
+        name="Area A",
+        tipo="propria",
+        geom="POLYGON((-47.0 -15.0, -47.0 -15.01, -46.99 -15.01, -46.99 -15.0, -47.0 -15.0))"
+    )
+    talhao_a = Talhao.objects.create(
+        area=area_a,
+        name="Talhao A",
+        geom="POLYGON((-47.001 -15.001, -47.001 -15.002, -47.000 -15.002, -47.000 -15.001, -47.001 -15.001))"
+    )
+    
+    # Setup Tenant B
+    tenant_b = Tenant.objects.create(
+        nome="Tenant B",
+        slug="tenant-b",
+        plano="enterprise",
+        ativo=True
+    )
+    user_b = User.objects.create_user(
+        tenant=tenant_b,
+        username="user_tenant_b",
+        email="user_b@test.com",
+        password="pass123"
+    )
+    proprietario_b = Proprietario.objects.create(
+        nome="Proprietario B",
+        cpf_cnpj="98765432109876"
+    )
+    fazenda_b = Fazenda.objects.create(
+        tenant=tenant_b,
+        proprietario=proprietario_b,
+        name="Fazenda B",
+        matricula="00002"
+    )
+    area_b = Area.objects.create(
+        proprietario=proprietario_b,
+        fazenda=fazenda_b,
+        name="Area B",
+        tipo="propria",
+        geom="POLYGON((-46.0 -14.0, -46.0 -14.01, -45.99 -14.01, -45.99 -14.0, -46.0 -14.0))"
+    )
+    talhao_b = Talhao.objects.create(
+        area=area_b,
+        name="Talhao B",
+        geom="POLYGON((-46.001 -14.001, -46.001 -14.002, -46.000 -14.002, -46.000 -14.001, -46.001 -14.001))"
+    )
+    
+    # Verify: User from Tenant A should only see Tenant A data
+    client = APIClient()
+    client.force_authenticate(user_a)
+    
+    response = client.get("/api/geo/")
+    assert response.status_code == 200
+    features_a = response.json()["features"]
+    area_names_a = [f["properties"]["name"] for f in features_a]
+    
+    # User A should see Area A and Talhao A
+    assert "Area A" in area_names_a, "User A should see Area A"
+    assert "Talhao A" in area_names_a, "User A should see Talhao A"
+    # User A should NOT see Area B or Talhao B
+    assert "Area B" not in area_names_a, "User A must NOT see Area B (tenant isolation)"
+    assert "Talhao B" not in area_names_a, "User A must NOT see Talhao B (tenant isolation)"
+    
+    # Verify: User from Tenant B should only see Tenant B data
+    client.force_authenticate(user_b)
+    
+    response = client.get("/api/geo/")
+    assert response.status_code == 200
+    features_b = response.json()["features"]
+    area_names_b = [f["properties"]["name"] for f in features_b]
+    
+    # User B should see Area B and Talhao B
+    assert "Area B" in area_names_b, "User B should see Area B"
+    assert "Talhao B" in area_names_b, "User B should see Talhao B"
+    # User B should NOT see Area A or Talhao A
+    assert "Area A" not in area_names_b, "User B must NOT see Area A (tenant isolation)"
+    assert "Talhao A" not in area_names_b, "User B must NOT see Talhao A (tenant isolation)"
+
+
+@pytest.mark.django_db
+def test_geo_endpoint_fazenda_filter_respects_tenant():
+    """
+    Test that fazenda_id parameter correctly filters within tenant boundary.
+    
+    Scenario:
+    - Tenant A has: fazenda_1 with talhaoX, fazenda_2 with talhaoY
+    - User requests: /api/geo/?fazenda=fazenda_1 → should get ONLY talhaoX
+    - User requests: /api/geo/?fazenda=fazenda_2 → should get ONLY talhaoY
+    - Prevent: user accessing fazenda from another tenant via parameter
+    """
+    tenant = Tenant.objects.create(
+        nome="Tenant Multi-Fazenda",
+        slug="tenant-multi-fazenda",
+        plano="enterprise",
+        ativo=True
+    )
+    user = User.objects.create_user(
+        tenant=tenant,
+        username="multi_fazenda_user",
+        email="multi@test.com",
+        password="pass123"
+    )
+    proprietario = Proprietario.objects.create(
+        nome="Proprietario Multi",
+        cpf_cnpj="11122233344455"
+    )
+    
+    # Create 2 fazendas within same tenant
+    fazenda_1 = Fazenda.objects.create(
+        tenant=tenant,
+        proprietario=proprietario,
+        name="Fazenda 1",
+        matricula="00003"
+    )
+    fazenda_2 = Fazenda.objects.create(
+        tenant=tenant,
+        proprietario=proprietario,
+        name="Fazenda 2",
+        matricula="00004"
+    )
+    
+    # Create talhões in each fazenda
+    area_1 = Area.objects.create(
+        proprietario=proprietario,
+        fazenda=fazenda_1,
+        name="Area in Fazenda 1",
+        tipo="propria",
+        geom="POLYGON((-47.1 -15.1, -47.1 -15.11, -47.09 -15.11, -47.09 -15.1, -47.1 -15.1))"
+    )
+    talhao_1 = Talhao.objects.create(
+        area=area_1,
+        name="Talhao in Fazenda 1",
+        geom="POLYGON((-47.101 -15.101, -47.101 -15.102, -47.100 -15.102, -47.100 -15.101, -47.101 -15.101))"
+    )
+    
+    area_2 = Area.objects.create(
+        proprietario=proprietario,
+        fazenda=fazenda_2,
+        name="Area in Fazenda 2",
+        tipo="propria",
+        geom="POLYGON((-47.2 -15.2, -47.2 -15.21, -47.19 -15.21, -47.19 -15.2, -47.2 -15.2))"
+    )
+    talhao_2 = Talhao.objects.create(
+        area=area_2,
+        name="Talhao in Fazenda 2",
+        geom="POLYGON((-47.201 -15.201, -47.201 -15.202, -47.200 -15.202, -47.200 -15.201, -47.201 -15.201))"
+    )
+    
+    client = APIClient()
+    client.force_authenticate(user)
+    
+    # Get data from fazenda_1 only
+    response = client.get(
+        "/api/geo/",
+        {"fazenda": fazenda_1.id}
+    )
+    assert response.status_code == 200
+    features = response.json()["features"]
+    names = [f["properties"]["name"] for f in features]
+    
+    assert "Area in Fazenda 1" in names, "Should return area from fazenda_1"
+    assert "Talhao in Fazenda 1" in names, "Should return talhao from fazenda_1"
+    assert "Area in Fazenda 2" not in names, "Should NOT return data from fazenda_2"
+    assert "Talhao in Fazenda 2" not in names, "Should NOT return data from fazenda_2"
+    
+    # Get data from fazenda_2 only
+    response = client.get(
+        "/api/geo/",
+        {"fazenda": fazenda_2.id}
+    )
+    assert response.status_code == 200
+    features = response.json()["features"]
+    names = [f["properties"]["name"] for f in features]
+    
+    assert "Area in Fazenda 2" in names, "Should return area from fazenda_2"
+    assert "Talhao in Fazenda 2" in names, "Should return talhao from fazenda_2"
+    assert "Area in Fazenda 1" not in names, "Should NOT return data from fazenda_1"
+    assert "Talhao in Fazenda 1" not in names, "Should NOT return data from fazenda_1"
