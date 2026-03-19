@@ -9,7 +9,7 @@ User = get_user_model()
 
 @pytest.mark.django_db
 def test_create_venda_exceeds_carga_weight():
-    user = User.objects.create_user(username='seller', password='pass')
+    user = User.objects.create_user(username='seller', password='pass', is_staff=False)
     client = APIClient()
     client.force_authenticate(user=user)
 
@@ -41,7 +41,7 @@ def test_create_venda_exceeds_carga_weight():
 
 @pytest.mark.django_db
 def test_create_venda_success_calculates_total():
-    user = User.objects.create_user(username='seller2', password='pass')
+    user = User.objects.create_user(username='seller2', password='pass', is_staff=False)
     client = APIClient()
     client.force_authenticate(user=user)
 

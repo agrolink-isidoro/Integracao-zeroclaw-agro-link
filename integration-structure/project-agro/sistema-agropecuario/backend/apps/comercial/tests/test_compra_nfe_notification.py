@@ -8,7 +8,7 @@ from pathlib import Path
 class CompraNFeNotificationTest(TestCase):
     def setUp(self):
         User = get_user_model()
-        self.user = User.objects.create_user(username='compra_user', password='p')
+        self.user = User.objects.create_user(username='compra_user', password='p', is_staff=False)
 
         xml_path = Path(__file__).parent.parent.parent / 'fiscal' / 'tests' / 'fixtures' / '52251004621697000179550010000100511374580195.xml'
         if not xml_path.exists():

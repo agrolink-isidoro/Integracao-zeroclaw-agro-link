@@ -5,7 +5,7 @@ from apps.comercial.models import Fornecedor, DocumentoFornecedor
 class FornecedorApiTests(APITestCase):
     def setUp(self):
         from apps.core.models import CustomUser
-        self.user = CustomUser.objects.create_user(username='tester', password='pass')
+        self.user = CustomUser.objects.create_user(username='tester', password='pass', is_staff=False)
         self.client.force_authenticate(user=self.user)
 
     def test_create_fornecedor_via_formdata_with_documents(self):

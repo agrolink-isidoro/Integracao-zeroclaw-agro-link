@@ -7,7 +7,7 @@ User = get_user_model()
 
 @pytest.mark.django_db
 def test_create_and_list_cliente():
-    user = User.objects.create_user(username='cuser2', password='pass')
+    user = User.objects.create_user(username='cuser2', password='pass', is_staff=False)
     client = APIClient()
     client.force_authenticate(user=user)
 

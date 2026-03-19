@@ -9,7 +9,7 @@ import io
 class CompraNFeAutoCreateTest(TestCase):
     def setUp(self):
         User = get_user_model()
-        self.user = User.objects.create_user(username='compra_user', password='p')
+        self.user = User.objects.create_user(username='compra_user', password='p', is_staff=False)
 
     def test_compra_with_xml_creates_nfe_and_links(self):
         # Use existing fixture XML if available, otherwise skip

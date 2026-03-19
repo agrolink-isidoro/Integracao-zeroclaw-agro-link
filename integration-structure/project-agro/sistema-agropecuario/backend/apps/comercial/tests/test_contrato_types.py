@@ -8,7 +8,7 @@ User = get_user_model()
 
 @pytest.mark.django_db
 def test_create_contrato_with_new_types():
-    user = User.objects.create_user(username='ct', password='pass')
+    user = User.objects.create_user(username='ct', password='pass', is_staff=False)
     client = APIClient()
     client.force_authenticate(user=user)
 

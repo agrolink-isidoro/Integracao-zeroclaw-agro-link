@@ -7,7 +7,7 @@ User = get_user_model()
 
 @pytest.mark.django_db
 def test_create_cliente_with_inscricao_estadual():
-    user = User.objects.create_user(username='cliuser', password='pass')
+    user = User.objects.create_user(username='cliuser', password='pass', is_staff=False)
     client = APIClient()
     client.force_authenticate(user=user)
 

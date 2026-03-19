@@ -15,7 +15,7 @@ from pathlib import Path
 class CompraNFeE2ETest(TestCase):
     def setUp(self):
         User = get_user_model()
-        self.user = User.objects.create_user(username='e2e_user', password='p')
+        self.user = User.objects.create_user(username='e2e_user', password='p', is_staff=False)
         self.staff = User.objects.create_user(username='staff', password='p', is_staff=True)
         self.client = APIClient()
         self.client.force_authenticate(self.staff)
