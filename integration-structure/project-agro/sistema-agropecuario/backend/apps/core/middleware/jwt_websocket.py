@@ -108,17 +108,25 @@ class JwtAuthMiddleware:
                 return AnonymousUser(), None
 
             tenant = None
-            # Priority 1: tenant from JWT claim (normal users — cannot be overridden)
+            # Priority 1: tenant from JWT claim (normal users — preferred source)
             if jwt_tenant_id:
                 try:
                     tenant = Tenant.objects.get(id=jwt_tenant_id, ativo=True)
+                    logger.debug(
+                        "JWT WebSocket: tenant resolved from JWT claim for user %s: %s",
+                        getattr(user, 'username', '?'), jwt_tenant_id,
+                    )
                 except Tenant.DoesNotExist:
                     logger.warning("JWT WebSocket: tenant_id=%s não encontrado", jwt_tenant_id)
-            # Priority 2: tenant from user.tenant FK (session auth fallback)
-            elif user.is_authenticated and not user.is_superuser and getattr(user, 'tenant', None):
+            # Priority 2: tenant from user.tenant FK (fallback if JWT missing/invalid)
+            if not tenant and user.is_authenticated and not user.is_superuser and getattr(user, 'tenant', None):
                 tenant = user.tenant
+                logger.debug(
+                    "JWT WebSocket: tenant resolved from user.tenant for user %s: %s",
+                    getattr(user, 'username', '?'), user.tenant_id,
+                )
             # Priority 3: explicit tenant_id query param — only for staff/superuser service accounts
-            elif explicit_tenant_id and (getattr(user, 'is_staff', False) or getattr(user, 'is_superuser', False)):
+            if not tenant and explicit_tenant_id and (getattr(user, 'is_staff', False) or getattr(user, 'is_superuser', False)):
                 try:
                     tenant = Tenant.objects.get(id=explicit_tenant_id, ativo=True)
                     logger.info(
