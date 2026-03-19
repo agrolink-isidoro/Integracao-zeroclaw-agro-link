@@ -14,7 +14,7 @@ def create_despesa(empresa, categoria, valor, data='2026-01-05', tenant=None):
 
 
 def test_empresa_agregados_json_and_csv():
-    from apps.core.models import Tenant
+    from apps.multi_tenancy.models import Tenant
     
     # Create tenant and user with tenant
     tenant = Tenant.objects.create(nome="test_tenant", slug="test-tenant")
@@ -56,7 +56,7 @@ def test_empresa_agregados_json_and_csv():
 
 
 def test_global_agregados_pagination():
-    from apps.core.models import Tenant
+    from apps.multi_tenancy.models import Tenant
     
     # Create tenant and staff user with tenant
     tenant = Tenant.objects.create(nome="test_tenant2", slug="test-tenant-2")

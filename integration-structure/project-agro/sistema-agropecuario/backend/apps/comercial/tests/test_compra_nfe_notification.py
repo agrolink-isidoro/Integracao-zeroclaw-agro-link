@@ -7,7 +7,7 @@ from pathlib import Path
 
 class CompraNFeNotificationTest(TestCase):
     def setUp(self):
-        from apps.core.models import Tenant
+        from apps.multi_tenancy.models import Tenant
         User = get_user_model()
         
         # Create tenant
