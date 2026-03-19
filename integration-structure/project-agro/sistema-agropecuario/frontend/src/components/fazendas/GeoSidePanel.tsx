@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { GeoFeature } from '../hooks/useGeoData';
+import type { GeoFeature } from '../../hooks/useGeoData';
 
 // ---------------------------------------------------------------------------
 // Props

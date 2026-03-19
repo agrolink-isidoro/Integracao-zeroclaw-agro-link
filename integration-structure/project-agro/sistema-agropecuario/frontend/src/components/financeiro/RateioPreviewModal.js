@@ -1,8 +1,0 @@
-import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
-import React from 'react';
-const RateioPreviewModal = ({ show, onClose, preview, onCreate }) => {
-    if (!show)
-        return null;
-    return (_jsx("div", { className: "modal d-block", tabIndex: -1, role: "dialog", children: _jsx("div", { className: "modal-dialog modal-lg", role: "document", children: _jsxs("div", { className: "modal-content", children: [_jsxs("div", { className: "modal-header", children: [_jsx("h5", { className: "modal-title", children: "Preview de Rateio" }), _jsx("button", { type: "button", className: "btn-close", "aria-label": "Close", onClick: onClose })] }), _jsxs("div", { className: "modal-body", children: [!preview && _jsx("div", { children: "Sem dados" }), preview && (_jsxs("div", { children: [_jsxs("p", { children: [_jsx("strong", { children: "Valor total:" }), " R$ ", preview.valor_total || '-'] }), _jsxs("table", { className: "table", children: [_jsx("thead", { children: _jsxs("tr", { children: [_jsx("th", { children: "Talh\u00E3o" }), _jsx("th", { children: "\u00C1rea" }), _jsx("th", { children: "Propor\u00E7\u00E3o" }), _jsx("th", { children: "Valor rateado" })] }) }), _jsx("tbody", { children: (preview.parts || []).map((p, idx) => (_jsxs("tr", { children: [_jsx("td", { children: p.talhao_nome || p.talhao }), _jsx("td", { children: p.area }), _jsx("td", { children: p.proporcao }), _jsxs("td", { children: ["R$ ", p.valor_rateado] })] }, idx))) })] })] }))] }), _jsxs("div", { className: "modal-footer", children: [_jsx("button", { className: "btn btn-secondary", onClick: onClose, children: "Fechar" }), _jsx("button", { className: "btn btn-primary", onClick: onCreate, children: "Criar Rateio" })] })] }) }) }));
-};
-export default RateioPreviewModal;

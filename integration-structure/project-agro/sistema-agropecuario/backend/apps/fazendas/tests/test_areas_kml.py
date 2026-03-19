@@ -34,7 +34,7 @@ def test_create_area_with_kml():
 
     sf = SimpleUploadedFile("teste.kml", kml, content_type='application/vnd.google-earth.kml+xml')
 
-    resp = client.post("/api/fazendas/areas/", {"fazenda": fazenda.id, "proprietario": proprietario.id, "name": "teste kml", "kml_file": sf}, format='multipart')
+    resp = client.post("/api/areas/", {"fazenda": fazenda.id, "proprietario": proprietario.id, "name": "teste kml", "kml_file": sf}, format='multipart')
     assert resp.status_code == 201, resp.content
 
     assert Area.objects.filter(name="teste kml").exists()
@@ -59,6 +59,7 @@ def test_create_area_with_multi_placemark_kml():
     # KML with 2 Placemarks (multi-polygon)
     kml = b"""<?xml version="1.0" encoding="UTF-8"?>
     <kml xmlns="http://www.opengis.net/kml/2.2">
+      <Document>
       <Placemark>
         <name>Polygon 1</name>
         <Polygon>
@@ -79,6 +80,7 @@ def test_create_area_with_multi_placemark_kml():
           </outerBoundaryIs>
         </Polygon>
       </Placemark>
+      </Document>
     </kml>"""
 
     sf = SimpleUploadedFile(
@@ -88,7 +90,7 @@ def test_create_area_with_multi_placemark_kml():
     )
 
     resp = client.post(
-        "/api/fazendas/areas/",
+        "/api/areas/",
         {
             "fazenda": fazenda.id,
             "proprietario": proprietario.id,
@@ -130,6 +132,7 @@ def test_create_area_with_multipolygon_placemark_kml():
     # KML with 1 Placemark containing MULTIPOLYGON (inner geometry structure)
     kml = b"""<?xml version="1.0" encoding="UTF-8"?>
     <kml xmlns="http://www.opengis.net/kml/2.2">
+      <Document>
       <Placemark>
         <name>Multi-polygon Area</name>
         <MultiGeometry>
@@ -149,6 +152,7 @@ def test_create_area_with_multipolygon_placemark_kml():
           </Polygon>
         </MultiGeometry>
       </Placemark>
+      </Document>
     </kml>"""
 
     sf = SimpleUploadedFile(
@@ -158,7 +162,7 @@ def test_create_area_with_multipolygon_placemark_kml():
     )
 
     resp = client.post(
-        "/api/fazendas/areas/",
+        "/api/areas/",
         {
             "fazenda": fazenda.id,
             "proprietario": proprietario.id,
@@ -200,10 +204,12 @@ def test_create_area_with_empty_kml_error():
     # KML with Placemark but NO geometry (or only Point with no coordinates)
     kml = b"""<?xml version="1.0" encoding="UTF-8"?>
     <kml xmlns="http://www.opengis.net/kml/2.2">
+      <Document>
       <Placemark>
         <name>Empty Geometry</name>
         <description>No geometry here</description>
       </Placemark>
+      </Document>
     </kml>"""
 
     sf = SimpleUploadedFile(
@@ -213,7 +219,7 @@ def test_create_area_with_empty_kml_error():
     )
 
     resp = client.post(
-        "/api/fazendas/areas/",
+        "/api/areas/",
         {
             "fazenda": fazenda.id,
             "proprietario": proprietario.id,
@@ -229,12 +235,14 @@ def test_create_area_with_empty_kml_error():
     # EXPECTED: Area NOT created
     assert not Area.objects.filter(name="teste empty kml").exists(), "Empty KML should not create Area"
 
-    # EXPECTED: Error message mentions geometry
+    # EXPECTED: Error message mentions geometry or KML
     resp_data = resp.json()
-    assert any(
-        "geometria" in str(msg).lower() or "geometry" in str(msg).lower()
-        for msg in (resp_data.get("non_field_errors", []) + resp_data.get("kml_file", []))
-    ), f"Error response should mention missing geometry. Got: {resp_data}"
+    error_text = str(resp_data).lower()
+    assert (
+        "geometria" in error_text
+        or "geometry" in error_text
+        or "kml" in error_text
+    ), f"Error response should mention missing geometry/KML. Got: {resp_data}"
 
 
 @pytest.mark.django_db

@@ -2,7 +2,7 @@ import React, { useCallback, useMemo, useState, useRef, useEffect } from 'react'
 import { useAuthContext } from '../../contexts/AuthContext';
 import { GoogleMap, useJsApiLoader } from '@react-google-maps/api';
 import { Link } from 'react-router-dom';
-import { useGeoData, GeoFeature, computeBoundsFromFeatures } from '../../hooks/useGeoData';
+import { useGeoData, type GeoFeature, computeBoundsFromFeatures, hasRealCoordinates } from '../../hooks/useGeoData';
 import GeoPolygonRenderer, { AREA_COLORS, TALHAO_COLOR } from './GeoPolygonRenderer';
 import GeoSidePanel from './GeoSidePanel';
 
@@ -136,22 +136,11 @@ const FazendaMap: React.FC = () => {
   const [activeLayer, setActiveLayer] = useState<'all' | 'areas' | 'talhoes'>('all');
   const { user } = useAuthContext();
 
-  // Initialize fazenda filter with user's primary fazenda
+  // Initialize fazenda filter empty so we load ALL available KML on first render
   const [fazendaFilter, setFazendaFilter] = useState<string>('');
 
-  // Sync fazenda filter when user loads (handles async auth)
-  useEffect(() => {
-    if (user && !fazendaFilter) {
-      try {
-        const primaryFazendaId = (user as any)?.fazenda ?? (user as any)?.fazenda_id ?? null;
-        if (primaryFazendaId) {
-          setFazendaFilter(String(primaryFazendaId));
-        }
-      } catch (e) {
-        // If we can't get fazenda_id, just leave filter empty
-      }
-    }
-  }, [user?.id]); // Re-run only if user.id changes (not whole user object)
+  // Alert state: shown when API returns zero features
+  const [showNoGeoAlert, setShowNoGeoAlert] = useState(false);
 
   // Ensure we only auto-focus once per mount
   const didAutoFocusRef = useRef(false);
@@ -162,11 +151,17 @@ const FazendaMap: React.FC = () => {
     fazendaId: fazendaFilter || null,
   });
 
-  // Compute map bounds from features
+  // Features with real KML coordinates (excluding 0,0 placeholders)
+  const realFeatures = useMemo(() => {
+    if (!geoData?.features?.length) return [];
+    return geoData.features.filter(hasRealCoordinates);
+  }, [geoData]);
+
+  // Compute map bounds from real KML features only
   const bounds = useMemo(() => {
-    if (!geoData?.features?.length || !isLoaded) return null;
-    return computeBoundsFromFeatures(geoData.features);
-  }, [geoData, isLoaded]);
+    if (!realFeatures.length || !isLoaded) return null;
+    return computeBoundsFromFeatures(realFeatures);
+  }, [realFeatures, isLoaded]);
 
   const mapRef = useRef<google.maps.Map | null>(null);
 
@@ -187,44 +182,30 @@ const FazendaMap: React.FC = () => {
     }
   }, [bounds]);
 
-  // Auto-select and focus the user's primary fazenda (if any)
+  // Auto-center on real KML features when data first loads
   useEffect(() => {
     if (didAutoFocusRef.current) return;
-    if (!geoData?.features?.length || !mapRef.current) return;
+    if (geoLoading) return;
 
-    // Prefer explicit filter or user's primary fazenda; otherwise pick the first fazenda present
-    let id: number | null = null;
-    try {
-      id = fazendaFilter ? Number(fazendaFilter) : (user as any)?.fazenda ?? null;
-    } catch {
-      id = null;
+    // Data loaded — check for real KML coordinates
+    if (realFeatures.length === 0) {
+      setShowNoGeoAlert(true);
+      didAutoFocusRef.current = true;
+      return;
     }
 
-    if (!id) {
-      const firstFeature = geoData.features.find((f) => !!f.properties.fazenda_id);
-      if (firstFeature) {
-        id = firstFeature.properties.fazenda_id;
-        // set the filter so subsequent reloads keep the same fazenda
-        setFazendaFilter(String(id));
-      }
+    setShowNoGeoAlert(false);
+
+    if (!mapRef.current || !isLoaded) return;
+
+    // Center only on features with real KML coordinates
+    const realBounds = computeBoundsFromFeatures(realFeatures);
+    if (realBounds && !realBounds.isEmpty()) {
+      mapRef.current.fitBounds(realBounds, 50);
     }
-
-    if (!id) return;
-
-    // Get all features for this fazenda and compute bounds
-    const fazendaFeatures = geoData.features.filter((f) => f.properties.fazenda_id === id);
-    if (!fazendaFeatures.length) return;
-
-    const b = computeBoundsFromFeatures(fazendaFeatures);
-    if (b && !b.isEmpty()) {
-      mapRef.current.fitBounds(b, 50);
-    }
-
-    // select first feature to open side panel
-    setSelectedFeature(fazendaFeatures[0]);
 
     didAutoFocusRef.current = true;
-  }, [geoData, user, fazendaFilter]);
+  }, [geoData, geoLoading, isLoaded, realFeatures]);
 
   // Manual center handler used by the UI button
   const centerOnCurrentFazenda = useCallback(() => {
@@ -354,11 +335,10 @@ const FazendaMap: React.FC = () => {
         </div>
       )}
 
-      {!geoLoading && geoData?.features?.length === 0 && (
-        <div className="alert alert-info">
-          <i className="bi bi-info-circle me-2"></i>
-          Nenhuma área ou talhão com coordenadas (KML/Geometria) cadastrados. Por favor, adicione
-          geometrias aos seus registros para visualizá-los no mapa.
+      {!geoLoading && showNoGeoAlert && (
+        <div className="alert alert-warning d-flex align-items-center" role="alert">
+          <i className="bi bi-exclamation-triangle-fill me-2 fs-5"></i>
+          <span>Não existe coordenada geográfica disponível para centralizar</span>
         </div>
       )}
 

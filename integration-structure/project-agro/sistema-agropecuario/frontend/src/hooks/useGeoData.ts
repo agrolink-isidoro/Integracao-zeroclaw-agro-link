@@ -108,6 +108,19 @@ export function getPolygonPaths(geometry: GeoFeature['geometry']): google.maps.L
 }
 
 // ---------------------------------------------------------------------------
+// Utility: Check if a feature has real KML coordinates (not near 0,0 placeholder)
+// ---------------------------------------------------------------------------
+export function hasRealCoordinates(feature: GeoFeature): boolean {
+  const paths = getPolygonPaths(feature.geometry);
+  for (const ring of paths) {
+    for (const pt of ring) {
+      if (Math.abs(pt.lat) > 0.01 || Math.abs(pt.lng) > 0.01) return true;
+    }
+  }
+  return false;
+}
+
+// ---------------------------------------------------------------------------
 // Utility: Compute bounds from features
 // ---------------------------------------------------------------------------
 export function computeBoundsFromFeatures(

@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { Polygon } from '@react-google-maps/api';
-import { GeoFeature, getPolygonPaths } from '../hooks/useGeoData';
+import { type GeoFeature, getPolygonPaths } from '../../hooks/useGeoData';
 
 // ---------------------------------------------------------------------------
 // Constants

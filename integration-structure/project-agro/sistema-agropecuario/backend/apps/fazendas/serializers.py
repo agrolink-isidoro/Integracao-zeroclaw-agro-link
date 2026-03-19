@@ -1,12 +1,9 @@
 import logging
-import tempfile
-import os
+
 from rest_framework import serializers
 from rest_framework_gis.serializers import GeoFeatureModelSerializer
-from django.contrib.gis.gdal import DataSource
-import tempfile
-import os
-import logging
+
+from .kml_utils import process_kml_file, create_approximate_geometry_from_hectares
 from .models import (
     Proprietario, Fazenda, Area, Talhao, Arrendamento, CotacaoSaca,
     DocumentoArrendamento, ParcelaArrendamento, MatriculaFazenda
@@ -115,94 +112,20 @@ class TalhaoSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ["id", "area_hectares", "area_id", "area_name", "fazenda_id", "fazenda_nome"]
     
-    def _create_approximate_geometry_from_hectares(self, hectares):
-        """Cria uma geometria aproximada (quadrado) a partir de hectares."""
-        import math
-        
-        area_m2 = float(hectares) * 10000
-        lado_m = math.sqrt(area_m2)
-        lado_graus = lado_m / 111320
-        
-        x_min, y_min = -lado_graus / 2, -lado_graus / 2
-        x_max, y_max = lado_graus / 2, lado_graus / 2
-        
-        wkt = f"POLYGON(({x_min} {y_min}, {x_max} {y_min}, {x_max} {y_max}, {x_min} {y_max}, {x_min} {y_min}))"
-        return wkt
-    
-    def _process_kml_file(self, kml_file):
-        """Processa arquivo KML e extrai geometria WKT (suporta múltiplos Placemarks)."""
-        if hasattr(kml_file, 'seek'):
-            kml_file.seek(0)
-        
-        with tempfile.NamedTemporaryFile(delete=False, suffix='.kml', mode='wb') as tmp_file:
-            for chunk in kml_file.chunks():
-                tmp_file.write(chunk)
-            tmp_file_path = tmp_file.name
-        
-        try:
-            logger.info(f"Processando KML de Talhão: {tmp_file_path}")
-            ds = DataSource(tmp_file_path)
-            
-            # Coleta TODAS as geometrias do KML
-            geometries = []
-            for layer in ds:
-                for feature in layer:
-                    if feature.geom:
-                        geom_wkt = feature.geom.wkt
-                        geom_type = feature.geom.geom_type
-                        logger.info(f"Geometria extraída: {geom_type}")
-                        geometries.append(geom_wkt)
-            
-            if not geometries:
-                raise serializers.ValidationError("Nenhuma geometria encontrada no arquivo KML")
-            
-            # Se houver apenas 1 geometria, retorna como está (backwards compatibility)
-            if len(geometries) == 1:
-                return geometries[0]
-            
-            # Se houver múltiplas geometrias, combina em MULTIPOLYGON
-            polygon_coords = []
-            for geom_wkt in geometries:
-                if "POLYGON" in geom_wkt.upper():
-                    geom_upper = geom_wkt.upper()
-                    if "MULTIPOLYGON" in geom_upper:
-                        start = geom_wkt.find("(((") + 1
-                        end = geom_wkt.rfind(")")
-                        if start > 0 and end > start:
-                            polygon_coords.append(geom_wkt[start:end+1])
-                    else:
-                        start = geom_wkt.find("((")
-                        end = geom_wkt.rfind("))")
-                        if start >= 0 and end > start:
-                            polygon_coords.append(geom_wkt[start:end+2])
-            
-            if polygon_coords:
-                multi_wkt = f"MULTIPOLYGON ({','.join(polygon_coords)})"
-                logger.info(f"Múltiplas geometrias combinadas em MULTIPOLYGON ({len(geometries)} features)")
-                return multi_wkt
-            else:
-                logger.warning("Falha ao combinar múltiplas geometrias, retornando primeira")
-                return geometries[0]
-        finally:
-            if os.path.exists(tmp_file_path):
-                os.unlink(tmp_file_path)
-    
     def create(self, validated_data):
         kml_file = validated_data.pop('kml_file', None)
         area_size_manual = validated_data.pop('area_size_manual', None)
         
-        # Se forneceu KML, processar
         if kml_file:
             try:
-                validated_data['geom'] = self._process_kml_file(kml_file)
+                validated_data['geom'] = process_kml_file(kml_file, entity_label="Talhão")
             except serializers.ValidationError:
                 raise
             except Exception as e:
                 raise serializers.ValidationError(f"Erro ao processar KML: {str(e)}")
-        # Se forneceu hectares manual (e não forneceu KML), criar geometria aproximada
         elif area_size_manual:
             try:
-                validated_data['geom'] = self._create_approximate_geometry_from_hectares(area_size_manual)
+                validated_data['geom'] = create_approximate_geometry_from_hectares(area_size_manual)
                 validated_data['area_size'] = area_size_manual
             except Exception as e:
                 raise serializers.ValidationError(f"Erro ao criar geometria: {str(e)}")
@@ -215,14 +138,14 @@ class TalhaoSerializer(serializers.ModelSerializer):
         
         if kml_file:
             try:
-                validated_data['geom'] = self._process_kml_file(kml_file)
+                validated_data['geom'] = process_kml_file(kml_file, entity_label="Talhão")
             except serializers.ValidationError:
                 raise
             except Exception as e:
                 raise serializers.ValidationError(f"Erro ao processar KML: {str(e)}")
         elif area_size_manual:
             try:
-                validated_data['geom'] = self._create_approximate_geometry_from_hectares(area_size_manual)
+                validated_data['geom'] = create_approximate_geometry_from_hectares(area_size_manual)
                 validated_data['area_size'] = area_size_manual
             except Exception as e:
                 raise serializers.ValidationError(f"Erro ao criar geometria: {str(e)}")
@@ -248,114 +171,21 @@ class AreaSerializer(GeoFeatureModelSerializer):
         ]
         read_only_fields = ["id", "area_hectares", "proprietario_nome", "fazenda_nome", "talhoes"]
 
-    def _create_approximate_geometry_from_hectares(self, hectares):
-        """Cria uma geometria aproximada (quadrado) a partir de hectares."""
-        import math
-        
-        # Calcular lado do quadrado em graus (aproximado)
-        # 1 hectare = 10000 m²
-        # Para criar um quadrado, lado = sqrt(hectares * 10000)
-        area_m2 = float(hectares) * 10000
-        lado_m = math.sqrt(area_m2)
-        
-        # Converter metros para graus (aproximadamente)
-        # 1 grau de latitude ≈ 111320 metros
-        # 1 grau de longitude varia com latitude, usamos aproximação no equador
-        lado_graus = lado_m / 111320
-        
-        # Criar um quadrado centralizado em (0, 0) - usuário pode ajustar depois
-        # Formato: POLYGON((x1 y1, x2 y2, x3 y3, x4 y4, x1 y1))
-        x_min, y_min = -lado_graus / 2, -lado_graus / 2
-        x_max, y_max = lado_graus / 2, lado_graus / 2
-        
-        wkt = f"POLYGON(({x_min} {y_min}, {x_max} {y_min}, {x_max} {y_max}, {x_min} {y_max}, {x_min} {y_min}))"
-        return wkt
-    
-    def _process_kml_file(self, kml_file):
-        """Processa arquivo KML e extrai geometria WKT (suporta múltiplos Placemarks)."""
-        # Reset file pointer to beginning in case it was read before
-        if hasattr(kml_file, 'seek'):
-            kml_file.seek(0)
-        
-        with tempfile.NamedTemporaryFile(delete=False, suffix='.kml', mode='wb') as tmp_file:
-            for chunk in kml_file.chunks():
-                tmp_file.write(chunk)
-            tmp_file_path = tmp_file.name
-        
-        try:
-            logger.info(f"Processando KML de Área: {tmp_file_path}")
-            ds = DataSource(tmp_file_path)
-            
-            # Coleta TODAS as geometrias do KML
-            geometries = []
-            for layer in ds:
-                for feature in layer:
-                    if feature.geom:
-                        geom_wkt = feature.geom.wkt
-                        geom_type = feature.geom.geom_type
-                        logger.info(f"Geometria extraída: {geom_type}")
-                        geometries.append(geom_wkt)
-            
-            if not geometries:
-                raise serializers.ValidationError("Nenhuma geometria encontrada no arquivo KML")
-            
-            # Se houver apenas 1 geometria, retorna como está (backwards compatibility)
-            if len(geometries) == 1:
-                return geometries[0]
-            
-            # Se houver múltiplas geometrias, combina em MULTIPOLYGON
-            # Extrai apenas coordenadas dos polígonos (sem "POLYGON (" e closes)
-            polygon_coords = []
-            for geom_wkt in geometries:
-                # Parse WKT to extract polygon rings
-                # Format: POLYGON ((coords)) ou MULTIPOLYGON (((coords)), ((coords)))
-                if "POLYGON" in geom_wkt.upper():
-                    # Extrai tudo entre primeiros parênteses
-                    # "POLYGON ((x y, x y, ...))" → "((x y, x y, ...))"
-                    geom_upper = geom_wkt.upper()
-                    if "MULTIPOLYGON" in geom_upper:
-                        # Already multi, extract relative part
-                        start = geom_wkt.find("(((") + 1  # Skip first paren
-                        end = geom_wkt.rfind(")")
-                        if start > 0 and end > start:
-                            polygon_coords.append(geom_wkt[start:end+1])
-                    else:
-                        # Single polygon, extract coords structure
-                        start = geom_wkt.find("((")
-                        end = geom_wkt.rfind("))")
-                        if start >= 0 and end > start:
-                            polygon_coords.append(geom_wkt[start:end+2])
-            
-            if polygon_coords:
-                # Constrói MULTIPOLYGON
-                multi_wkt = f"MULTIPOLYGON ({','.join(polygon_coords)})"
-                logger.info(f"Múltiplas geometrias combinadas em MULTIPOLYGON ({len(geometries)} features)")
-                return multi_wkt
-            else:
-                # Fallback: if parsing failed, return first geometry
-                logger.warning("Falha ao combinar múltiplas geometrias, retornando primeira")
-                return geometries[0]
-        finally:
-            if os.path.exists(tmp_file_path):
-                os.unlink(tmp_file_path)
-
     def create(self, validated_data):
         kml_file = validated_data.pop('kml_file', None)
         area_hectares_manual = validated_data.pop('area_hectares_manual', None)
         
-        # Se forneceu KML, processar
         if kml_file:
             try:
-                validated_data['geom'] = self._process_kml_file(kml_file)
+                validated_data['geom'] = process_kml_file(kml_file, entity_label="Área")
             except serializers.ValidationError:
                 raise
             except Exception as e:
-                logger.error(f"Erro ao processar KML: {e}", exc_info=True)
+                logger.error("Erro ao processar KML: %s", e, exc_info=True)
                 raise serializers.ValidationError(f"Erro ao processar KML: {str(e)}")
-        # Se forneceu hectares manual (e não forneceu KML), criar geometria aproximada
         elif area_hectares_manual:
             try:
-                validated_data['geom'] = self._create_approximate_geometry_from_hectares(area_hectares_manual)
+                validated_data['geom'] = create_approximate_geometry_from_hectares(area_hectares_manual)
             except Exception as e:
                 raise serializers.ValidationError(f"Erro ao criar geometria: {str(e)}")
         
@@ -367,15 +197,15 @@ class AreaSerializer(GeoFeatureModelSerializer):
         
         if kml_file:
             try:
-                validated_data['geom'] = self._process_kml_file(kml_file)
+                validated_data['geom'] = process_kml_file(kml_file, entity_label="Área")
             except serializers.ValidationError:
                 raise
             except Exception as e:
-                logger.error(f"Erro ao processar KML: {e}", exc_info=True)
+                logger.error("Erro ao processar KML: %s", e, exc_info=True)
                 raise serializers.ValidationError(f"Erro ao processar KML: {str(e)}")
         elif area_hectares_manual:
             try:
-                validated_data['geom'] = self._create_approximate_geometry_from_hectares(area_hectares_manual)
+                validated_data['geom'] = create_approximate_geometry_from_hectares(area_hectares_manual)
             except Exception as e:
                 raise serializers.ValidationError(f"Erro ao criar geometria: {str(e)}")
         

@@ -43,7 +43,7 @@ test.describe('Task 3.3: Google Maps + KML Integration E2E', () => {
         <outerBoundaryIs>
           <LinearRing>
             <coordinates>
-              -47.9,−15.8,0 -47.8,−15.8,0 -47.8,−15.7,0 -47.9,−15.7,0 -47.9,−15.8,0
+              -47.9,-15.8,0 -47.8,-15.8,0 -47.8,-15.7,0 -47.9,-15.7,0 -47.9,-15.8,0
             </coordinates>
           </LinearRing>
         </outerBoundaryIs>
@@ -95,7 +95,7 @@ test.describe('Task 3.3: Google Maps + KML Integration E2E', () => {
         <outerBoundaryIs>
           <LinearRing>
             <coordinates>
-              -47.7,−15.6,0 -47.6,−15.6,0 -47.6,−15.5,0 -47.7,−15.5,0 -47.7,−15.6,0
+              -47.7,-15.6,0 -47.6,-15.6,0 -47.6,-15.5,0 -47.7,-15.5,0 -47.7,-15.6,0
             </coordinates>
           </LinearRing>
         </outerBoundaryIs>
