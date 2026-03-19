@@ -705,12 +705,8 @@ def execute_operacao_agricola(action) -> None:
                         logger.warning(f'   ⚠️  Quantidade inválida ({quantidade_total}) para movimentação')
                 except Exception as e:
                     logger.warning(f'   ⚠️  Erro ao criar movimentação de estoque: {str(e)}')
-            else:
-                logger.warning(f'   ⚠️  Produto não encontrado no estoque: {produto_nome}')
-            else:
-                logger.warning(f'   ⚠️  Produto não encontrado no estoque: {produto_nome}')
-            else:
-                logger.warning(f'   ⚠️  Produto não encontrado no estoque: {produto_nome}')
+        else:
+            logger.warning(f'   ⚠️  Produto não encontrado no estoque: {produto_nome}')
 
 
     action.mark_executed({

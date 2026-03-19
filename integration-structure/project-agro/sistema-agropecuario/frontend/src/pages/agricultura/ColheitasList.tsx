@@ -8,6 +8,8 @@ import MovimentacaoCargaModal from './MovimentacaoCargaModal';
 import EditHarvestSessionModal from './EditHarvestSessionModal';
 import ColheitaCargasModal from './ColheitaCargasModal';
 import SessaoMovimentacoesModal from './SessaoMovimentacoesModal';
+import MovimentacaoDetalhesModal from './MovimentacaoDetalhesModal';
+import EditMovimentacaoModal from './EditMovimentacaoModal';
 import type { Colheita } from '../../types';
 
 // Local interfaces for sessions and movimentacoes used by this list
@@ -60,6 +62,8 @@ const ColheitasList: React.FC = () => {
   const [showCargasModal, setShowCargasModal] = useState(false);
   const [selectedColheita, setSelectedColheita] = useState<Colheita | null>(null);
   const [selectedSessaoMovs, setSelectedSessaoMovs] = useState<HarvestSession | null>(null);
+  const [viewingMovimentacao, setViewingMovimentacao] = useState<MovimentacaoCarga | null>(null);
+  const [editingMovimentacao, setEditingMovimentacao] = useState<MovimentacaoCarga | null>(null);
 
 
   const { data: sessions = [] } = useQuery<HarvestSession[]>({
@@ -172,6 +176,8 @@ const ColheitasList: React.FC = () => {
     window.addEventListener('edit-harvest-session', listener as EventListener);
     return () => window.removeEventListener('edit-harvest-session', listener as EventListener);
   }, []);
+
+
 
   const formatDate = (d?: string) => d ? new Date(d).toLocaleDateString() : '—';
   const formatQuantity = (q?: number) => q == null ? '—' : new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 3 }).format(q);
@@ -425,48 +431,28 @@ const ColheitasList: React.FC = () => {
                               </div>
 
                               <div className="d-flex gap-2 align-items-start">
-                                <button className="btn btn-sm btn-outline-primary" onClick={() => {
-                                  // abrir detalhes ou reconciliar
-                                  const ev = new CustomEvent('open-movimentacao', { detail: m });
-                                  window.dispatchEvent(ev);
-                                }}>
-                                  <i className="bi bi-eye me-1"></i>Detalhes
+                                <button className="btn btn-sm btn-outline-primary" onClick={() => setViewingMovimentacao(m)}>
+                                  <i className="bi bi-eye me-1"></i>Visualizar
                                 </button>
 
-                                {/* Finalizar sessão a partir de uma movimentação */}
-                                {s.status !== 'finalizada' && (
-                                  <button className="btn btn-sm btn-success" onClick={async () => {
-                                    if (!confirm('Finalizar sessão de colheita? Isso gerará registros de colheita para os talhões desta sessão.')) return;
-                                    try {
-                                      // tentar sem força primeiro
-                                      await api.post(`agricultura/harvest-sessions/${s.id}/finalize/`);
-                                      queryClient.invalidateQueries({ queryKey: ['harvest-sessions'] });
-                                      queryClient.invalidateQueries({ queryKey: ['colheitas'] });
-                                      showSuccess('Sessão finalizada e colheitas geradas');
-                                    } catch (err: unknown) {
-                                      const e = err as { response?: { data?: { detail?: string } } } | null;
-                                      const msg = e?.response?.data?.detail || '';
-                                      if (msg && msg.toLowerCase().includes('existem itens pendentes')) {
-                                        if (!confirm('Existem itens pendentes. Deseja forçar a finalização?')) return;
-                                        try {
-                                          await api.post(`agricultura/harvest-sessions/${s.id}/finalize/`, { force: true });
-                                          queryClient.invalidateQueries({ queryKey: ['harvest-sessions'] });
-                                          queryClient.invalidateQueries({ queryKey: ['colheitas'] });
-                                          showSuccess('Sessão finalizada (forçada) e colheitas geradas');
-                                        } catch (e2: unknown) {
-                                          const e2obj = e2 as { response?: { data?: { detail?: string } } } | null;
-                                          showError(e2obj?.response?.data?.detail || 'Falha ao finalizar sessão');
-                                        }
-                                      } else {
-                                        showError(msg || 'Falha ao finalizar sessão');
-                                      }
-                                    }
+                                <button className="btn btn-sm btn-outline-warning" onClick={() => setEditingMovimentacao(m)}>
+                                  <i className="bi bi-pencil me-1"></i>Editar
+                                </button>
 
-                                  }}>
-                                    <i className="bi bi-flag-fill me-1"></i>Finalizar Sessão
-                                  </button>
-                                )}
-
+                                <button className="btn btn-sm btn-outline-danger" onClick={async () => {
+                                  if (!confirm('Deseja realmente deletar esta movimentação?')) return;
+                                  try {
+                                    await api.delete(`/agricultura/movimentacoes-carga/${m.id}/`);
+                                    queryClient.invalidateQueries({ queryKey: ['movimentacoes-carga'] });
+                                    queryClient.invalidateQueries({ queryKey: ['harvest-sessions'] });
+                                    showSuccess('Movimentação deletada com sucesso');
+                                  } catch (err: unknown) {
+                                    const e = err as { response?: { data?: { detail?: string } } } | null;
+                                    showError(e?.response?.data?.detail || 'Falha ao deletar movimentação');
+                                  }
+                                }}>
+                                  <i className="bi bi-trash me-1"></i>Excluir
+                                </button>
                               </div>
 
                             </li>
@@ -855,6 +841,27 @@ const ColheitasList: React.FC = () => {
         <SessaoMovimentacoesModal
           session={selectedSessaoMovs}
           onClose={() => setSelectedSessaoMovs(null)}
+        />
+      )}
+
+      {/* Modal de Detalhes Individual da Movimentação */}
+      {viewingMovimentacao && (
+        <MovimentacaoDetalhesModal
+          movimentacao={viewingMovimentacao}
+          onClose={() => setViewingMovimentacao(null)}
+        />
+      )}
+
+      {/* Modal de Edição da Movimentação */}
+      {editingMovimentacao && (
+        <EditMovimentacaoModal
+          movimentacao={editingMovimentacao}
+          onClose={() => setEditingMovimentacao(null)}
+          onSuccess={() => {
+            setEditingMovimentacao(null);
+            queryClient.invalidateQueries({ queryKey: ['movimentacoes-carga'] });
+            queryClient.invalidateQueries({ queryKey: ['harvest-sessions'] });
+          }}
         />
       )}
     </div>

@@ -390,9 +390,10 @@ class ColheitaTransporte(TenantModel):
 class Transporte(TenantModel):
     """Modelo canônico para registros de transporte (reutilizado entre colheita e movimentações)."""
     COST_UNIT_CHOICES = [
-        ('unidade', 'R$ por Unidade'),
-        ('saca', 'R$ por Saca'),
+        ('total', 'R$ Total'),
         ('tonelada', 'R$ por Tonelada'),
+        ('saca', 'R$ por Saca'),
+        ('unidade', 'R$ por Unidade'),
     ]
 
     placa = models.CharField(max_length=20, null=True, blank=True)
@@ -402,8 +403,8 @@ class Transporte(TenantModel):
     peso_liquido = models.DecimalField(max_digits=12, decimal_places=3, null=True, blank=True)
     descontos = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     custo_transporte = models.DecimalField(max_digits=12, decimal_places=2, default=0)
-    # Unidade do custo: R$ por unidade/saca/tonelada
-    custo_transporte_unidade = models.CharField(max_length=20, choices=COST_UNIT_CHOICES, default='unidade')
+    # Unidade do custo: R$ Total / R$ por unidade/saca/tonelada
+    custo_transporte_unidade = models.CharField(max_length=20, choices=COST_UNIT_CHOICES, default='total')
     criado_em = models.DateTimeField(auto_now_add=True)
     criado_por = models.ForeignKey(CustomUser, on_delete=models.SET_NULL, null=True, blank=True)
 
@@ -438,7 +439,7 @@ class MovimentacaoCarga(TenantModel):
     condicoes_graos = models.TextField(null=True, blank=True)
     custo_transporte = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     # Unidade do custo de transporte associada à movimentação (quando aplicável)
-    custo_transporte_unidade = models.CharField(max_length=20, choices=[('unidade','R$ por Unidade'),('saca','R$ por Saca'),('tonelada','R$ por Tonelada')], null=True, blank=True, default='unidade')
+    custo_transporte_unidade = models.CharField(max_length=20, choices=[('total','R$ Total'),('tonelada','R$ por Tonelada'),('saca','R$ por Saca'),('unidade','R$ por Unidade')], null=True, blank=True, default='total')
 
     # link to canonical Transporte record
     transporte = models.ForeignKey('agricultura.Transporte', null=True, blank=True, on_delete=models.SET_NULL, related_name='movimentacoes')
@@ -467,12 +468,16 @@ class MovimentacaoCarga(TenantModel):
         verbose_name_plural = 'Movimentações de Carga'
 
     def save(self, *args, **kwargs):
+        import logging
+        from decimal import Decimal
+        logger = logging.getLogger(__name__)
+        
         try:
             if self.transporte and (self.transporte.peso_bruto is not None and self.transporte.tara is not None):
-                pb = self.transporte.peso_bruto or 0
-                ta = self.transporte.tara or 0
-                total_descontos = float(self.descontos or 0)
-                self.peso_liquido = pb - ta - total_descontos
+                pb = Decimal(str(self.transporte.peso_bruto or 0))
+                ta = Decimal(str(self.transporte.tara or 0))
+                desc = Decimal(str(self.descontos or 0))
+                self.peso_liquido = pb - ta - desc
                 # keep legacy fields in sync for compatibility
                 self.placa = self.placa or self.transporte.placa
                 self.motorista = self.motorista or self.transporte.motorista
@@ -487,11 +492,19 @@ class MovimentacaoCarga(TenantModel):
                         self.custo_transporte_unidade = self.transporte.custo_transporte_unidade
                 except Exception:
                     pass
+                logger.info(f"MovimentacaoCarga.save: Via transporte - bruto={pb}, tara={ta}, desc={desc}, liquido={self.peso_liquido}")
             elif self.peso_bruto is not None and self.tara is not None:
-                total_descontos = float(self.descontos or 0)
-                self.peso_liquido = (self.peso_bruto or 0) - (self.tara or 0) - total_descontos
-        except Exception:
-            pass
+                from decimal import Decimal
+                # Converter para Decimal para operação precisa
+                pb = Decimal(str(self.peso_bruto or 0))
+                ta = Decimal(str(self.tara or 0))
+                desc = Decimal(str(self.descontos or 0))
+                self.peso_liquido = pb - ta - desc
+                logger.info(f"MovimentacaoCarga.save: Via direto - bruto={pb}, tara={ta}, desc={desc}, liquido={self.peso_liquido}")
+            else:
+                logger.warning(f"MovimentacaoCarga.save: SEM CALC - bruto={self.peso_bruto}, tara={self.tara}")
+        except Exception as e:
+            logger.error(f"MovimentacaoCarga.save: ERRO={type(e).__name__}: {str(e)}", exc_info=True)
         super().save(*args, **kwargs)
 
     def __str__(self):

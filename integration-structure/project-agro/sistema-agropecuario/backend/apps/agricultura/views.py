@@ -450,154 +450,29 @@ class MovimentacaoCargaViewSet(TenantQuerySetMixin, viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         moviment = serializer.save(criado_por=self.request.user, **self._get_tenant_kwargs())
-        # serializer.create already updates session_item status and checks finalize
+        # Automatically reconcile to sync with stock
+        try:
+            from .reconciliation_service import reconcile_movimentacao_carga
+            reconcile_movimentacao_carga(moviment, user=self.request.user)
+        except Exception as e:
+            # Log but don't fail the creation if reconciliation fails
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning(f'Failed to auto-reconcile MovimentacaoCarga {moviment.id}: {str(e)}')
         return moviment
 
     @action(detail=True, methods=['post'])
     def reconcile(self, request, pk=None):
-        """Marca como reconciliada e (quando aplicável) cria uma MovimentacaoEstoque de entrada."""
+        """Marca como reconciliada e cria uma MovimentacaoEstoque de entrada."""
         mov = self.get_object()
-        if mov.reconciled:
-            return Response({'detail': 'Movimentação já reconciliada.'}, status=status.HTTP_400_BAD_REQUEST)
-
-        # Determine produto a partir da safra/cultura
-        produto = None
-        from apps.estoque.models import Produto
-        from apps.estoque.services import create_movimentacao
-
-        # 1) Prefer product via session -> plantio -> cultura
-        try:
-            cultura_nome = mov.session_item.session.plantio.cultura.nome
-            produto = Produto.objects.filter(nome__icontains=cultura_nome).first()
-        except Exception:
-            produto = None
-
-        # 2) If no session, try to derive plantio/cultura from talhão relation
-        if not produto and mov.talhao:
-            try:
-                from apps.agricultura.models import Plantio
-                plantio = Plantio.objects.filter(talhoes=mov.talhao).order_by('-data_plantio').first()
-                if plantio and plantio.cultura:
-                    cultura_nome = plantio.cultura.nome
-                    produto = Produto.objects.filter(nome__icontains=cultura_nome).first()
-            except Exception:
-                produto = None
-
-        # 3) Last resort: try matching produto by talhão name
-        if not produto and mov.talhao:
-            try:
-                produto = Produto.objects.filter(nome__icontains=mov.talhao.name).first()
-            except Exception:
-                produto = None
-
-        if not produto:
-            # Provide clearer message when cultura is unknown
-            cultura_display = None
-            try:
-                cultura_display = getattr(mov.session_item.session.plantio, 'cultura').nome
-            except Exception:
-                cultura_display = getattr(getattr(mov.talhao, 'name', None), 'name', None) or '?'
-            return Response({'detail': f'Produto não encontrado (cultura/talhão: {cultura_display}). Não foi criada movimentação de estoque.'}, status=status.HTTP_400_BAD_REQUEST)
-
-        # Use peso_liquido como quantidade preferencial
-        quantidade = mov.peso_liquido or mov.peso_bruto
-        if not quantidade:
-            return Response({'detail': 'Peso não informado para criar movimentação de estoque.'}, status=status.HTTP_400_BAD_REQUEST)
-
-        from apps.estoque.models import Lote
-        lote = None
-        movimentacao = None
-
-        # Resolver fazenda de forma segura
-        fazenda = None
-        try:
-            if mov.session_item and mov.session_item.session and mov.session_item.session.plantio:
-                fazenda = mov.session_item.session.plantio.fazenda
-        except Exception:
-            pass
-
-        # Behavior depends on destino_tipo
-        if mov.destino_tipo in ['armazenagem_interna', 'armazenagem_externa']:
-            # Prefer explicit local_destino, fallback to product local
-            local = mov.local_destino or produto.local_armazenamento
-            if local:
-                lote_num = f"COL-{mov.id}"
-                lote = Lote.objects.create(produto=produto, numero_lote=lote_num, quantidade_inicial=quantidade, quantidade_atual=0, local_armazenamento=local.nome if hasattr(local, 'nome') else None)
-
-            # Build a safe motivo text
-            sess_label = None
-            try:
-                sess_label = f"sessão {mov.session_item.session.id}"
-            except Exception:
-                sess_label = f"talhão {mov.talhao.name if getattr(mov.talhao, 'name', None) else mov.talhao.id if getattr(mov.talhao, 'id', None) else ''}"
-
-            motivo_text = f"Entrada a partir de movimentação de carga ({sess_label})"
-            if mov.empresa_destino:
-                motivo_text += f"; destino empresa: {mov.empresa_destino.nome}"
-
-            movimentacao = create_movimentacao(
-                produto=produto,
-                tipo='entrada',
-                quantidade=quantidade,
-                criado_por=request.user,
-                origem='colheita',
-                lote=lote,
-                documento_referencia=f"MovimentacaoCarga #{mov.id}",
-                motivo=motivo_text,
-                fazenda=fazenda,
-                talhao=mov.talhao,
-                local_armazenamento=local,
-            )
-
-        elif mov.destino_tipo == 'venda_direta':
-            # For sales, record a saída (reduces stock) and reference company
-            motivo = f"Saída por venda direta (MovimentacaoCarga #{mov.id})"
-            if mov.empresa_destino:
-                motivo += f" - comprador: {mov.empresa_destino.nome}"
-            movimentacao = create_movimentacao(
-                produto=produto,
-                tipo='saida',
-                quantidade=quantidade,
-                criado_por=request.user,
-                origem='venda',
-                documento_referencia=f"MovimentacaoCarga #{mov.id}",
-                motivo=motivo,
-                fazenda=fazenda,
-                talhao=mov.talhao,
-            )
-        else:
-            # Generic fallback: create entrada as before
-            local = mov.local_destino or produto.local_armazenamento
-            if local:
-                lote_num = f"COL-{mov.id}"
-                lote = Lote.objects.create(produto=produto, numero_lote=lote_num, quantidade_inicial=quantidade, quantidade_atual=0, local_armazenamento=local.nome if hasattr(local, 'nome') else None)
-            sess_label = None
-            try:
-                sess_label = f"sessão {mov.session_item.session.id}"
-            except Exception:
-                sess_label = f"talhão {mov.talhao.name if getattr(mov.talhao, 'name', None) else mov.talhao.id if getattr(mov.talhao, 'id', None) else ''}"
-            motivo_text = f"Entrada a partir de movimentação de carga ({sess_label})"
-            movimentacao = create_movimentacao(
-                produto=produto,
-                tipo='entrada',
-                quantidade=quantidade,
-                criado_por=request.user,
-                origem='colheita',
-                lote=lote,
-                documento_referencia=f"MovimentacaoCarga #{mov.id}",
-                motivo=motivo_text,
-                fazenda=fazenda,
-                talhao=mov.talhao,
-                local_armazenamento=local,
-            )
-
-        mov.reconciled = True
-        from django.utils import timezone
-        mov.reconciled_at = timezone.now()
-        mov.reconciled_by = request.user
-        mov.save()
-
-        return Response({'status': 'reconciled', 'movimentacao_estoque': movimentacao.id}, status=status.HTTP_200_OK)
+        from .reconciliation_service import reconcile_movimentacao_carga
+        
+        sucesso, mensagem, mov_estoque_id = reconcile_movimentacao_carga(mov, user=request.user)
+        
+        if not sucesso:
+            return Response({'detail': mensagem}, status=status.HTTP_400_BAD_REQUEST)
+        
+        return Response({'status': 'reconciled', 'movimentacao_estoque': mov_estoque_id}, status=status.HTTP_200_OK)
 
     @action(detail=True, methods=['post'])
     def adjust(self, request, pk=None):

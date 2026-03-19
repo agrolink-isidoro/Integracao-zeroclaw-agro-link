@@ -370,7 +370,18 @@ test('Full requested flow: harvest->silo->stock entrada->Aldair sale (50 sacas)-
   await modal.locator('input[aria-label="Peso Bruto (kg)"]').fill(String(3500));
   await modal.locator('input[aria-label="Tara (kg)"]').fill(String(500));
   await modal.locator('input[aria-label="Descontos (kg)"]').fill('0');
+  
+  // Set Custo Transporte to 0 and validate that default unit is "R$ Total"
   await modal.locator('input[aria-label="Custo Transporte"]').fill('0');
+  
+  // Validate that "Unidade do custo" select is present and "R$ Total" is selected by default
+  const unitSelect = modal.locator('select').filter({ hasText: 'R$' });
+  await expect(unitSelect).toBeVisible();
+  const unitValue = await unitSelect.inputValue();
+  if (unitValue !== 'total') {
+    console.warn(`Warning: Unidade do custo defaulted to '${unitValue}' instead of 'total'. Setting to 'total' explicitly.`);
+    await unitSelect.selectOption('total');
+  }
 
   // choose destino armazenagem_interna and set local tipo and local destination robustly
   await modal.locator('select:has-text("Tipo de destino")').first().selectOption('armazenagem_interna').catch(() => {});

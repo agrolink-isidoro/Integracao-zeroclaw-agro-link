@@ -345,6 +345,24 @@ class MovimentacaoCargaSerializer(serializers.ModelSerializer):
         fields = '__all__'
         read_only_fields = ['peso_liquido', 'criado_em']
 
+    def validate(self, attrs):
+        """Handle both nested transporte and flat transport fields."""
+        # If no nested transporte but flat transport fields exist, consolidate them
+        transporte_data = attrs.get('transporte')
+        flat_fields = ['placa', 'motorista', 'tara', 'peso_bruto', 'descontos', 'custo_transporte', 'custo_transporte_unidade']
+        has_flat_fields = any(attrs.get(f) is not None for f in flat_fields)
+        
+        if not transporte_data and has_flat_fields:
+            # Create nested transporte dict from flat fields
+            transporte_data = {}
+            for field in flat_fields:
+                if field in attrs:
+                    transporte_data[field] = attrs.pop(field)
+            if transporte_data:
+                attrs['transporte'] = transporte_data
+        
+        return attrs
+
     def create(self, validated_data):
         transporte_data = validated_data.pop('transporte', None)
         request_user = self.context.get('request').user if self.context.get('request') else None
@@ -393,6 +411,12 @@ class MovimentacaoCargaSerializer(serializers.ModelSerializer):
             instance.reconciled_at = timezone.now()
             instance.reconciled_by = request_user
             instance.save()
+        
+        # Remove flat transport fields from validated_data since they're handled via transporte
+        flat_fields = ['placa', 'motorista', 'tara', 'peso_bruto', 'descontos', 'custo_transporte', 'custo_transporte_unidade']
+        for field in flat_fields:
+            validated_data.pop(field, None)
+        
         return super().update(instance, validated_data)
 
 

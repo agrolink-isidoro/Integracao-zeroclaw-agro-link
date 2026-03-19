@@ -29,6 +29,13 @@ const TransportFields: React.FC<Props> = ({ value = {}, onChange, readOnly = fal
     onChange(next);
   };
 
+  // O Total é o próprio Custo Transporte (valor total já declarado)
+  const obterCustoTotal = (): number | null => {
+    const custo = v.custo_transporte;
+    if (custo === undefined || custo === null) return null;
+    return Number(custo);
+  };
+
   return (
     <div>
       <div className="row">
@@ -76,14 +83,25 @@ const TransportFields: React.FC<Props> = ({ value = {}, onChange, readOnly = fal
             <select
               aria-label="Unidade do custo de transporte"
               className="form-select"
-              value={v.custo_transporte_unidade ?? 'tonelada'}
-              onChange={(e) => set('custo_transporte_unidade', e.target.value as 'unidade' | 'saca' | 'tonelada')}
+              value={v.custo_transporte_unidade ?? 'total'}
+              onChange={(e) => set('custo_transporte_unidade', e.target.value as 'unidade' | 'saca' | 'tonelada' | 'total')}
               disabled={readOnly}
             >
+              <option value="total">R$ Total</option>
               <option value="tonelada">R$ por Tonelada</option>
               <option value="saca">R$ por Saca</option>
               <option value="unidade">R$ por Unidade</option>
             </select>
+          </div>
+          <div className="col-md-4 mb-3">
+            <label className="form-label">Total</label>
+            <div className="form-control bg-light d-flex align-items-center" style={{ minHeight: '38px' }}>
+              {obterCustoTotal() !== null ? (
+                <strong>R$ {obterCustoTotal()?.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
+              ) : (
+                <span className="text-muted">—</span>
+              )}
+            </div>
           </div>
         </div>
       )}
