@@ -5,24 +5,26 @@ from apps.administrativo.models import CentroCusto, DespesaAdministrativa, Notif
 from apps.financeiro.services import create_rateio_from_despesa
 from apps.financeiro.models import RateioCusto, RateioApproval
 from apps.agricultura.models import Plantio
+from apps.multi_tenancy.models import Tenant
 
 User = get_user_model()
 
 class RateioNotificationTests(TestCase):
     def setUp(self):
-        self.creator = User.objects.create_user(username='creator', password='pass')
-        self.approver = User.objects.create_user(username='approver', password='pass')
+        self.tenant = Tenant.objects.create(nome='test_tenant_notifications', slug='test-tenant-notifications')
+        self.creator = User.objects.create_user(username='creator', password='pass', is_staff=False, tenant=self.tenant)
+        self.approver = User.objects.create_user(username='approver', password='pass', is_staff=False, tenant=self.tenant)
         g, _ = Group.objects.get_or_create(name='financeiro.rateio_approver')
         g.user_set.add(self.approver)
 
-        self.centro = CentroCusto.objects.create(codigo='C1', nome='Centro 1')
+        self.centro = CentroCusto.objects.create(codigo='C1', nome='Centro 1', tenant=self.tenant)
         # Create required related records to avoid FK issues
         from apps.fazendas.models import Fazenda, Proprietario
         from apps.agricultura.models import Cultura
         # Create a proprietario required by Fazenda
-        self.proprietario = Proprietario.objects.create(nome='Produtor', cpf_cnpj='00000000000')
-        self.fazenda = Fazenda.objects.create(proprietario=self.proprietario, name='Fazenda Teste', matricula='M-001')
-        self.cultura = Cultura.objects.create(nome='Cultura Teste')
+        self.proprietario = Proprietario.objects.create(nome='Produtor', cpf_cnpj='00000000000', tenant=self.tenant)
+        self.fazenda = Fazenda.objects.create(proprietario=self.proprietario, name='Fazenda Teste', matricula='M-001', tenant=self.tenant)
+        self.cultura = Cultura.objects.create(nome='Cultura Teste', tenant=self.tenant)
         self.plantio = Plantio.objects.create(fazenda=self.fazenda, cultura=self.cultura, data_plantio='2025-01-01')
         # Create an area and a talhao, then attach to plantio so rateio can be generated
         from apps.fazendas.models import Area, Talhao

@@ -6,19 +6,21 @@ from decimal import Decimal
 from apps.fiscal.models import NFe, ItemNFe
 from apps.fiscal.models_overrides import ItemNFeOverride
 from apps.estoque.models import Produto
+from apps.multi_tenancy.models import Tenant
 
 
 class ItemNFeAPITestUnappliedOverride(TestCase):
     def setUp(self):
         User = get_user_model()
-        self.user = User.objects.create_user(username='tester2', password='pwd', is_staff=True)
+        self.tenant = Tenant.objects.create(nome='test_tenant_unapplied', slug='test-tenant-unapplied')
+        self.user = User.objects.create_user(username='tester2', password='pwd', is_staff=False, tenant=self.tenant)
         self.client.force_login(self.user)
 
     def test_unapplied_override_updates_nfe_effective_values(self):
         """Saving an unapplied override MUST update what the NFe API returns (display change),
         but must NOT apply to estoque or other modules without explicit 'Refletir' action."""
         prod = Produto.objects.create(codigo='CODE-U', nome='ProdU', unidade='UN', quantidade_estoque=0)
-        nfe = NFe.objects.create(chave_acesso='U'*44, numero='1', serie='1', data_emissao=timezone.now(), emitente_nome='E', destinatario_nome='D', valor_produtos=0, valor_nota=0)
+        nfe = NFe.objects.create(chave_acesso='U'*44, numero='1', serie='1', data_emissao=timezone.now(), emitente_nome='E', destinatario_nome='D', valor_produtos=0, valor_nota=0, tenant=self.tenant)
         item = ItemNFe.objects.create(nfe=nfe, numero_item=1, codigo_produto='CODE-U', descricao='Produto Teste', cfop='5102', unidade_comercial='UN', quantidade_comercial=Decimal('12'), valor_unitario_comercial=Decimal('3.00'), valor_produto=Decimal('36.00'))
 
         payload = {

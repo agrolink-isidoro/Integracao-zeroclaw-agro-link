@@ -15,7 +15,7 @@ def load_sample_xml():
 class UploadSkipChaveValidationTest(TestCase):
     def setUp(self):
         self.client = APIClient()
-        self.user = User.objects.create(username='u')
+        self.user = User.objects.create(username='u', is_staff=False)
         # authenticate as staff to bypass permission checks
         self.user.is_staff = True
         self.user.save()

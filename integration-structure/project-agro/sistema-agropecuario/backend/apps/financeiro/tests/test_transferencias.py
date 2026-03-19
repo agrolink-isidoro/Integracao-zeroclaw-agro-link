@@ -5,16 +5,18 @@ from apps.financeiro.models import ContaBancaria, LancamentoFinanceiro, Transfer
 from apps.financeiro.services import transferir_entre_contas
 from apps.comercial.models import Fornecedor
 from apps.fazendas.models import Proprietario
+from apps.multi_tenancy.models import Tenant
 
 User = get_user_model()
 
 class TransferenciasTests(TestCase):
     def setUp(self):
-        self.user = User.objects.create_user('tester', 't@example.com', 'pw')
-        self.c1 = ContaBancaria.objects.create(banco='Banco A', agencia='0001', conta='1111', saldo_inicial=Decimal('10000'))
-        self.c2 = ContaBancaria.objects.create(banco='Banco B', agencia='0002', conta='2222', saldo_inicial=Decimal('500'))
-        self.prop = Proprietario.objects.create(nome='Produtor Test', cpf_cnpj='00000000')
-        self.fornecedor = Fornecedor.objects.create(nome='Fornecedor X', cpf_cnpj='11111111')
+        self.tenant = Tenant.objects.create(nome='test_tenant_transferencias', slug='test-tenant-transferencias')
+        self.user = User.objects.create_user('tester', 't@example.com', 'pw', tenant=self.tenant)
+        self.c1 = ContaBancaria.objects.create(banco='Banco A', agencia='0001', conta='1111', saldo_inicial=Decimal('10000'), tenant=self.tenant)
+        self.c2 = ContaBancaria.objects.create(banco='Banco B', agencia='0002', conta='2222', saldo_inicial=Decimal('500'), tenant=self.tenant)
+        self.prop = Proprietario.objects.create(nome='Produtor Test', cpf_cnpj='00000000', tenant=self.tenant)
+        self.fornecedor = Fornecedor.objects.create(nome='Fornecedor X', cpf_cnpj='11111111', tenant=self.tenant)
 
     def test_transferencia_doc_between_accounts_creates_lancamentos(self):
         t = transferir_entre_contas(self.c1, self.c2, Decimal('150.00'), tipo='doc', criado_por=self.user, descricao='Teste DOC')

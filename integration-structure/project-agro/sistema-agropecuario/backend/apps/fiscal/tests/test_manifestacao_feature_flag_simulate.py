@@ -10,7 +10,7 @@ User = get_user_model()
 
 class ManifestacaoSimulateFlagTest(TestCase):
     def setUp(self):
-        self.user = User.objects.create(username='flaguser')
+        self.user = User.objects.create(username='flaguser', is_staff=False)
         self.nfe = NFe.objects.create(
             chave_acesso='4'*44,
             numero='1',

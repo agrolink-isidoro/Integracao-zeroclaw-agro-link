@@ -4,23 +4,28 @@ from rest_framework.test import APIClient
 from apps.agricultura.models import Colheita, ColheitaTransporte
 from apps.fazendas.models import Fazenda, Area, Talhao
 from apps.agricultura.models import Plantio, Cultura
+from apps.multi_tenancy.models import Tenant
 
 User = get_user_model()
 
 
 class ColheitaTransportTests(TestCase):
     def setUp(self):
-        self.user = User.objects.create_user(username='tester')
+        self.tenant = Tenant.objects.create(
+            nome='test_tenant_agricultura_transport',
+            slug='test-tenant-agricultura-transport'
+        )
+        self.user = User.objects.create_user(username='tester', is_staff=False, tenant=self.tenant)
         self.client = APIClient()
         self.client.force_authenticate(self.user)
 
         from apps.fazendas.models import Proprietario
-        self.proprietario = Proprietario.objects.create(nome='Produtor Test', cpf_cnpj='000000000')
-        self.fazenda = Fazenda.objects.create(proprietario=self.proprietario, name='F', matricula='M1')
-        self.cultura = Cultura.objects.create(nome='Soja')
-        self.plantio = Plantio.objects.create(fazenda=self.fazenda, cultura=self.cultura, data_plantio='2025-01-01')
-        self.area = Area.objects.create(proprietario=self.proprietario, fazenda=self.fazenda, name='Area')
-        self.talhao = Talhao.objects.create(area=self.area, name='T1', area_size=10)
+        self.proprietario = Proprietario.objects.create(nome='Produtor Test', cpf_cnpj='000000000', tenant=self.tenant)
+        self.fazenda = Fazenda.objects.create(proprietario=self.proprietario, name='F', matricula='M1', tenant=self.tenant)
+        self.cultura = Cultura.objects.create(nome='Soja', tenant=self.tenant)
+        self.plantio = Plantio.objects.create(fazenda=self.fazenda, cultura=self.cultura, data_plantio='2025-01-01', tenant=self.tenant)
+        self.area = Area.objects.create(proprietario=self.proprietario, fazenda=self.fazenda, name='Area', tenant=self.tenant)
+        self.talhao = Talhao.objects.create(area=self.area, name='T1', area_size=10, tenant=self.tenant)
         self.plantio.talhoes.add(self.talhao)
 
     def test_create_colheita_with_transporte(self):

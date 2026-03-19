@@ -26,7 +26,7 @@ class UploadXmlFormatSupportTest(TestCase):
     def setUp(self):
         """Setup: Create test user and authenticate."""
         User = get_user_model()
-        self.user = User.objects.create_user(username='testuser', password='testpass')
+        self.user = User.objects.create_user(username='testuser', password='testpass', is_staff=False)
         self.client = APIClient()
         self.client.force_authenticate(self.user)
         
@@ -160,7 +160,7 @@ class UploadXmlChaveAcessoValidationTest(TestCase):
     def setUp(self):
         """Setup: Create test user and authenticate."""
         User = get_user_model()
-        self.user = User.objects.create_user(username='testuser', password='testpass')
+        self.user = User.objects.create_user(username='testuser', password='testpass', is_staff=False)
         self.client = APIClient()
         self.client.force_authenticate(self.user)
         
@@ -278,7 +278,7 @@ class UploadXmlErrorHandlingTest(TestCase):
     def setUp(self):
         """Setup: Create test user and authenticate."""
         User = get_user_model()
-        self.user = User.objects.create_user(username='testuser', password='testpass')
+        self.user = User.objects.create_user(username='testuser', password='testpass', is_staff=False)
         self.client = APIClient()
         self.client.force_authenticate(self.user)
     

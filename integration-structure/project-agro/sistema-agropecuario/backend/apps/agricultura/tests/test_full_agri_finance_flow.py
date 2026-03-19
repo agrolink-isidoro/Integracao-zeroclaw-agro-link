@@ -11,6 +11,7 @@ from apps.maquinas.models import Equipamento, Abastecimento
 from apps.financeiro.models import RateioCusto, RateioApproval
 from apps.financeiro import services as financeiro_services
 from apps.administrativo.models import Notificacao
+from apps.multi_tenancy.models import Tenant
 
 
 User = get_user_model()
@@ -18,20 +19,25 @@ User = get_user_model()
 
 class FullAgricultureFinanceFlowTests(TestCase):
     def setUp(self):
+        # Create tenant first
+        self.tenant = Tenant.objects.create(
+            nome='test_tenant_agricultura_flow',
+            slug='test-tenant-agricultura-flow'
+        )
         # Users and groups
-        self.creator = User.objects.create_user(username='creator_flow', password='pass')
-        self.approver = User.objects.create_user(username='approver_flow', password='pass')
+        self.creator = User.objects.create_user(username='creator_flow', password='pass', is_staff=False, tenant=self.tenant)
+        self.approver = User.objects.create_user(username='approver_flow', password='pass', is_staff=False, tenant=self.tenant)
         g, _ = Group.objects.get_or_create(name='financeiro.rateio_approver')
         g.user_set.add(self.approver)
 
         # Fazenda / Talhao / Cultura / Produto / Local
-        self.proprietario = Proprietario.objects.create(nome='Produtor Flow', cpf_cnpj='11111111111')
-        self.fazenda = Fazenda.objects.create(proprietario=self.proprietario, name='Fazenda Flow', matricula='MF-001')
+        self.proprietario = Proprietario.objects.create(nome='Produtor Flow', cpf_cnpj='11111111111', tenant=self.tenant)
+        self.fazenda = Fazenda.objects.create(proprietario=self.proprietario, name='Fazenda Flow', matricula='MF-001', tenant=self.tenant)
         from apps.agricultura.models import Cultura
-        self.cultura = Cultura.objects.create(nome='Cultura Flow')
+        self.cultura = Cultura.objects.create(nome='Cultura Flow', tenant=self.tenant)
         from apps.fazendas.models import Area
-        self.area = Area.objects.create(proprietario=self.proprietario, fazenda=self.fazenda, name='A', geom='POINT(0 0)')
-        self.talhao = Talhao.objects.create(area=self.area, name='Talhao Flow', area_size=10)
+        self.area = Area.objects.create(proprietario=self.proprietario, fazenda=self.fazenda, name='A', geom='POINT(0 0)', tenant=self.tenant)
+        self.talhao = Talhao.objects.create(area=self.area, name='Talhao Flow', area_size=10, tenant=self.tenant)
 
         # Produto for harvested crop (name must include culture name so armazenar_em_estoque finds it)
         self.produto = Produto.objects.create(nome=f"{self.cultura.nome} - Grãos", quantidade_estoque=0, unidade='kg')

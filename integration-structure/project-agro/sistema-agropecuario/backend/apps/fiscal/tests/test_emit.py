@@ -7,7 +7,7 @@ from apps.fiscal.models import NFe
 class EmitEndpointTest(TestCase):
     def setUp(self):
         User = get_user_model()
-        self.user = User.objects.create_user(username='user', password='pw')
+        self.user = User.objects.create_user(username='user', password='pw', is_staff=False)
         self.staff = User.objects.create_user(username='staff', password='pw', is_staff=True)
         self.client = APIClient()
 

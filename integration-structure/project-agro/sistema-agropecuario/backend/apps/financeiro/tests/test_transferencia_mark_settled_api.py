@@ -4,17 +4,22 @@ from apps.financeiro.models import ContaBancaria, Vencimento, Transferencia
 from rest_framework.test import APIClient
 from decimal import Decimal
 from apps.financeiro.services import pagar_vencimentos_por_transferencia
+from apps.multi_tenancy.models import Tenant
 
 User = get_user_model()
 
 class TransferenciaMarkSettledAPITests(TestCase):
     def setUp(self):
-        self.user = User.objects.create_user('apiuser2', 'a2@example.com', 'pw')
+        self.tenant = Tenant.objects.create(
+            nome='test_tenant_financeiro_settled_api',
+            slug='test-tenant-financeiro-settled-api'
+        )
+        self.user = User.objects.create_user('apiuser2', 'a2@example.com', 'pw', tenant=self.tenant, is_staff=False)
         self.client = APIClient()
         self.client.force_authenticate(self.user)
-        self.c1 = ContaBancaria.objects.create(banco='Banco A', agencia='0001', conta='1111', saldo_inicial=Decimal('1000'))
-        self.c2 = ContaBancaria.objects.create(banco='Banco B', agencia='0002', conta='2222', saldo_inicial=Decimal('500'))
-        self.v = Vencimento.objects.create(titulo='Venc API', valor=Decimal('120.00'), data_vencimento='2026-03-01')
+        self.c1 = ContaBancaria.objects.create(banco='Banco A', agencia='0001', conta='1111', saldo_inicial=Decimal('1000'), tenant=self.tenant)
+        self.c2 = ContaBancaria.objects.create(banco='Banco B', agencia='0002', conta='2222', saldo_inicial=Decimal('500'), tenant=self.tenant)
+        self.v = Vencimento.objects.create(titulo='Venc API', valor=Decimal('120.00'), data_vencimento='2026-03-01', tenant=self.tenant)
 
     def test_mark_settled_api(self):
         transfer = pagar_vencimentos_por_transferencia(self.c1, [{'vencimento': self.v.id, 'valor': '120.00'}], tipo='ted', dados_bancarios={'conta_destino': self.c2.id}, criado_por=self.user)

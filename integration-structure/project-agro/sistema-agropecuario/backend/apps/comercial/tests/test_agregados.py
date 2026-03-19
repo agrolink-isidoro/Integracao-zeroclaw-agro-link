@@ -9,20 +9,25 @@ User = get_user_model()
 pytestmark = pytest.mark.django_db
 
 
-def create_despesa(empresa, categoria, valor, data='2026-01-05'):
-    return DespesaPrestadora.objects.create(empresa=empresa, data=data, categoria=categoria, valor=Decimal(valor))
+def create_despesa(empresa, categoria, valor, data='2026-01-05', tenant=None):
+    return DespesaPrestadora.objects.create(empresa=empresa, data=data, categoria=categoria, valor=Decimal(valor), tenant=tenant)
 
 
 def test_empresa_agregados_json_and_csv():
+    from apps.multi_tenancy.models import Tenant
+    
+    # Create tenant and user with tenant
+    tenant = Tenant.objects.create(nome="test_tenant", slug="test-tenant")
+    
     client = APIClient()
-    user = User.objects.create_user(username='tester', password='pass')
+    user = User.objects.create_user(username='tester', password='pass', tenant=tenant)
     client.force_authenticate(user=user)
 
     emp = Empresa.objects.create(nome='Emp A', cnpj='111')
 
-    create_despesa(emp, 'transporte', '100.00', data='2026-01-05')
-    create_despesa(emp, 'material', '50.50', data='2026-01-05')
-    create_despesa(emp, 'transporte', '25.25', data='2026-01-05')
+    create_despesa(emp, 'transporte', '100.00', data='2026-01-05', tenant=tenant)
+    create_despesa(emp, 'material', '50.50', data='2026-01-05', tenant=tenant)
+    create_despesa(emp, 'transporte', '25.25', data='2026-01-05', tenant=tenant)
 
     url = reverse('empresa-agregados', kwargs={'pk': emp.id})
 
@@ -51,16 +56,21 @@ def test_empresa_agregados_json_and_csv():
 
 
 def test_global_agregados_pagination():
+    from apps.multi_tenancy.models import Tenant
+    
+    # Create tenant and staff user with tenant
+    tenant = Tenant.objects.create(nome="test_tenant2", slug="test-tenant-2")
+    
     client = APIClient()
-    user = User.objects.create_user(username='tester2', password='pass', is_staff=True)
+    user = User.objects.create_user(username='tester2', password='pass', is_staff=True, tenant=tenant)
     client.force_authenticate(user=user)
 
     e1 = Empresa.objects.create(nome='E1', cnpj='1')
     e2 = Empresa.objects.create(nome='E2', cnpj='2')
     for _ in range(3):
-        create_despesa(e1, 'servico', '100.00', data='2026-01-05')
+        create_despesa(e1, 'servico', '100.00', data='2026-01-05', tenant=tenant)
     for _ in range(2):
-        create_despesa(e2, 'material', '50.00', data='2026-01-05')
+        create_despesa(e2, 'material', '50.00', data='2026-01-05', tenant=tenant)
 
     url = reverse('agregados')
     resp = client.get(url, {'periodo': '2026-01'})

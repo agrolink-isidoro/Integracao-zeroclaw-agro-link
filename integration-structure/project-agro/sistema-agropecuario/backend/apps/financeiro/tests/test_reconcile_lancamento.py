@@ -2,14 +2,16 @@ from django.test import TestCase
 from apps.financeiro.models import LancamentoFinanceiro, ContaBancaria
 from django.contrib.auth import get_user_model
 from django.urls import reverse
+from apps.multi_tenancy.models import Tenant
 
 class ReconcileLancamentoTest(TestCase):
     def setUp(self):
         User = get_user_model()
-        self.user = User.objects.create_user(username='apiuser', password='test', is_staff=True)
+        self.tenant = Tenant.objects.create(nome='test_tenant_reconcile', slug='test-tenant-reconcile')
+        self.user = User.objects.create_user(username='apiuser', password='test', is_staff=False, tenant=self.tenant)
         self.client.force_login(self.user)
-        self.conta = ContaBancaria.objects.create(banco='Teste', agencia='0001', conta='12345', saldo_inicial=0)
-        self.l = LancamentoFinanceiro.objects.create(conta=self.conta, tipo='saida', valor=200, descricao='Test', data='2026-01-01')
+        self.conta = ContaBancaria.objects.create(banco='Teste', agencia='0001', conta='12345', saldo_inicial=0, tenant=self.tenant)
+        self.l = LancamentoFinanceiro.objects.create(conta=self.conta, tipo='saida', valor=200, descricao='Test', data='2026-01-01', tenant=self.tenant)
 
     def test_reconcile(self):
         url = reverse('lancamentos-reconcile', args=[self.l.id])

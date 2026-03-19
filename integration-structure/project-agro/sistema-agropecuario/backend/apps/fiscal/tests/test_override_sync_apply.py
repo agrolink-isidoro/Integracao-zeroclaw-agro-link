@@ -6,12 +6,14 @@ from decimal import Decimal
 from apps.fiscal.models import NFe, ItemNFe
 from apps.fiscal.models_overrides import ItemNFeOverride
 from apps.estoque.models import Produto, MovimentacaoEstoque
+from apps.multi_tenancy.models import Tenant
 
 
 class OverrideSyncApplyTests(TestCase):
     def setUp(self):
         User = get_user_model()
-        self.user = User.objects.create_user(username='sync_applier', password='pwd', is_staff=True)
+        self.tenant = Tenant.objects.create(nome='test_tenant_sync_apply', slug='test-tenant-sync-apply')
+        self.user = User.objects.create_user(username='sync_applier', password='pwd', is_staff=False, tenant=self.tenant)
         self.client.force_login(self.user)
 
     def test_create_override_applies_immediately_when_nfe_confirmed_and_user_has_permission(self):
@@ -20,7 +22,7 @@ class OverrideSyncApplyTests(TestCase):
         self.user.save()
 
         prod = Produto.objects.create(codigo='SYNC-A', nome='ProdSyncA', unidade='UN', quantidade_estoque=0)
-        nfe = NFe.objects.create(chave_acesso='S'*44, numero='1', serie='1', data_emissao=timezone.now(), emitente_nome='E', destinatario_nome='D', valor_produtos=0, valor_nota=0)
+        nfe = NFe.objects.create(chave_acesso='S'*44, numero='1', serie='1', data_emissao=timezone.now(), emitente_nome='E', destinatario_nome='D', valor_produtos=0, valor_nota=0, tenant=self.tenant)
         item = ItemNFe.objects.create(nfe=nfe, numero_item=1, codigo_produto='SYNC-A', descricao='Produto Teste', cfop='5102', unidade_comercial='UN', quantidade_comercial=Decimal('10'), valor_unitario_comercial=Decimal('9.00'), valor_produto=Decimal('90.00'))
 
         # Confirm estoque (creates original movimentacao quantity 10)
@@ -63,7 +65,7 @@ class OverrideSyncApplyTests(TestCase):
 
     def test_create_override_returns_403_when_applying_on_confirmed_nfe_without_permission(self):
         prod = Produto.objects.create(codigo='SYNC-B', nome='ProdSyncB', unidade='UN', quantidade_estoque=0)
-        nfe = NFe.objects.create(chave_acesso='T'*44, numero='1', serie='1', data_emissao=timezone.now(), emitente_nome='E', destinatario_nome='D', valor_produtos=0, valor_nota=0)
+        nfe = NFe.objects.create(chave_acesso='T'*44, numero='1', serie='1', data_emissao=timezone.now(), emitente_nome='E', destinatario_nome='D', valor_produtos=0, valor_nota=0, tenant=self.tenant)
         item = ItemNFe.objects.create(nfe=nfe, numero_item=1, codigo_produto='SYNC-B', descricao='Produto Teste', cfop='5102', unidade_comercial='UN', quantidade_comercial=Decimal('8'), valor_unitario_comercial=Decimal('5.00'), valor_produto=Decimal('40.00'))
 
         # Confirm estoque
@@ -93,7 +95,7 @@ class OverrideSyncApplyTests(TestCase):
         self.user.save()
 
         prod = Produto.objects.create(codigo='SYNC-C', nome='ProdSyncC', unidade='UN', quantidade_estoque=0)
-        nfe = NFe.objects.create(chave_acesso='U'*44, numero='1', serie='1', data_emissao=timezone.now(), emitente_nome='E', destinatario_nome='D', valor_produtos=0, valor_nota=0)
+        nfe = NFe.objects.create(chave_acesso='U'*44, numero='1', serie='1', data_emissao=timezone.now(), emitente_nome='E', destinatario_nome='D', valor_produtos=0, valor_nota=0, tenant=self.tenant)
         item = ItemNFe.objects.create(nfe=nfe, numero_item=1, codigo_produto='SYNC-C', descricao='Produto Teste', cfop='5102', unidade_comercial='UN', quantidade_comercial=Decimal('10'), valor_unitario_comercial=Decimal('9.00'), valor_produto=Decimal('90.00'))
 
         # Confirm estoque

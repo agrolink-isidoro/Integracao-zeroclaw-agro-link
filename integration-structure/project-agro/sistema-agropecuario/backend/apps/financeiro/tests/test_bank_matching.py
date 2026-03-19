@@ -3,15 +3,20 @@ from django.contrib.auth import get_user_model
 from decimal import Decimal
 from apps.financeiro.models import ContaBancaria, Vencimento, Transferencia, BankStatementImport, BankTransaction, LancamentoFinanceiro
 from apps.financeiro.services import pagar_vencimentos_por_transferencia, match_bank_transaction_to_transfer
+from apps.multi_tenancy.models import Tenant
 
 User = get_user_model()
 
 class BankMatchingTests(TestCase):
     def setUp(self):
-        self.user = User.objects.create_user('bm', 'bm@example.com', 'pw')
-        self.c1 = ContaBancaria.objects.create(banco='Origem', agencia='0001', conta='1111', saldo_inicial=Decimal('1000'))
-        self.c2 = ContaBancaria.objects.create(banco='Destino', agencia='0002', conta='2222', saldo_inicial=Decimal('0'))
-        self.v = Vencimento.objects.create(titulo='Venc Match', valor=Decimal('200.00'), data_vencimento='2026-04-01')
+        self.tenant = Tenant.objects.create(
+            nome='test_tenant_financeiro_bank_matching',
+            slug='test-tenant-financeiro-bank-matching'
+        )
+        self.user = User.objects.create_user('bm', 'bm@example.com', 'pw', tenant=self.tenant)
+        self.c1 = ContaBancaria.objects.create(banco='Origem', agencia='0001', conta='1111', saldo_inicial=Decimal('1000'), tenant=self.tenant)
+        self.c2 = ContaBancaria.objects.create(banco='Destino', agencia='0002', conta='2222', saldo_inicial=Decimal('0'), tenant=self.tenant)
+        self.v = Vencimento.objects.create(titulo='Venc Match', valor=Decimal('200.00'), data_vencimento='2026-04-01', tenant=self.tenant)
 
     def test_match_by_external_id(self):
         # create pending transfer with external_reference empty

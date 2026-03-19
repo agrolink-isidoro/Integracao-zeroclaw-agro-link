@@ -5,23 +5,28 @@ from apps.fazendas.models import Fazenda, Talhao, Proprietario
 from apps.agricultura.models import Plantio, Manejo, Colheita, Cultura
 from apps.financeiro.models import RateioCusto, RateioApproval
 from apps.administrativo.models import Notificacao
+from apps.multi_tenancy.models import Tenant
 
 User = get_user_model()
 
 
 class FinanceIntegrationTests(TestCase):
     def setUp(self):
-        self.creator = User.objects.create_user(username='creator', password='pass')
-        self.approver = User.objects.create_user(username='approver', password='pass')
+        self.tenant = Tenant.objects.create(
+            nome='test_tenant_agricultura_finance',
+            slug='test-tenant-agricultura-finance'
+        )
+        self.creator = User.objects.create_user(username='creator', password='pass', is_staff=False, tenant=self.tenant)
+        self.approver = User.objects.create_user(username='approver', password='pass', is_staff=False, tenant=self.tenant)
         g, _ = Group.objects.get_or_create(name='financeiro.rateio_approver')
         g.user_set.add(self.approver)
 
-        self.proprietario = Proprietario.objects.create(nome='Produtor', cpf_cnpj='00000000000')
-        self.fazenda = Fazenda.objects.create(proprietario=self.proprietario, name='Fazenda Teste', matricula='M-001')
-        self.cultura = Cultura.objects.create(nome='Cultura Teste')
+        self.proprietario = Proprietario.objects.create(nome='Produtor', cpf_cnpj='00000000000', tenant=self.tenant)
+        self.fazenda = Fazenda.objects.create(proprietario=self.proprietario, name='Fazenda Teste', matricula='M-001', tenant=self.tenant)
+        self.cultura = Cultura.objects.create(nome='Cultura Teste', tenant=self.tenant)
         from apps.fazendas.models import Area
-        self.area = Area.objects.create(proprietario=self.proprietario, fazenda=self.fazenda, name='A', geom='POINT(0 0)')
-        self.talhao = Talhao.objects.create(area=self.area, name='Talhao 1', area_size=10)
+        self.area = Area.objects.create(proprietario=self.proprietario, fazenda=self.fazenda, name='A', geom='POINT(0 0)', tenant=self.tenant)
+        self.talhao = Talhao.objects.create(area=self.area, name='Talhao 1', area_size=10, tenant=self.tenant)
 
     def test_manejo_generates_rateio_and_notification(self):
         manejo = Manejo.objects.create(tipo='capina', data_manejo='2025-07-01', custo_mao_obra=100, custo_maquinas=50, custo_insumos=20, criado_por=self.creator)

@@ -12,7 +12,7 @@ User = get_user_model()
 class NFeRemoteListTest(TestCase):
     def setUp(self):
         self.client = APIClient()
-        self.user = User.objects.create(username='listuser')
+        self.user = User.objects.create(username='listuser', is_staff=False)
         self.client.force_authenticate(user=self.user)
         NFeRemote.objects.create(chave_acesso='A'*44, raw_xml='<xml/>', import_status='pending')
         NFeRemote.objects.create(chave_acesso='B'*44, raw_xml='<xml/>', import_status='imported')

@@ -60,6 +60,7 @@ def regular_user(db, tenant):
         email="regular@example.com",
         tenant=tenant,
         cargo="operador",
+        is_staff=False,  # IMPORTANTE: explicitamente False para testar usuário regular
     )
 
 

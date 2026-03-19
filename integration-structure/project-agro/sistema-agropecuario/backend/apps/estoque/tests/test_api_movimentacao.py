@@ -3,16 +3,21 @@ from django.test import TestCase
 from django.contrib.auth import get_user_model
 from decimal import Decimal
 from apps.estoque.models import Produto
+from apps.multi_tenancy.models import Tenant
 
 User = get_user_model()
 
 
 class MovimentacaoAPITests(TestCase):
     def setUp(self):
+        self.tenant = Tenant.objects.create(
+            nome='test_tenant_estoque_movimentacao',
+            slug='test-tenant-estoque-movimentacao'
+        )
         self.client = APIClient()
-        self.user = User.objects.create_user(username='apiuser', password='pw')
+        self.user = User.objects.create_user(username='apiuser', password='pw', is_staff=False, tenant=self.tenant)
         self.client.force_authenticate(self.user)
-        self.prod = Produto.objects.create(codigo='API-1', nome='Prod API', unidade='kg', quantidade_estoque=Decimal('10'))
+        self.prod = Produto.objects.create(codigo='API-1', nome='Prod API', unidade='kg', quantidade_estoque=Decimal('10'), tenant=self.tenant)
 
     def test_create_movimentacao_via_api_uses_helper_and_sets_snapshots(self):
         payload = {

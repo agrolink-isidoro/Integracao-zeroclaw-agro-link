@@ -7,12 +7,14 @@ from apps.fiscal.models import NFe, ItemNFe
 from apps.fiscal.models_overrides import ItemNFeOverride
 from apps.estoque.models import Produto, MovimentacaoEstoque
 from apps.comercial.models import Fornecedor
+from apps.multi_tenancy.models import Tenant
 
 
 class ReflectAndOverrideBehaviourTests(TransactionTestCase):
     def setUp(self):
         User = get_user_model()
-        self.user = User.objects.create_user(username='tester', password='pwd')
+        self.tenant = Tenant.objects.create(nome='test_tenant_fiscal_1', slug='test-tenant-fiscal-1')
+        self.user = User.objects.create_user(username='tester', password='pwd', is_staff=False, tenant=self.tenant)
         self.user.is_superuser = True
         self.user.save()
         self.client.force_login(self.user)
@@ -20,7 +22,7 @@ class ReflectAndOverrideBehaviourTests(TransactionTestCase):
     def test_quantity_change_creates_adjustment_and_keeps_unit_cost(self):
         # Setup product and NFe with a single item quantity 1 valor_unitario 100
         prod = Produto.objects.create(codigo='QTY-1', nome='ProdQ', unidade='UN', quantidade_estoque=0, custo_unitario=Decimal('100.00'))
-        nfe = NFe.objects.create(chave_acesso='Q'*44, numero='1', serie='1', data_emissao=timezone.now(), emitente_nome='E', destinatario_nome='D', valor_produtos=Decimal('100.00'), valor_nota=Decimal('100.00'))
+        nfe = NFe.objects.create(chave_acesso='Q'*44, numero='1', serie='1', data_emissao=timezone.now(), emitente_nome='E', destinatario_nome='D', valor_produtos=Decimal('100.00'), valor_nota=Decimal('100.00'), tenant=self.tenant)
         item = ItemNFe.objects.create(nfe=nfe, numero_item=1, codigo_produto=prod.codigo, descricao='Produto Q', cfop='5102', unidade_comercial='UN', quantidade_comercial=Decimal('1.0000'), valor_unitario_comercial=Decimal('100.00'), valor_produto=Decimal('100.00'))
 
         # Confirm estoque (creates original movimentacao quantity 1 valor_unitario 100)
@@ -55,8 +57,8 @@ class ReflectAndOverrideBehaviourTests(TransactionTestCase):
 
     def test_reflect_fornecedor_updates_name_and_cnpj(self):
         # Create fornecedor and NFe with different emitente data
-        fornecedor = Fornecedor.objects.create(nome='Orig Supplier', cpf_cnpj='11111111111111')
-        nfe = NFe.objects.create(chave_acesso='R'*44, numero='1', serie='1', data_emissao=timezone.now(), emitente_nome='New Supplier Name', emitente_cnpj='22222222222222', destinatario_nome='D', valor_produtos=Decimal('0'), valor_nota=Decimal('0'))
+        fornecedor = Fornecedor.objects.create(nome='Orig Supplier', cpf_cnpj='11111111111111', tenant=self.tenant)
+        nfe = NFe.objects.create(chave_acesso='R'*44, numero='1', serie='1', data_emissao=timezone.now(), emitente_nome='New Supplier Name', emitente_cnpj='22222222222222', destinatario_nome='D', valor_produtos=Decimal('0'), valor_nota=Decimal('0'), tenant=self.tenant)
 
         # Ensure fornecedor exists before reflect
         self.assertEqual(Fornecedor.objects.filter(cpf_cnpj='11111111111111').count(), 1)

@@ -2,7 +2,7 @@ from django.test import TestCase
 from django.contrib.auth import get_user_model
 from rest_framework.test import APIClient
 from apps.fazendas.models import Fazenda, Area, Talhao, Proprietario
-from apps.core.models import Tenant
+from apps.multi_tenancy.models import Tenant
 from apps.agricultura.models import Plantio, Cultura
 
 User = get_user_model()
@@ -39,16 +39,16 @@ class TenantTestCase(TestCase):
 class ColheitaConfirmTests(TenantTestCase):
     def setUp(self):
         super().setUp()
-        self.cultura = Cultura.objects.create(nome='Soja')
-        self.plantio = Plantio.objects.create(fazenda=self.fazenda, cultura=self.cultura, data_plantio='2025-01-01')
-        self.area = Area.objects.create(proprietario=self.proprietario, fazenda=self.fazenda, name='Area')
-        self.talhao1 = Talhao.objects.create(area=self.area, name='T1', area_size=10)
+        self.cultura = Cultura.objects.create(nome='Soja', tenant=self.tenant)
+        self.plantio = Plantio.objects.create(fazenda=self.fazenda, cultura=self.cultura, data_plantio='2025-01-01', tenant=self.tenant)
+        self.area = Area.objects.create(proprietario=self.proprietario, fazenda=self.fazenda, name='Area', tenant=self.tenant)
+        self.talhao1 = Talhao.objects.create(area=self.area, name='T1', area_size=10, tenant=self.tenant)
         self.plantio.talhoes.add(self.talhao1)
 
         # create product and local
         from apps.estoque.models import Produto, LocalArmazenamento
         Produto.objects.create(codigo='SOJA-1', nome='Soja Produto', unidade='kg', quantidade_estoque=0)
-        self.local = LocalArmazenamento.objects.create(nome='Silo A', fazenda=self.fazenda)
+        self.local = LocalArmazenamento.objects.create(nome='Silo A', fazenda=self.fazenda, tenant=self.tenant)
 
         # create a colheita
         url = '/api/agricultura/colheitas/'

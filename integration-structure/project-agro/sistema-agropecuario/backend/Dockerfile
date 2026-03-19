@@ -1,4 +1,4 @@
-FROM python:3.12-slim
+FROM python:3.11-slim
 WORKDIR /app
 
 # Install system dependencies for PostgreSQL, PostGIS/GDAL, OCR/barcode libs, and WeasyPrint

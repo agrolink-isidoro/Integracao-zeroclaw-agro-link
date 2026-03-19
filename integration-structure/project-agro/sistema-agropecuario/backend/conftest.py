@@ -458,7 +458,7 @@ def auto_add_tenant_to_users(request):
             default_tenant = get_default_tenant()
             if default_tenant:
                 kwargs['tenant'] = default_tenant
-        # IMPORTANTE: Adicionar is_staff=True por padrão mesmo em create() 
+        # Adicionar is_staff=True por padrão mesmo em create() 
         # pois é necessário para passar no middleware de RBAC (owner_level)
         if 'is_staff' not in kwargs:
             kwargs['is_staff'] = True

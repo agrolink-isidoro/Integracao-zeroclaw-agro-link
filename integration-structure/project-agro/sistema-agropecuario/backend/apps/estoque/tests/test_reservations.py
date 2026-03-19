@@ -6,12 +6,17 @@ from apps.estoque.models import Produto, MovimentacaoEstoque
 from apps.agricultura.models import Operacao, OperacaoProduto
 from datetime import date
 from apps.core.models import CustomUser
+from apps.multi_tenancy.models import Tenant
 
 
 class ReservationTests(TestCase):
     def setUp(self):
-        self.user = CustomUser.objects.create(username='tester')
-        self.prod = Produto.objects.create(codigo='P1', nome='Produto 1', unidade='kg', quantidade_estoque=Decimal('10'), estoque_minimo=Decimal('0'))
+        self.tenant = Tenant.objects.create(
+            nome='test_tenant_estoque_reservations',
+            slug='test-tenant-estoque-reservations'
+        )
+        self.user = CustomUser.objects.create(username='tester', tenant=self.tenant)
+        self.prod = Produto.objects.create(codigo='P1', nome='Produto 1', unidade='kg', quantidade_estoque=Decimal('10'), estoque_minimo=Decimal('0'), tenant=self.tenant)
 
     def test_create_reservation_success(self):
         # Reserve 4 units

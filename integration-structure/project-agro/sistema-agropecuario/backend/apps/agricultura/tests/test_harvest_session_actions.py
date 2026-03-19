@@ -3,24 +3,29 @@ from django.contrib.auth import get_user_model
 from rest_framework.test import APIClient
 from apps.fazendas.models import Fazenda, Area, Talhao
 from apps.agricultura.models import Plantio, Cultura, HarvestSession, HarvestSessionItem
+from apps.multi_tenancy.models import Tenant
 
 User = get_user_model()
 
 
 class HarvestSessionActionTests(TestCase):
     def setUp(self):
-        self.user = User.objects.create_user(username='action_tester')
+        self.tenant = Tenant.objects.create(
+            nome='test_tenant_agricultura_harvest_actions',
+            slug='test-tenant-agricultura-harvest-actions'
+        )
+        self.user = User.objects.create_user(username='action_tester', is_staff=False, tenant=self.tenant)
         self.client = APIClient()
         self.client.force_authenticate(self.user)
 
         from apps.fazendas.models import Proprietario
-        self.proprietario = Proprietario.objects.create(nome='Produtor Action', cpf_cnpj='111111111')
-        self.fazenda = Fazenda.objects.create(proprietario=self.proprietario, name='F2', matricula='M2')
-        self.cultura = Cultura.objects.create(nome='Milho')
-        self.plantio = Plantio.objects.create(fazenda=self.fazenda, cultura=self.cultura, data_plantio='2025-02-01')
-        self.area = Area.objects.create(proprietario=self.proprietario, fazenda=self.fazenda, name='Area2')
-        self.talhao1 = Talhao.objects.create(area=self.area, name='T1', area_size=10)
-        self.talhao2 = Talhao.objects.create(area=self.area, name='T2', area_size=5)
+        self.proprietario = Proprietario.objects.create(nome='Produtor Action', cpf_cnpj='111111111', tenant=self.tenant)
+        self.fazenda = Fazenda.objects.create(proprietario=self.proprietario, name='F2', matricula='M2', tenant=self.tenant)
+        self.cultura = Cultura.objects.create(nome='Milho', tenant=self.tenant)
+        self.plantio = Plantio.objects.create(fazenda=self.fazenda, cultura=self.cultura, data_plantio='2025-02-01', tenant=self.tenant)
+        self.area = Area.objects.create(proprietario=self.proprietario, fazenda=self.fazenda, name='Area2', tenant=self.tenant)
+        self.talhao1 = Talhao.objects.create(area=self.area, name='T1', area_size=10, tenant=self.tenant)
+        self.talhao2 = Talhao.objects.create(area=self.area, name='T2', area_size=5, tenant=self.tenant)
         self.plantio.talhoes.add(self.talhao1)
         self.plantio.talhoes.add(self.talhao2)
 

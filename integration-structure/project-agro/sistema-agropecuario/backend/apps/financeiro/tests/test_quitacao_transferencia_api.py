@@ -3,17 +3,22 @@ from django.contrib.auth import get_user_model
 from apps.financeiro.models import ContaBancaria, Vencimento, Transferencia
 from rest_framework.test import APIClient
 from decimal import Decimal
+from apps.multi_tenancy.models import Tenant
 
 User = get_user_model()
 
 class QuitarPorTransferenciaAPITests(TestCase):
     def setUp(self):
-        self.user = User.objects.create_user('apiuser', 'api@example.com', 'pw')
+        self.tenant = Tenant.objects.create(
+            nome='test_tenant_financeiro_quitacao_api',
+            slug='test-tenant-financeiro-quitacao-api'
+        )
+        self.user = User.objects.create_user('apiuser', 'api@example.com', 'pw', tenant=self.tenant, is_staff=False)
         self.client = APIClient()
         self.client.force_authenticate(self.user)
-        self.c1 = ContaBancaria.objects.create(banco='Banco A', agencia='0001', conta='1111', saldo_inicial=Decimal('10000'))
-        self.c2 = ContaBancaria.objects.create(banco='Banco B', agencia='0002', conta='2222', saldo_inicial=Decimal('500'))
-        self.v = Vencimento.objects.create(titulo='Fatura API', valor=Decimal('120.00'), data_vencimento='2026-02-01')
+        self.c1 = ContaBancaria.objects.create(banco='Banco A', agencia='0001', conta='1111', saldo_inicial=Decimal('10000'), tenant=self.tenant)
+        self.c2 = ContaBancaria.objects.create(banco='Banco B', agencia='0002', conta='2222', saldo_inicial=Decimal('500'), tenant=self.tenant)
+        self.v = Vencimento.objects.create(titulo='Fatura API', valor=Decimal('120.00'), data_vencimento='2026-02-01', tenant=self.tenant)
 
     def test_quitar_por_transferencia_api_pix_success(self):
         payload = {

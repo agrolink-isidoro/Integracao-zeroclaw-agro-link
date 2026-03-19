@@ -3,16 +3,18 @@ from django.contrib.auth import get_user_model
 from django.utils import timezone
 from apps.financeiro.services import quitar_vencimento
 from apps.financeiro.models import Vencimento, LancamentoFinanceiro
+from apps.multi_tenancy.models import Tenant
 
 User = get_user_model()
 
 
 class QuitacaoServiceTests(TestCase):
     def setUp(self):
-        self.user = User.objects.create_user(username='tester')
+        self.tenant = Tenant.objects.create(nome='test_tenant_quitacao', slug='test-tenant-quitacao')
+        self.user = User.objects.create_user(username='tester', tenant=self.tenant)
 
     def test_quitar_full_payment_creates_lancamento_and_marks_paid(self):
-        v = Vencimento.objects.create(titulo='V1', valor=100.00, data_vencimento=timezone.now().date(), tipo='despesa', criado_por=self.user)
+        v = Vencimento.objects.create(titulo='V1', valor=100.00, data_vencimento=timezone.now().date(), tipo='despesa', criado_por=self.user, tenant=self.tenant)
         lanc = quitar_vencimento(v, self.user)
         self.assertIsNotNone(lanc)
         v.refresh_from_db()
@@ -21,7 +23,7 @@ class QuitacaoServiceTests(TestCase):
         self.assertTrue(LancamentoFinanceiro.objects.filter(origem_object_id=v.id).exists())
 
     def test_quitar_partial_creates_split_vencimento(self):
-        v = Vencimento.objects.create(titulo='V2', valor=100.00, data_vencimento=timezone.now().date(), tipo='despesa', criado_por=self.user)
+        v = Vencimento.objects.create(titulo='V2', valor=100.00, data_vencimento=timezone.now().date(), tipo='despesa', criado_por=self.user, tenant=self.tenant)
         lanc = quitar_vencimento(v, self.user, valor_pago=40.00)
         self.assertIsNotNone(lanc)
         v.refresh_from_db()

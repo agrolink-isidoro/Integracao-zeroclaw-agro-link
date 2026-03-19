@@ -3,15 +3,20 @@ from django.contrib.auth import get_user_model
 from decimal import Decimal
 from apps.financeiro.models import ContaBancaria, Vencimento, Transferencia, LancamentoFinanceiro, PaymentAllocation
 from apps.financeiro.services import pagar_vencimentos_por_transferencia, marcar_transferencia_settled
+from apps.multi_tenancy.models import Tenant
 
 User = get_user_model()
 
 class TransferenciaSettledTests(TestCase):
     def setUp(self):
-        self.user = User.objects.create_user('settleuser', 's@example.com', 'pw')
-        self.c1 = ContaBancaria.objects.create(banco='Banco A', agencia='0001', conta='1111', saldo_inicial=Decimal('1000'))
-        self.c2 = ContaBancaria.objects.create(banco='Banco B', agencia='0002', conta='2222', saldo_inicial=Decimal('500'))
-        self.v = Vencimento.objects.create(titulo='Venc A', valor=Decimal('120.00'), data_vencimento='2026-03-01')
+        self.tenant = Tenant.objects.create(
+            nome='test_tenant_financeiro_settled',
+            slug='test-tenant-financeiro-settled'
+        )
+        self.user = User.objects.create_user('settleuser', 's@example.com', 'pw', tenant=self.tenant)
+        self.c1 = ContaBancaria.objects.create(banco='Banco A', agencia='0001', conta='1111', saldo_inicial=Decimal('1000'), tenant=self.tenant)
+        self.c2 = ContaBancaria.objects.create(banco='Banco B', agencia='0002', conta='2222', saldo_inicial=Decimal('500'), tenant=self.tenant)
+        self.v = Vencimento.objects.create(titulo='Venc A', valor=Decimal('120.00'), data_vencimento='2026-03-01', tenant=self.tenant)
 
     def test_mark_settled_changes_status_and_marks_vencimento(self):
         # create pending transfer via TED

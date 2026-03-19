@@ -3,13 +3,19 @@ from rest_framework.test import APITestCase
 from apps.estoque.models import Produto, LocalArmazenamento, Lote
 from apps.fazendas.models import Proprietario, Fazenda
 from apps.core.models import CustomUser
+from apps.multi_tenancy.models import Tenant
 from decimal import Decimal
 
 
 class ProdutoAPITests(APITestCase):
     def setUp(self):
+        # Create tenant first
+        self.tenant = Tenant.objects.create(
+            nome='test_tenant_estoque_api_extra',
+            slug='test-tenant-estoque-api-extra'
+        )
         # user to authenticate requests (perform_create uses request.user)
-        self.user = CustomUser.objects.create_user(username='apitest', password='testpass')
+        self.user = CustomUser.objects.create_user(username='apitest', password='testpass', tenant=self.tenant)
         self.client.force_authenticate(self.user)
 
     def test_create_product_with_tag_category(self):

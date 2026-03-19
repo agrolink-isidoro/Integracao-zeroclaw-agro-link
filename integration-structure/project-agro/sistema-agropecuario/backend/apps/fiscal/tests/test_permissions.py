@@ -8,7 +8,7 @@ from decimal import Decimal
 class PermissionsTest(TestCase):
     def setUp(self):
         User = get_user_model()
-        self.user = User.objects.create_user(username='user', password='pass')
+        self.user = User.objects.create_user(username='user', password='pass', is_staff=False)
         self.staff = User.objects.create_user(username='staff', password='pass', is_staff=True)
         self.client = APIClient()
 

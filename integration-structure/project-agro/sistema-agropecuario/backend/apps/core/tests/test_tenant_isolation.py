@@ -50,6 +50,7 @@ def user_a(db, tenant_a):
         password="pass",
         email="alpha@example.com",
         tenant=tenant_a,
+        is_staff=False,  # Regular user, não staff
     )
     return u
 
@@ -61,6 +62,7 @@ def user_b(db, tenant_b):
         password="pass",
         email="beta@example.com",
         tenant=tenant_b,
+        is_staff=False,  # Regular user, não staff
     )
     return u
 
@@ -369,8 +371,9 @@ def test_tenant_viewset_create(superuser):
         "nome": "Novo Tenant",
         "slug": "novo-tenant",
         "plano": "basico",
+        "cnpj": "12.345.678/0001-99",  # CNPJ format
     }, format="json")
-    assert resp.status_code == 201
+    assert resp.status_code == 201, f"POST failed: {resp.content}"
     assert Tenant.objects.filter(slug="novo-tenant").exists()
 
 

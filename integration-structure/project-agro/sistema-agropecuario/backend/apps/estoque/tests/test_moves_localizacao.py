@@ -3,21 +3,26 @@ from django.test import TestCase
 from apps.estoque.models import Produto, LocalArmazenamento, Localizacao, ProdutoArmazenado, MovimentacaoEstoque
 from apps.estoque.services import create_movimentacao
 from apps.core.models import CustomUser
+from apps.multi_tenancy.models import Tenant
 
 class MovimentacaoLocalizacaoTests(TestCase):
     def setUp(self):
-        self.user = CustomUser.objects.create(username='tester')
-        self.prod = Produto.objects.create(codigo='PLOC', nome='Produto Local', unidade='kg', quantidade_estoque=Decimal('0'))
+        self.tenant = Tenant.objects.create(
+            nome='test_tenant_estoque_localizacao',
+            slug='test-tenant-estoque-localizacao'
+        )
+        self.user = CustomUser.objects.create(username='tester', tenant=self.tenant)
+        self.prod = Produto.objects.create(codigo='PLOC', nome='Produto Local', unidade='kg', quantidade_estoque=Decimal('0'), tenant=self.tenant)
         # criar fazenda e proprietario necessários para LocalArmazenamento
         from apps.fazendas.models import Proprietario, Fazenda
-        prov = Proprietario.objects.create(nome='Prop', cpf_cnpj='00000000000')
-        faz = Fazenda.objects.create(proprietario=prov, name='Faz A', matricula='FAZ-001')
-        self.local_armaz = LocalArmazenamento.objects.create(nome='SILO A', tipo='silo', capacidade_maxima=Decimal('1000'), fazenda=faz)
+        prov = Proprietario.objects.create(nome='Prop', cpf_cnpj='00000000000', tenant=self.tenant)
+        faz = Fazenda.objects.create(proprietario=prov, name='Faz A', matricula='FAZ-001', tenant=self.tenant)
+        self.local_armaz = LocalArmazenamento.objects.create(nome='SILO A', tipo='silo', capacidade_maxima=Decimal('1000'), fazenda=faz, tenant=self.tenant)
         # create a Localizacao with same name to enable sync
-        self.localizacao = Localizacao.objects.create(nome=self.local_armaz.nome, tipo='interna', capacidade_total=Decimal('1000'), capacidade_ocupada=Decimal('0'))
+        self.localizacao = Localizacao.objects.create(nome=self.local_armaz.nome, tipo='interna', capacidade_total=Decimal('1000'), capacidade_ocupada=Decimal('0'), tenant=self.tenant)
         # create a Lote to attach to movimentacao tests
         from apps.estoque.models import Lote
-        self.lote = Lote.objects.create(produto=self.prod, numero_lote='L1', quantidade_inicial=Decimal('0'), quantidade_atual=Decimal('0'))
+        self.lote = Lote.objects.create(produto=self.prod, numero_lote='L1', quantidade_inicial=Decimal('0'), quantidade_atual=Decimal('0'), tenant=self.tenant)
 
     def test_entrada_updates_produto_armazenado_and_localizacao(self):
         m = create_movimentacao(produto=self.prod, tipo='entrada', quantidade=Decimal('10'), criado_por=self.user, local_armazenamento=self.local_armaz)

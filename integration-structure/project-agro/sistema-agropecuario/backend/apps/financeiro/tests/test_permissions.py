@@ -1,6 +1,7 @@
 from rest_framework.test import APIClient
 from django.test import TestCase
 from django.contrib.auth import get_user_model
+from apps.multi_tenancy.models import Tenant
 
 User = get_user_model()
 
@@ -8,7 +9,8 @@ User = get_user_model()
 class FinanceiroPermissionsTests(TestCase):
     def setUp(self):
         self.client = APIClient()
-        self.user = User.objects.create_user(username='user')
+        self.tenant = Tenant.objects.create(nome='test_tenant_permissions', slug='test-tenant-permissions')
+        self.user = User.objects.create_user(username='user', tenant=self.tenant)
 
     def test_unauthenticated_cannot_list_financiamentos(self):
         res = self.client.get('/api/financeiro/financiamentos/')

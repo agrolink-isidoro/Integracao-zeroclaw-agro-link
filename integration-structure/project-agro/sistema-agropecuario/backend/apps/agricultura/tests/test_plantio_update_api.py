@@ -5,24 +5,29 @@ from apps.fazendas.models import Proprietario, Fazenda, Area, Talhao
 from apps.agricultura.models import Cultura, Plantio
 from django.utils import timezone
 from decimal import Decimal
+from apps.multi_tenancy.models import Tenant
 
 User = get_user_model()
 
 
 class PlantioUpdateAPITest(TestCase):
     def setUp(self):
-        self.user = User.objects.create_user(username='apiuser')
+        self.tenant = Tenant.objects.create(
+            nome='test_tenant_agricultura_plantio_update_api',
+            slug='test-tenant-agricultura-plantio-update-api'
+        )
+        self.user = User.objects.create_user(username='apiuser', is_staff=False, tenant=self.tenant)
         self.client = APIClient()
         self.client.force_authenticate(self.user)
 
-        self.prop = Proprietario.objects.create(nome='Test', cpf_cnpj='123')
-        self.faz = Fazenda.objects.create(proprietario=self.prop, name='Faz', matricula='M')
-        self.area = Area.objects.create(proprietario=self.prop, fazenda=self.faz, name='A', geom='POINT(0 0)')
-        self.t1 = Talhao.objects.create(area=self.area, name='T1', area_size=10)
-        self.t2 = Talhao.objects.create(area=self.area, name='T2', area_size=5)
+        self.prop = Proprietario.objects.create(nome='Test', cpf_cnpj='123', tenant=self.tenant)
+        self.faz = Fazenda.objects.create(proprietario=self.prop, name='Faz', matricula='M', tenant=self.tenant)
+        self.area = Area.objects.create(proprietario=self.prop, fazenda=self.faz, name='A', geom='POINT(0 0)', tenant=self.tenant)
+        self.t1 = Talhao.objects.create(area=self.area, name='T1', area_size=10, tenant=self.tenant)
+        self.t2 = Talhao.objects.create(area=self.area, name='T2', area_size=5, tenant=self.tenant)
 
-        self.cultura = Cultura.objects.create(nome='TestC')
-        self.plantio = Plantio.objects.create(cultura=self.cultura, data_plantio='2025-01-01', criado_por=self.user)
+        self.cultura = Cultura.objects.create(nome='TestC', tenant=self.tenant)
+        self.plantio = Plantio.objects.create(cultura=self.cultura, data_plantio='2025-01-01', criado_por=self.user, tenant=self.tenant)
         self.plantio.talhoes.add(self.t1)
 
     def test_update_plantio_change_dates_and_status_and_talhoes(self):

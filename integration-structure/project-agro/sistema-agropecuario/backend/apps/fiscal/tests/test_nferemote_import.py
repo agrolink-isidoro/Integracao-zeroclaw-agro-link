@@ -13,7 +13,7 @@ User = get_user_model()
 class NFeRemoteImportTest(TestCase):
     def setUp(self):
         self.client = APIClient()
-        self.user = User.objects.create(username='importer')
+        self.user = User.objects.create(username='importer', is_staff=False)
         self.client.force_authenticate(user=self.user)
         # create a remote NFe with raw_xml fixture
         # Try multiple possible locations (Docker vs local execution)

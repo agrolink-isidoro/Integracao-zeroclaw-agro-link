@@ -2,17 +2,22 @@ from django.test import TestCase
 from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import SimpleUploadedFile
 from apps.financeiro.models import ContaBancaria
+from apps.multi_tenancy.models import Tenant
 
 User = get_user_model()
 
 class FinanciamentoFieldsTest(TestCase):
     def setUp(self):
         from apps.comercial.models import InstituicaoFinanceira
-        self.user = User.objects.create_user('tester', 'tester@example.com', 'pw')
+        self.tenant = Tenant.objects.create(
+            nome='test_tenant_financeiro_fields',
+            slug='test-tenant-financeiro-fields'
+        )
+        self.user = User.objects.create_user('tester', 'tester@example.com', 'pw', tenant=self.tenant)
         self.client.force_login(self.user)
         # create required related objects
-        self.conta = ContaBancaria.objects.create(banco='Banco', agencia='0001', conta='12345')
-        self.inst = InstituicaoFinanceira.objects.create(nome='Inst Test', codigo_bacen='0001')
+        self.conta = ContaBancaria.objects.create(banco='Banco', agencia='0001', conta='12345', tenant=self.tenant)
+        self.inst = InstituicaoFinanceira.objects.create(nome='Inst Test', codigo_bacen='0001', tenant=self.tenant)
 
     def test_create_financiamento_requires_conta_destino(self):
         payload = {

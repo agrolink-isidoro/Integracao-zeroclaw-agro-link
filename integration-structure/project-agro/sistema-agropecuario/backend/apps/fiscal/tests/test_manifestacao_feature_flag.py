@@ -11,7 +11,7 @@ User = get_user_model()
 class ManifestacaoFeatureFlagTest(TestCase):
     def setUp(self):
         self.client = APIClient()
-        self.user = User.objects.create(username='flaguser')
+        self.user = User.objects.create(username='flaguser', is_staff=False)
         self.client.force_authenticate(user=self.user)
         self.nfe = NFe.objects.create(
             chave_acesso='3'*44,

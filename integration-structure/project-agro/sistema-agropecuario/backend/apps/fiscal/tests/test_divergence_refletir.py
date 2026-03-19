@@ -6,17 +6,19 @@ from decimal import Decimal
 from apps.fiscal.models import NFe, ItemNFe
 from apps.fiscal.models_overrides import ItemNFeOverride
 from apps.estoque.models import Produto, MovimentacaoEstoque
+from apps.multi_tenancy.models import Tenant
 
 
 class DivergenceReflectTests(TestCase):
     def setUp(self):
         User = get_user_model()
-        self.user = User.objects.create_user(username='reflect_user', password='pwd', is_staff=True)
+        self.tenant = Tenant.objects.create(nome='test_tenant_divergence', slug='test-tenant-divergence')
+        self.user = User.objects.create_user(username='reflect_user', password='pwd', is_staff=False, tenant=self.tenant)
         self.client.force_login(self.user)
 
     def test_detect_divergence_for_unapplied_override(self):
         prod = Produto.objects.create(codigo='DIV-A', nome='ProdDivA', unidade='UN', quantidade_estoque=0)
-        nfe = NFe.objects.create(chave_acesso='V'*44, numero='1', serie='1', data_emissao=timezone.now(), emitente_nome='E', destinatario_nome='D', valor_produtos=0, valor_nota=0)
+        nfe = NFe.objects.create(chave_acesso='V'*44, numero='1', serie='1', data_emissao=timezone.now(), emitente_nome='E', destinatario_nome='D', valor_produtos=0, valor_nota=0, tenant=self.tenant)
         item = ItemNFe.objects.create(nfe=nfe, numero_item=1, codigo_produto='DIV-A', descricao='Produto Teste', cfop='5102', unidade_comercial='UN', quantidade_comercial=Decimal('10'), valor_unitario_comercial=Decimal('9.00'), valor_produto=Decimal('90.00'))
 
         # Confirm estoque (creates original movimentacao quantity 10)
@@ -40,7 +42,7 @@ class DivergenceReflectTests(TestCase):
         self.user.save()
 
         prod = Produto.objects.create(codigo='DIV-B', nome='ProdDivB', unidade='UN', quantidade_estoque=0)
-        nfe = NFe.objects.create(chave_acesso='W'*44, numero='1', serie='1', data_emissao=timezone.now(), emitente_nome='E', destinatario_nome='D', valor_produtos=0, valor_nota=0)
+        nfe = NFe.objects.create(chave_acesso='W'*44, numero='1', serie='1', data_emissao=timezone.now(), emitente_nome='E', destinatario_nome='D', valor_produtos=0, valor_nota=0, tenant=self.tenant)
         item = ItemNFe.objects.create(nfe=nfe, numero_item=1, codigo_produto='DIV-B', descricao='Produto Teste', cfop='5102', unidade_comercial='UN', quantidade_comercial=Decimal('10'), valor_unitario_comercial=Decimal('9.00'), valor_produto=Decimal('90.00'))
 
         # Confirm estoque
