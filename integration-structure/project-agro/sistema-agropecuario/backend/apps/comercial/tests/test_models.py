@@ -10,7 +10,7 @@ User = get_user_model()
 
 class ClienteModelTest(TestCase):
     def setUp(self):
-        self.user = User.objects.create_user(username='testuser', password='12345')
+        self.user = User.objects.create_user(username='testuser', password='12345', is_staff=False)
 
     def test_cliente_creation(self):
         cliente = Cliente.objects.create(
@@ -25,7 +25,7 @@ class ClienteModelTest(TestCase):
 
 class CargaViagemModelTest(TestCase):
     def setUp(self):
-        self.user = User.objects.create_user(username='testuser', password='12345')
+        self.user = User.objects.create_user(username='testuser', password='12345', is_staff=False)
         self.proprietario = Proprietario.objects.create(
             nome="Proprietário Teste",
             cpf_cnpj="12345678901"
@@ -73,7 +73,7 @@ class CargaViagemModelTest(TestCase):
 
 class SiloBolsaModelTest(TestCase):
     def setUp(self):
-        self.user = User.objects.create_user(username='testuser', password='12345')
+        self.user = User.objects.create_user(username='testuser', password='12345', is_staff=False)
         self.proprietario = Proprietario.objects.create(
             nome="Proprietário Teste",
             cpf_cnpj="12345678901"
@@ -109,7 +109,7 @@ class SiloBolsaModelTest(TestCase):
 
 class VendaColheitaModelTest(TestCase):
     def setUp(self):
-        self.user = User.objects.create_user(username='testuser', password='12345')
+        self.user = User.objects.create_user(username='testuser', password='12345', is_staff=False)
         self.proprietario = Proprietario.objects.create(
             nome="Proprietário Teste",
             cpf_cnpj="12345678901"
