@@ -40,13 +40,13 @@ class TenantTestCase(TestCase):
 class ColheitaTransferTests(TenantTestCase):
     def setUp(self):
         super().setUp()
-        self.cultura = Cultura.objects.create(nome='Soja')
-        self.plantio = Plantio.objects.create(fazenda=self.fazenda, cultura=self.cultura, data_plantio='2025-01-01')
-        self.area = Area.objects.create(proprietario=self.proprietario, fazenda=self.fazenda, name='Area')
-        self.talhao = Talhao.objects.create(area=self.area, name='T1', area_size=10)
+        self.cultura = Cultura.objects.create(nome='Soja', tenant=self.tenant)
+        self.plantio = Plantio.objects.create(fazenda=self.fazenda, cultura=self.cultura, data_plantio='2025-01-01', tenant=self.tenant)
+        self.area = Area.objects.create(proprietario=self.proprietario, fazenda=self.fazenda, name='Area', tenant=self.tenant)
+        self.talhao = Talhao.objects.create(area=self.area, name='T1', area_size=10, tenant=self.tenant)
         self.plantio.talhoes.add(self.talhao)
 
-        self.colheita = Colheita.objects.create(plantio=self.plantio, data_colheita='2025-12-01', quantidade_colhida=1000)
+        self.colheita = Colheita.objects.create(plantio=self.plantio, data_colheita='2025-12-01', quantidade_colhida=1000, tenant=self.tenant)
 
     def test_start_item(self):
         url = f'/api/agricultura/colheitas/{self.colheita.id}/start-item/'
