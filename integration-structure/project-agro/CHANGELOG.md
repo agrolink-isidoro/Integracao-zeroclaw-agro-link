@@ -2,6 +2,29 @@
 
 All notable changes to this project are documented in this file.
 
+## 2026-03-19 — Fazendas: Suporte Multi-Geometry em KML (Tarefa 1.1)
+
+### ✨ Features
+- **feat(fazendas/serializers)**: Multi-Placemark KML support para Area e Talhao:
+  - `AreaSerializer._process_kml_file()` — Novo método que coleta TODOS os Placemarks de KML (antes retornava apenas primeiro)
+  - `TalhaoSerializer._process_kml_file()` — Novo método identico (DRY principle)
+  - Lógica: Se 1 geometria retorna POLYGON; se múltiplas combina em MULTIPOLYGON WKT
+  - Backwards compatible com KML single-Placemark (sem mudança de formato)
+  - Logging detail leia de extração e combinação de geometrias
+  
+- **feat(fazendas/tests)**: Novo teste TDD para multi-Placemark:
+  - `test_create_area_with_multi_placemark_kml()` — Valida que 2-Placemark KML cria Area com geometria multi-polygon
+  - Happy path: POST /api/fazendas/areas/ com 2-Placemark .kml → HTTP 201 + geom contém ambos polígonos
+
+### 🔧 Refactor
+- **refactor(TalhaoSerializer)**: `create()` e `update()` agora usam `_proces kml_file()` (elimina duplicação inline)
+- **docs(fazendas)**: Novo documento `IMPLEMENTATION_KML_MULTIGEOMETRY.md` descreve arquitetura, fluxo, decisões técnicas
+
+### 📍 Branch
+- `feat/kml-multi-placemark-support`
+
+---
+
 ## 2026-02-17 — Fiscal: Automações NFe ↔ Financeiro/Comercial/Estoque
 
 ### ✨ Features

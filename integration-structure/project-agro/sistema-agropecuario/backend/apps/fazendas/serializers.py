@@ -129,6 +129,64 @@ class TalhaoSerializer(serializers.ModelSerializer):
         wkt = f"POLYGON(({x_min} {y_min}, {x_max} {y_min}, {x_max} {y_max}, {x_min} {y_max}, {x_min} {y_min}))"
         return wkt
     
+    def _process_kml_file(self, kml_file):
+        """Processa arquivo KML e extrai geometria WKT (suporta múltiplos Placemarks)."""
+        if hasattr(kml_file, 'seek'):
+            kml_file.seek(0)
+        
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.kml', mode='wb') as tmp_file:
+            for chunk in kml_file.chunks():
+                tmp_file.write(chunk)
+            tmp_file_path = tmp_file.name
+        
+        try:
+            logger.info(f"Processando KML de Talhão: {tmp_file_path}")
+            ds = DataSource(tmp_file_path)
+            
+            # Coleta TODAS as geometrias do KML
+            geometries = []
+            for layer in ds:
+                for feature in layer:
+                    if feature.geom:
+                        geom_wkt = feature.geom.wkt
+                        geom_type = feature.geom.geom_type
+                        logger.info(f"Geometria extraída: {geom_type}")
+                        geometries.append(geom_wkt)
+            
+            if not geometries:
+                raise serializers.ValidationError("Nenhuma geometria encontrada no arquivo KML")
+            
+            # Se houver apenas 1 geometria, retorna como está (backwards compatibility)
+            if len(geometries) == 1:
+                return geometries[0]
+            
+            # Se houver múltiplas geometrias, combina em MULTIPOLYGON
+            polygon_coords = []
+            for geom_wkt in geometries:
+                if "POLYGON" in geom_wkt.upper():
+                    geom_upper = geom_wkt.upper()
+                    if "MULTIPOLYGON" in geom_upper:
+                        start = geom_wkt.find("(((") + 1
+                        end = geom_wkt.rfind(")")
+                        if start > 0 and end > start:
+                            polygon_coords.append(geom_wkt[start:end+1])
+                    else:
+                        start = geom_wkt.find("((")
+                        end = geom_wkt.rfind("))")
+                        if start >= 0 and end > start:
+                            polygon_coords.append(geom_wkt[start:end+2])
+            
+            if polygon_coords:
+                multi_wkt = f"MULTIPOLYGON ({','.join(polygon_coords)})"
+                logger.info(f"Múltiplas geometrias combinadas em MULTIPOLYGON ({len(geometries)} features)")
+                return multi_wkt
+            else:
+                logger.warning("Falha ao combinar múltiplas geometrias, retornando primeira")
+                return geometries[0]
+        finally:
+            if os.path.exists(tmp_file_path):
+                os.unlink(tmp_file_path)
+    
     def create(self, validated_data):
         kml_file = validated_data.pop('kml_file', None)
         area_size_manual = validated_data.pop('area_size_manual', None)
@@ -136,33 +194,7 @@ class TalhaoSerializer(serializers.ModelSerializer):
         # Se forneceu KML, processar
         if kml_file:
             try:
-                from django.contrib.gis.gdal import DataSource
-                import tempfile
-                import os
-                
-                with tempfile.NamedTemporaryFile(delete=False, suffix='.kml', mode='wb') as tmp_file:
-                    for chunk in kml_file.chunks():
-                        tmp_file.write(chunk)
-                    tmp_file_path = tmp_file.name
-                
-                try:
-                    ds = DataSource(tmp_file_path)
-                    geom_wkt = None
-                    for layer in ds:
-                        for feature in layer:
-                            if feature.geom:
-                                geom_wkt = feature.geom.wkt
-                                break
-                        if geom_wkt:
-                            break
-                    
-                    if geom_wkt:
-                        validated_data['geom'] = geom_wkt
-                    else:
-                        raise serializers.ValidationError("Nenhuma geometria encontrada no arquivo KML")
-                finally:
-                    if os.path.exists(tmp_file_path):
-                        os.unlink(tmp_file_path)
+                validated_data['geom'] = self._process_kml_file(kml_file)
             except serializers.ValidationError:
                 raise
             except Exception as e:
@@ -183,33 +215,7 @@ class TalhaoSerializer(serializers.ModelSerializer):
         
         if kml_file:
             try:
-                from django.contrib.gis.gdal import DataSource
-                import tempfile
-                import os
-                
-                with tempfile.NamedTemporaryFile(delete=False, suffix='.kml', mode='wb') as tmp_file:
-                    for chunk in kml_file.chunks():
-                        tmp_file.write(chunk)
-                    tmp_file_path = tmp_file.name
-                
-                try:
-                    ds = DataSource(tmp_file_path)
-                    geom_wkt = None
-                    for layer in ds:
-                        for feature in layer:
-                            if feature.geom:
-                                geom_wkt = feature.geom.wkt
-                                break
-                        if geom_wkt:
-                            break
-                    
-                    if geom_wkt:
-                        validated_data['geom'] = geom_wkt
-                    else:
-                        raise serializers.ValidationError("Nenhuma geometria encontrada no arquivo KML")
-                finally:
-                    if os.path.exists(tmp_file_path):
-                        os.unlink(tmp_file_path)
+                validated_data['geom'] = self._process_kml_file(kml_file)
             except serializers.ValidationError:
                 raise
             except Exception as e:
@@ -266,7 +272,7 @@ class AreaSerializer(GeoFeatureModelSerializer):
         return wkt
     
     def _process_kml_file(self, kml_file):
-        """Processa arquivo KML e extrai geometria WKT."""
+        """Processa arquivo KML e extrai geometria WKT (suporta múltiplos Placemarks)."""
         # Reset file pointer to beginning in case it was read before
         if hasattr(kml_file, 'seek'):
             kml_file.seek(0)
@@ -280,15 +286,55 @@ class AreaSerializer(GeoFeatureModelSerializer):
             logger.info(f"Processando KML de Área: {tmp_file_path}")
             ds = DataSource(tmp_file_path)
             
-            # Itera sobre layers e features para encontrar geometria
+            # Coleta TODAS as geometrias do KML
+            geometries = []
             for layer in ds:
                 for feature in layer:
                     if feature.geom:
                         geom_wkt = feature.geom.wkt
-                        logger.info(f"Geometria extraída: {feature.geom.geom_type}")
-                        return geom_wkt
+                        geom_type = feature.geom.geom_type
+                        logger.info(f"Geometria extraída: {geom_type}")
+                        geometries.append(geom_wkt)
             
-            raise serializers.ValidationError("Nenhuma geometria encontrada no arquivo KML")
+            if not geometries:
+                raise serializers.ValidationError("Nenhuma geometria encontrada no arquivo KML")
+            
+            # Se houver apenas 1 geometria, retorna como está (backwards compatibility)
+            if len(geometries) == 1:
+                return geometries[0]
+            
+            # Se houver múltiplas geometrias, combina em MULTIPOLYGON
+            # Extrai apenas coordenadas dos polígonos (sem "POLYGON (" e closes)
+            polygon_coords = []
+            for geom_wkt in geometries:
+                # Parse WKT to extract polygon rings
+                # Format: POLYGON ((coords)) ou MULTIPOLYGON (((coords)), ((coords)))
+                if "POLYGON" in geom_wkt.upper():
+                    # Extrai tudo entre primeiros parênteses
+                    # "POLYGON ((x y, x y, ...))" → "((x y, x y, ...))"
+                    geom_upper = geom_wkt.upper()
+                    if "MULTIPOLYGON" in geom_upper:
+                        # Already multi, extract relative part
+                        start = geom_wkt.find("(((") + 1  # Skip first paren
+                        end = geom_wkt.rfind(")")
+                        if start > 0 and end > start:
+                            polygon_coords.append(geom_wkt[start:end+1])
+                    else:
+                        # Single polygon, extract coords structure
+                        start = geom_wkt.find("((")
+                        end = geom_wkt.rfind("))")
+                        if start >= 0 and end > start:
+                            polygon_coords.append(geom_wkt[start:end+2])
+            
+            if polygon_coords:
+                # Constrói MULTIPOLYGON
+                multi_wkt = f"MULTIPOLYGON ({','.join(polygon_coords)})"
+                logger.info(f"Múltiplas geometrias combinadas em MULTIPOLYGON ({len(geometries)} features)")
+                return multi_wkt
+            else:
+                # Fallback: if parsing failed, return first geometry
+                logger.warning("Falha ao combinar múltiplas geometrias, retornando primeira")
+                return geometries[0]
         finally:
             if os.path.exists(tmp_file_path):
                 os.unlink(tmp_file_path)
