@@ -90,15 +90,20 @@
 - [x] **4.1** Garantir que o `tasks/.env.example` (e `.env.example` principal) documente claramente `VITE_GOOGLE_MAPS_API_KEY`.
   - **✅ COMPLETO:** Configuração de exemplo documentada
 
-- [ ] **4.2** Adicionar pequeno trecho na documentação de setup (README / docs) explicando onde colocar a chave e como rodar localmente (`docker compose up` + `.env`).
-  - [ ] Criar/atualizar `docs/GOOGLE_MAPS_SETUP.md` com instruções de:
+- [x] **4.2** Adicionar pequeno trecho na documentação de setup (README / docs) explicando onde colocar a chave e como rodar localmente (`docker compose up` + `.env`).
+  - [x] Criar/atualizar `docs/GOOGLE_MAPS_SETUP.md` com instruções de:
     - Como obter Google Maps API Key
     - Onde colocar em `.env` (VITE_GOOGLE_MAPS_API_KEY)
     - Como rodar `docker compose up` com .env
     - Troubleshooting comum (API key errada, CORS, etc.)
     - Limites de uso e pricing
-  - [ ] Referenciar no README principal
-  - **⏳ PENDING:** Próxima tarefa
+  - [x] Referenciar no README principal
+  - **✅ COMPLETO (19/03/2026):** 
+    - Arquivo GOOGLE_MAPS_SETUP.md criado (323 linhas, production-ready)
+    - .env.example atualizado com VITE_GOOGLE_MAPS_API_KEY
+    - README.md atualizado com referência ao Google Maps
+    - Checklist de setup incluído
+  - Commit: `9975b4f`
 
 - [x] **4.3** Confirmar `.gitignore` ignora o `.env` local (já está feito).
   - **✅ COMPLETO:** .env já ignorado no .gitignore
@@ -121,14 +126,16 @@
 | **3.2** | Frontend Filter + Default | ✅ 100% | 5/5 | 1 |
 | **3.3** | E2E Tests (Playwright) | ✅ 100% | 3/3 | 1 |
 | **4.1** | Env Config | ✅ 100% | — | — |
-| **4.2** | Documentation Setup | ⏳ 0% | — | — |
+| **4.2** | Documentation Setup | ✅ 100% | — | 2 |
 | **4.3** | .gitignore Review | ✅ 100% | — | — |
 
 ### Totais
-- **Fases Completadas:** 7 de 8 (87.5%)
+- **Fases Completadas:** 8 de 8 (100%) 🎉
 - **Testes Criados:** 17 testes (todos PASSING ✅)
-- **Commits:** 10 meaningful commits
-- **Documentação:** 5 arquivos consolidados
+- **Commits:** 12 meaningful commits
+- **Documentação:** 8 arquivos (consolidados + setup guides)
 
-### Próximo Passo
-⏳ **Task 4.2: Documentation Setup** — Criar guia de setup com Google Maps API Key
+### 🎯 Próximo Passo
+✅ **TODAS AS TAREFAS COMPLETADAS!**  
+→ Pronto para code review e merge para `main`  
+→ Deploy em staging/production
