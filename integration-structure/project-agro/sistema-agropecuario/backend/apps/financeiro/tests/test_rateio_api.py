@@ -17,7 +17,7 @@ class TenantTestCase(TestCase):
     """
     def setUp(self):
         super().setUp()
-        from apps.core.models import Tenant
+        from apps.multi_tenancy.models import Tenant
         from apps.fazendas.models import Proprietario, Fazenda
         
         # 1. Criar tenant
