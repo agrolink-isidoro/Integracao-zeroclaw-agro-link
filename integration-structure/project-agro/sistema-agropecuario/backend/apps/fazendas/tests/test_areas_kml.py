@@ -2,7 +2,7 @@ import pytest
 from rest_framework.test import APIClient
 from django.core.files.uploadedfile import SimpleUploadedFile
 
-from apps.fazendas.models import Area, Fazenda, Proprietario
+from apps.fazendas.models import Area, Fazenda, Proprietario, Talhao
 
 
 @pytest.mark.django_db
