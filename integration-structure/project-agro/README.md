@@ -169,6 +169,15 @@ VITE_API_BASE='http://localhost:8001/api/' npm run dev -- --host 0.0.0.0 --port 
 Integração Frontend↔Backend:
 - O cliente usa a variável de ambiente Vite `VITE_API_BASE` para apontar a API. Quando o frontend roda dentro de Docker Compose, o proxy usa o serviço `backend` automaticamente. Quando roda localmente, defina `VITE_API_BASE='http://localhost:8001/api/'` para direcionar ao backend no host.
 
+### 🗺️ Google Maps Configuration
+
+O mapa interativo de talhões (página `/fazendas/mapa`) requer uma chave de API do Google Maps. **Ver:** [GOOGLE_MAPS_SETUP.md](sistema-agropecuario/docs/GOOGLE_MAPS_SETUP.md)
+
+**Quick setup:**
+1. Obtenha chave em [Google Cloud Console](https://console.cloud.google.com/)
+2. Adicione a `VITE_GOOGLE_MAPS_API_KEY` no arquivo `.env` (ver `.env.example`)
+3. Restrinja a chave a domínios: `localhost:5173` (dev) + seu domínio (produção)
+4. Não commite a chave no git (`.env` está no `.gitignore`)
 
 ---
 
