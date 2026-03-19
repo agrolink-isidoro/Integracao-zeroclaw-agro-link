@@ -2,14 +2,21 @@ from django.test import TestCase
 from apps.estoque.models import Produto, Lote, MovimentacaoEstoque, MovimentacaoStatement, ProdutoAuditoria
 from apps.fazendas.models import Fazenda
 from apps.core.models import CustomUser
+from apps.multi_tenancy.models import Tenant
 
 
 class MovimentacaoStatementTests(TestCase):
+    def setUp(self):
+        self.tenant = Tenant.objects.create(
+            nome='test_tenant_estoque_statements',
+            slug='test-tenant-estoque-statements'
+        )
+    
     def test_movimentacao_creates_statement_and_audit(self):
-        user = CustomUser.objects.create_user(username='tester', password='test')
-        proprietario = Fazenda._meta.get_field('proprietario').related_model.objects.create(nome='Prop X', cpf_cnpj='00011122233')
-        fazenda = Fazenda.objects.create(proprietario=proprietario, name='Fazenda A', matricula='X')
-        produto = Produto.objects.create(codigo='T-1', nome='Prod Teste', unidade='L', quantidade_estoque=10)
+        user = CustomUser.objects.create_user(username='tester', password='test', tenant=self.tenant)
+        proprietario = Fazenda._meta.get_field('proprietario').related_model.objects.create(nome='Prop X', cpf_cnpj='00011122233', tenant=self.tenant)
+        fazenda = Fazenda.objects.create(proprietario=proprietario, name='Fazenda A', matricula='X', tenant=self.tenant)
+        produto = Produto.objects.create(codigo='T-1', nome='Prod Teste', unidade='L', quantidade_estoque=10, tenant=self.tenant)
 
         mov = MovimentacaoEstoque.objects.create(
             produto=produto,
@@ -19,7 +26,8 @@ class MovimentacaoStatementTests(TestCase):
             valor_unitario=2.0,
             documento_referencia='TEST-01',
             criado_por=user,
-            fazenda=fazenda
+            fazenda=fazenda,
+            tenant=self.tenant
         )
 
         # Refresh from DB

@@ -11,6 +11,7 @@ from django.contrib.auth import get_user_model
 from apps.fiscal.models import NFe, ItemNFe
 from apps.estoque.models import Produto
 from apps.estoque.utils import ProdutoNFeValidator, FornecedorManager
+from apps.multi_tenancy.models import Tenant
 
 User = get_user_model()
 
@@ -20,10 +21,15 @@ class ProdutoNFeValidationTests(TestCase):
 
     def setUp(self):
         """Configurar dados de teste"""
+        self.tenant = Tenant.objects.create(
+            nome='test_tenant_estoque_validacoes',
+            slug='test-tenant-estoque-validacoes'
+        )
         self.user = User.objects.create_user(
             username='testuser',
             email='test@example.com',
-            password='testpass123'
+            password='testpass123',
+            tenant=self.tenant
         )
 
         # Criar NFE de exemplo
