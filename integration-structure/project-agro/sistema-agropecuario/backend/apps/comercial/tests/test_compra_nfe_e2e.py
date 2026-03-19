@@ -14,9 +14,14 @@ from pathlib import Path
 
 class CompraNFeE2ETest(TestCase):
     def setUp(self):
+        from apps.core.models import Tenant
         User = get_user_model()
-        self.user = User.objects.create_user(username='e2e_user', password='p', is_staff=False)
-        self.staff = User.objects.create_user(username='staff', password='p', is_staff=True)
+        
+        # Create tenant
+        self.tenant = Tenant.objects.create(nome='test_tenant_e2e', slug='test-tenant-e2e')
+        
+        self.user = User.objects.create_user(username='e2e_user', password='p', is_staff=False, tenant=self.tenant)
+        self.staff = User.objects.create_user(username='staff', password='p', is_staff=True, tenant=self.tenant)
         self.client = APIClient()
         self.client.force_authenticate(self.staff)
 
@@ -28,9 +33,9 @@ class CompraNFeE2ETest(TestCase):
 
         xml_content = xml_path.read_text(encoding='utf-8')
 
-        fornecedor = Fornecedor.objects.create(nome='Fornecedor E2E', cpf_cnpj='52251004621697')
+        fornecedor = Fornecedor.objects.create(nome='Fornecedor E2E', cpf_cnpj='52251004621697', tenant=self.tenant, criado_por=self.user)
 
-        compra = Compra.objects.create(fornecedor=fornecedor, data='2025-12-01', valor_total='100.00', criado_por=self.user, xml_content=xml_content)
+        compra = Compra.objects.create(fornecedor=fornecedor, data='2025-12-01', valor_total='100.00', criado_por=self.user, xml_content=xml_content, tenant=self.tenant)
         compra.refresh_from_db()
         self.assertIsNotNone(compra.nfe)
         nfe = NFe.objects.get(pk=compra.nfe.pk)

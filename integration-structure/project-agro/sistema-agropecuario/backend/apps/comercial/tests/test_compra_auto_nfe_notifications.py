@@ -14,12 +14,15 @@ from apps.comercial.models import Fornecedor
 
 
 def make_fornecedor_missing_fields(django_user_model):
+    from apps.core.models import Tenant
     # create a Fornecedor with missing email and address fields
-    user = django_user_model.objects.create(username='owner')
+    tenant = Tenant.objects.create(nome='test_tenant_compra_nfe', slug='test-tenant-compra-nfe')
+    user = django_user_model.objects.create(username='owner', tenant=tenant)
     fornecedor = Fornecedor.objects.create(
         nome='Fornecedor Teste',
         cpf_cnpj='00000000000000',
         criado_por=user,
+        tenant=tenant,
     )
     # clear optional fields
     fornecedor.email = ''
@@ -52,7 +55,7 @@ def test_compra_creates_notificacao_and_sends_email_when_fornecedor_incomplete(c
     """
 
     # Create Compra instance but do not save yet so we can trigger post_save under patched context
-    compra = Compra(data=timezone.now().date(), valor_total=0, xml_content=xml, fornecedor=fornecedor)
+    compra = Compra(data=timezone.now().date(), valor_total=0, xml_content=xml, fornecedor=fornecedor, tenant=fornecedor.tenant)
 
     # Patch NFe parsing helper to avoid needing full ICMSTot in minimal XML and patch email functions
     with patch('apps.fiscal.views.NFeViewSet._extract_nfe_data', return_value={
@@ -95,8 +98,10 @@ def test_compra_creates_notificacao_and_sends_email_when_fornecedor_incomplete(c
 
 def test_compra_sends_email_to_fornecedor_when_email_present(django_user_model):
     from apps.comercial.models import Fornecedor
+    from apps.core.models import Tenant
 
-    user = django_user_model.objects.create(username='owner2')
+    tenant = Tenant.objects.create(nome='test_tenant_compra_email', slug='test-tenant-compra-email')
+    user = django_user_model.objects.create(username='owner2', tenant=tenant)
     fornecedor = Fornecedor.objects.create(
         nome='Fornecedor Com Email',
         cpf_cnpj='22222222222222',
@@ -106,6 +111,7 @@ def test_compra_sends_email_to_fornecedor_when_email_present(django_user_model):
         endereco='',
         cidade='',
         estado='',
+        tenant=tenant,
     )
 
     xml = """<?xml version='1.0' encoding='UTF-8'?>
@@ -124,7 +130,7 @@ def test_compra_sends_email_to_fornecedor_when_email_present(django_user_model):
     </nfeProc>
     """
 
-    compra = Compra(data=timezone.now().date(), valor_total=0, xml_content=xml, fornecedor=fornecedor)
+    compra = Compra(data=timezone.now().date(), valor_total=0, xml_content=xml, fornecedor=fornecedor, tenant=tenant)
 
     with patch('apps.fiscal.views.NFeViewSet._extract_nfe_data', return_value={
         'chave_acesso': '1'*44,

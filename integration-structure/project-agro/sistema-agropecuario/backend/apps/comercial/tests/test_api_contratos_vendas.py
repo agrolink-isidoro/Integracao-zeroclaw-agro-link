@@ -34,16 +34,19 @@ def test_create_and_list_contrato():
 
 @pytest.mark.django_db
 def test_vendas_compras_list_and_create_compra():
-    user = User.objects.create_user(username='u2', password='pass')
-    fornecedor = Fornecedor.objects.create(nome='F', tipo_pessoa='pj', cpf_cnpj='000', criado_por=user)
+    from apps.core.models import Tenant
+    
+    tenant = Tenant.objects.create(nome='test_tenant_vendas_compras', slug='test-tenant-vendas-compras')
+    user = User.objects.create_user(username='u2', password='pass', tenant=tenant)
+    fornecedor = Fornecedor.objects.create(nome='F', tipo_pessoa='pj', cpf_cnpj='000', criado_por=user, tenant=tenant)
     client = APIClient()
     client.force_authenticate(user=user)
 
     # create a compra directly
-    Compra.objects.create(fornecedor=fornecedor, data='2025-01-02', valor_total='200.00', criado_por=user)
+    Compra.objects.create(fornecedor=fornecedor, data='2025-01-02', valor_total='200.00', criado_por=user, tenant=tenant)
 
     # create a venda via model (cliente required)
-    cliente = Cliente.objects.create(nome='C', tipo_pessoa='pj', cpf_cnpj='111', criado_por=user)
+    cliente = Cliente.objects.create(nome='C', tipo_pessoa='pj', cpf_cnpj='111', criado_por=user, tenant=tenant)
     # create a VendaColheita via model (requires valid origem) - skip creation here for simplicity
 
     resp = client.get('/api/comercial/vendas-compras/')

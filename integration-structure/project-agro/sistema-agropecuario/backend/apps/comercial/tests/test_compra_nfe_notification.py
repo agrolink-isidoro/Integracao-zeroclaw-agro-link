@@ -7,8 +7,13 @@ from pathlib import Path
 
 class CompraNFeNotificationTest(TestCase):
     def setUp(self):
+        from apps.core.models import Tenant
         User = get_user_model()
-        self.user = User.objects.create_user(username='compra_user', password='p', is_staff=False)
+        
+        # Create tenant
+        self.tenant = Tenant.objects.create(nome='test_tenant_compra', slug='test-tenant-compra')
+        
+        self.user = User.objects.create_user(username='compra_user', password='p', is_staff=False, tenant=self.tenant)
 
         xml_path = Path(__file__).parent.parent.parent / 'fiscal' / 'tests' / 'fixtures' / '52251004621697000179550010000100511374580195.xml'
         if not xml_path.exists():
@@ -16,8 +21,8 @@ class CompraNFeNotificationTest(TestCase):
         self.xml_content = xml_path.read_text(encoding='utf-8')
 
     def test_notification_created_for_incomplete_fornecedor(self):
-        fornecedor = Fornecedor.objects.create(nome='Fornecedor Incompleto', cpf_cnpj='52251004621697', criado_por=self.user, email='', endereco='', cidade='', cep='')
-        compra = Compra.objects.create(fornecedor=fornecedor, data='2025-12-01', valor_total='100.00', criado_por=self.user, xml_content=self.xml_content)
+        fornecedor = Fornecedor.objects.create(nome='Fornecedor Incompleto', cpf_cnpj='52251004621697', criado_por=self.user, email='', endereco='', cidade='', cep='', tenant=self.tenant)
+        compra = Compra.objects.create(fornecedor=fornecedor, data='2025-12-01', valor_total='100.00', criado_por=self.user, xml_content=self.xml_content, tenant=self.tenant)
         compra.refresh_from_db()
 
         # Notificação in-app deve ter sido criada para o usuário que criou o fornecedor
@@ -25,8 +30,8 @@ class CompraNFeNotificationTest(TestCase):
 
     def test_email_sent_to_fornecedor_when_email_present(self):
         mail.outbox = []
-        fornecedor = Fornecedor.objects.create(nome='Fornecedor Email', cpf_cnpj='52251004621698', criado_por=self.user, email='supplier@example.com', endereco='', cidade='', cep='')
-        compra = Compra.objects.create(fornecedor=fornecedor, data='2025-12-01', valor_total='100.00', criado_por=self.user, xml_content=self.xml_content)
+        fornecedor = Fornecedor.objects.create(nome='Fornecedor Email', cpf_cnpj='52251004621698', criado_por=self.user, email='supplier@example.com', endereco='', cidade='', cep='', tenant=self.tenant)
+        compra = Compra.objects.create(fornecedor=fornecedor, data='2025-12-01', valor_total='100.00', criado_por=self.user, xml_content=self.xml_content, tenant=self.tenant)
         compra.refresh_from_db()
 
         # Deve ter sido enviado e-mail ao fornecedor
