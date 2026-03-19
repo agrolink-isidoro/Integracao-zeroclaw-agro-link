@@ -9,7 +9,7 @@ User = get_user_model()
 
 class HarvestSessionActionTests(TestCase):
     def setUp(self):
-        self.user = User.objects.create_user(username='action_tester')
+        self.user = User.objects.create_user(username='action_tester', is_staff=False)
         self.client = APIClient()
         self.client.force_authenticate(self.user)
 

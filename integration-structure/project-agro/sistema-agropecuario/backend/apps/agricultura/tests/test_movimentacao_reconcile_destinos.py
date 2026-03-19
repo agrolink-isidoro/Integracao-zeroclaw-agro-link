@@ -9,7 +9,7 @@ User = get_user_model()
 
 class MovimentacaoReconcileDestinosTests(TestCase):
     def setUp(self):
-        self.user = User.objects.create_user(username='tester')
+        self.user = User.objects.create_user(username='tester', is_staff=False)
         self.client = APIClient()
         self.client.force_authenticate(self.user)
 

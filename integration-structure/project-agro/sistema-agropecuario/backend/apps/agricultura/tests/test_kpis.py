@@ -18,7 +18,7 @@ class SafraKPIsAPITests(TestCase):
     """Testa GET /api/agricultura/plantios/{id}/kpis/"""
 
     def setUp(self):
-        self.user = User.objects.create_user(username='kpi_user', password='test123')
+        self.user = User.objects.create_user(username='kpi_user', password='test123', is_staff=False)
         self.client = APIClient()
         self.client.force_authenticate(user=self.user)
 

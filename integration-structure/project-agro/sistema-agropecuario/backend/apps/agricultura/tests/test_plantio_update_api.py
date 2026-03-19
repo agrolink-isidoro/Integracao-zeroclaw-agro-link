@@ -11,7 +11,7 @@ User = get_user_model()
 
 class PlantioUpdateAPITest(TestCase):
     def setUp(self):
-        self.user = User.objects.create_user(username='apiuser')
+        self.user = User.objects.create_user(username='apiuser', is_staff=False)
         self.client = APIClient()
         self.client.force_authenticate(self.user)
 

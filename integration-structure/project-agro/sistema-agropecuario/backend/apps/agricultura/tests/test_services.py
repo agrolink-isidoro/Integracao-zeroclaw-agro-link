@@ -13,7 +13,7 @@ class ServicesTests(TestCase):
         self.area = Area.objects.create(proprietario=self.proprietario, fazenda=self.fazenda, name='A', geom='POINT(0 0)')
         self.talhao = Talhao.objects.create(area=self.area, name='Talhao 1', area_size=10)
         self.cultura = Cultura.objects.create(nome='Cultura Teste')
-        self.user = User.objects.create_user(username='u')
+        self.user = User.objects.create_user(username='u', is_staff=False)
 
     def test_calcular_custos_plantio(self):
         plantio = Plantio.objects.create(cultura=self.cultura, data_plantio='2025-01-01', criado_por=self.user)

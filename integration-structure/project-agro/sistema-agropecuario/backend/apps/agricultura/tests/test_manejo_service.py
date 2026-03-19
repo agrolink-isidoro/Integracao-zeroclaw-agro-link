@@ -13,7 +13,7 @@ class ManejoServiceTests(TestCase):
         self.fazenda = Fazenda.objects.create(proprietario=self.proprietario, name='Fazenda Teste', matricula='M-001')
         self.area = Area.objects.create(proprietario=self.proprietario, fazenda=self.fazenda, name='A', geom='POINT(0 0)')
         self.talhao = Talhao.objects.create(area=self.area, name='Talhao 1', area_size=10)
-        self.user = User.objects.create_user(username='u')
+        self.user = User.objects.create_user(username='u', is_staff=False)
         self.produto = Produto.objects.create(codigo='P1', nome='Semente X', unidade='kg', custo_unitario=5)
 
     def test_calcular_custo_manejo_with_products(self):
