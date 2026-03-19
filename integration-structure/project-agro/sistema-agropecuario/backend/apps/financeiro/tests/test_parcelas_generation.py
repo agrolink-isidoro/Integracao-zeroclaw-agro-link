@@ -4,17 +4,22 @@ from django.utils import timezone
 from apps.financeiro.models import Financiamento, Emprestimo, ParcelaFinanciamento, ParcelaEmprestimo
 from apps.financeiro.services import gerar_parcelas_financiamento, gerar_parcelas_emprestimo
 from django.contrib.auth import get_user_model
+from apps.multi_tenancy.models import Tenant
 
 User = get_user_model()
 
 
 class ParcelasGenerationTests(TestCase):
     def setUp(self):
-        self.user = User.objects.create_user(username='tester')
+        self.tenant = Tenant.objects.create(
+            nome='test_tenant_financeiro_parcelas',
+            slug='test-tenant-financeiro-parcelas'
+        )
+        self.user = User.objects.create_user(username='tester', tenant=self.tenant)
         from apps.comercial.models import InstituicaoFinanceira
         from apps.financeiro.models import ContaBancaria
-        self.instituicao = InstituicaoFinanceira.objects.create(codigo_bacen='000', nome='Banco Test')
-        self.conta = ContaBancaria.objects.create(banco='Banco Local', agencia='0001', conta='1111')
+        self.instituicao = InstituicaoFinanceira.objects.create(codigo_bacen='000', nome='Banco Test', tenant=self.tenant)
+        self.conta = ContaBancaria.objects.create(banco='Banco Local', agencia='0001', conta='1111', tenant=self.tenant)
 
     def test_financiamento_calculo_price_and_sac(self):
         c = self.conta
@@ -32,7 +37,8 @@ class ParcelasGenerationTests(TestCase):
             data_primeiro_vencimento=timezone.now().date(),
             criado_por=self.user,
             instituicao_financeira=self.instituicao,
-            conta_destino=c
+            conta_destino=c,
+            tenant=self.tenant
         )
 
         parcelas_price = f.calcular_parcelas_price()
@@ -69,7 +75,8 @@ class ParcelasGenerationTests(TestCase):
             data_primeiro_vencimento=timezone.now().date(),
             criado_por=self.user,
             instituicao_financeira=self.instituicao,
-            conta_destino=self.conta
+            conta_destino=self.conta,
+            tenant=self.tenant
         )
 
         parcelas = gerar_parcelas_financiamento(f)
@@ -92,7 +99,8 @@ class ParcelasGenerationTests(TestCase):
             data_contratacao=timezone.now().date(),
             data_primeiro_vencimento=timezone.now().date(),
             criado_por=self.user,
-            instituicao_financeira=self.instituicao
+            instituicao_financeira=self.instituicao,
+            tenant=self.tenant
         )
 
         parcelas = gerar_parcelas_emprestimo(e)

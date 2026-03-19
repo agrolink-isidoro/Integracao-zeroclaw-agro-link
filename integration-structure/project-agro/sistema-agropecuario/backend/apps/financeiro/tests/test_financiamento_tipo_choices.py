@@ -1,15 +1,20 @@
 from django.test import TestCase
 from rest_framework.test import APIClient
 from apps.comercial.models import InstituicaoFinanceira
+from apps.multi_tenancy.models import Tenant
 
 
 class FinanciamentoTipoChoicesTest(TestCase):
     def setUp(self):
+        self.tenant = Tenant.objects.create(
+            nome='test_tenant_financeiro_tipo_choices',
+            slug='test-tenant-financeiro-tipo-choices'
+        )
         self.client = APIClient()
         # create admin user and login via token obtain
         from django.contrib.auth import get_user_model
         User = get_user_model()
-        self.user = User.objects.create_superuser('testadmin', 'test@example.com', 'pass')
+        self.user = User.objects.create_superuser('testadmin', 'test@example.com', 'pass', tenant=self.tenant)
         # get tokens
         resp = self.client.post('/api/auth/login/', {'username': 'testadmin', 'password': 'pass'}, format='json')
         self.assertEqual(resp.status_code, 200)
@@ -17,7 +22,7 @@ class FinanciamentoTipoChoicesTest(TestCase):
         self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {token}')
 
         # create institution
-        self.inst = InstituicaoFinanceira.objects.create(codigo_bacen='999', nome='TEST BANK')
+        self.inst = InstituicaoFinanceira.objects.create(codigo_bacen='999', nome='TEST BANK', tenant=self.tenant)
 
     def test_create_financiamento_with_cpr(self):
         payload = {
