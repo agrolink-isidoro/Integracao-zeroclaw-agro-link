@@ -33,8 +33,7 @@ def user_with_tenant():
         name="Test Farm",
         proprietario=proprietario,
         defaults={
-            "localizacao": "POINT(-48.123 -15.456)",
-            "area_total": 100.0,
+            "matricula": "12345",
         }
     )
     
