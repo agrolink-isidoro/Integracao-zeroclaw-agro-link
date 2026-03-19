@@ -1,5 +1,7 @@
 # Secrets — never commit real credentials
 .env
+# Explicit ignore for nested env used by the sistema-agropecuario dev environment
+integration-structure/project-agro/sistema-agropecuario/.env
 .env.local
 .env.*.local
 *.pem

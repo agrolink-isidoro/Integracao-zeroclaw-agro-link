@@ -2,6 +2,60 @@
 
 All notable changes to this project are documented in this file.
 
+## 2026-03-19 (cont. II) — Fazendas: Validação GEOS MultiPolygon (Tarefa 1.3)
+
+### 🧪 Tests
+- **test(fazendas/tests)**: Novo 1 teste de validação GEOS (conforme TEST_POLICY_CORE):
+  - `test_multipolygon_geometry_geos_parsing_and_area_calculation()` — Valida que MultiPolygon WKT salvo em geom pode ser:
+    - Parseado por GEOSGeometry sem exceção
+    - Calculado area_hectares (GEOS + PostGIS) sem crash
+    - Aplicável a Area e Talhao (DRY flow validation)
+  - Protege comportamento observável crítico: GEOS parsing + area calculation
+
+### 📝 Docs
+- Novo arquivo: `VALIDATION_GEOS_MULTIPOLYGON.md` documenta teste 1.3, validações, arquitetura
+
+---
+
+## 2026-03-19 (cont.) — Fazendas: Testes KML Multi-Geometry (Tarefa 1.2)
+
+### 🧪 Tests
+- **test(fazendas/tests)**: Novos 2 testes de alto valor para multi-geometry KML (conforme TEST_VALUE_GATE):
+  - `test_create_area_with_multipolygon_placemark_kml()` — Valida que MULTIPOLYGON dentro de Placemark é parseado corretamente
+    - Edge case: WKT parsing diferente de múltiplos Placemarks
+    - Protege comportamento observável crítico (WKT coordenadas ambas presentes)
+  - `test_create_area_with_empty_kml_error()` — Valida error handling para KML sem geometria
+    - Protege contrato: deve retornar HTTP 400 + ValidationError
+    - Previne crashes por acesso a None
+
+### 📝 Docs
+- Novo arquivo: `TESTS_KML_MULTIGEOMETRY.md` documenta escopo, motivação, e conformidade com TEST_POLICY_CORE
+
+---
+
+## 2026-03-19 — Fazendas: Suporte Multi-Geometry em KML (Tarefa 1.1)
+
+### ✨ Features
+- **feat(fazendas/serializers)**: Multi-Placemark KML support para Area e Talhao:
+  - `AreaSerializer._process_kml_file()` — Novo método que coleta TODOS os Placemarks de KML (antes retornava apenas primeiro)
+  - `TalhaoSerializer._process_kml_file()` — Novo método identico (DRY principle)
+  - Lógica: Se 1 geometria retorna POLYGON; se múltiplas combina em MULTIPOLYGON WKT
+  - Backwards compatible com KML single-Placemark (sem mudança de formato)
+  - Logging detail leia de extração e combinação de geometrias
+  
+- **feat(fazendas/tests)**: Novo teste TDD para multi-Placemark:
+  - `test_create_area_with_multi_placemark_kml()` — Valida que 2-Placemark KML cria Area com geometria multi-polygon
+  - Happy path: POST /api/fazendas/areas/ com 2-Placemark .kml → HTTP 201 + geom contém ambos polígonos
+
+### 🔧 Refactor
+- **refactor(TalhaoSerializer)**: `create()` e `update()` agora usam `_proces kml_file()` (elimina duplicação inline)
+- **docs(fazendas)**: Novo documento `IMPLEMENTATION_KML_MULTIGEOMETRY.md` descreve arquitetura, fluxo, decisões técnicas
+
+### 📍 Branch
+- `feat/kml-multi-placemark-support`
+
+---
+
 ## 2026-02-17 — Fiscal: Automações NFe ↔ Financeiro/Comercial/Estoque
 
 ### ✨ Features
