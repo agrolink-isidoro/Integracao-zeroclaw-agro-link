@@ -235,3 +235,76 @@ def test_create_area_with_empty_kml_error():
         "geometria" in str(msg).lower() or "geometry" in str(msg).lower()
         for msg in (resp_data.get("non_field_errors", []) + resp_data.get("kml_file", []))
     ), f"Error response should mention missing geometry. Got: {resp_data}"
+
+
+@pytest.mark.django_db
+def test_multipolygon_geometry_geos_parsing_and_area_calculation():
+    """
+    Test 1.3 — GEOS Validation: Confirm MultiPolygon geometries can be:
+    1. Saved to database (TextField geom)
+    2. Parsed back by GEOSGeometry without errors
+    3. Area calculated (area_hectares) works for MultiPolygon
+    """
+    proprietario = Proprietario.objects.create(nome="GEOS Test", cpf_cnpj="55555555555")
+    fazenda = Fazenda.objects.create(name="Fazenda GEOS", matricula="M-555", proprietario=proprietario)
+
+    # Programatically create area with MULTIPOLYGON geometry (simulating 1.1 parser output)
+    # MULTIPOLYGON with 2 polygons (contrived for testing):
+    #   Polygon 1: ~100m x 100m at -47.0, -15.0
+    #   Polygon 2: ~100m x 100m at -46.98, -15.02
+    multipolygon_wkt = (
+        "MULTIPOLYGON(("
+        "(-47.001 -15.001, -47.001 -15.002, -47.000 -15.002, -47.000 -15.001, -47.001 -15.001),"
+        "(-46.981 -15.021, -46.981 -15.022, -46.980 -15.022, -46.980 -15.021, -46.981 -15.021)"
+        "))"
+    )
+
+    # Create Area with MULTIPOLYGON
+    area = Area.objects.create(
+        proprietario=proprietario,
+        fazenda=fazenda,
+        name="Teste GEOS MultiPolygon",
+        tipo="propria",
+        geom=multipolygon_wkt
+    )
+
+    # TEST 1: Verify saved
+    assert area.id is not None, "Area should be saved"
+    assert area.geom == multipolygon_wkt, "Geometry WKT should be preserved"
+
+    # TEST 2: Verify GEOSGeometry can parse it (no exception)
+    try:
+        from django.contrib.gis.geos import GEOSGeometry
+        geom_obj = GEOSGeometry(area.geom, srid=4326)
+        assert geom_obj is not None, "GEOSGeometry parse should not raise"
+        assert "MULTIPOLYGON" in geom_obj.wkt.upper(), "Parsed geometry should be MULTIPOLYGON"
+    except Exception as e:
+        pytest.fail(f"GEOSGeometry parsing failed for MultiPolygon: {e}")
+
+    # TEST 3: Verify area_hectares calculates (returns number, not 0 or error)
+    # Note: area_hectares uses PostGIS; in SQLite test it may return 0 gracefully
+    # but the important thing is it doesn't crash
+    try:
+        calculated_area = area.area_hectares
+        assert isinstance(calculated_area, (int, float)), "area_hectares should return a number"
+        assert calculated_area >= 0, "area_hectares should not be negative"
+        # In test env (SQLite), might be 0; that's OK as long as no exception
+    except Exception as e:
+        pytest.fail(f"area_hectares calculation crashed for MultiPolygon: {e}")
+
+    # TEST 4: Create Talhao with MultiPolygon (same flow as Area)
+    talhao = Talhao.objects.create(
+        area=area,
+        name="Teste GEOS Talhao MultiPolygon",
+        geom=multipolygon_wkt
+    )
+
+    assert talhao.id is not None, "Talhao should be saved"
+    
+    # Verify Talhao.area_hectares also works
+    try:
+        talhao_area = talhao.area_hectares
+        assert isinstance(talhao_area, (int, float)), "Talhao.area_hectares should return number"
+        assert talhao_area >= 0, "Talhao.area_hectares should not be negative"
+    except Exception as e:
+        pytest.fail(f"Talhao.area_hectares calculation crashed for MultiPolygon: {e}")

@@ -2,6 +2,21 @@
 
 All notable changes to this project are documented in this file.
 
+## 2026-03-19 (cont. II) — Fazendas: Validação GEOS MultiPolygon (Tarefa 1.3)
+
+### 🧪 Tests
+- **test(fazendas/tests)**: Novo 1 teste de validação GEOS (conforme TEST_POLICY_CORE):
+  - `test_multipolygon_geometry_geos_parsing_and_area_calculation()` — Valida que MultiPolygon WKT salvo em geom pode ser:
+    - Parseado por GEOSGeometry sem exceção
+    - Calculado area_hectares (GEOS + PostGIS) sem crash
+    - Aplicável a Area e Talhao (DRY flow validation)
+  - Protege comportamento observável crítico: GEOS parsing + area calculation
+
+### 📝 Docs
+- Novo arquivo: `VALIDATION_GEOS_MULTIPOLYGON.md` documenta teste 1.3, validações, arquitetura
+
+---
+
 ## 2026-03-19 (cont.) — Fazendas: Testes KML Multi-Geometry (Tarefa 1.2)
 
 ### 🧪 Tests

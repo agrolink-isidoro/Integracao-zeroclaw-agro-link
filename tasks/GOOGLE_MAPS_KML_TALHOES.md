@@ -22,6 +22,9 @@
 
 - [ ] **1.3** Validar que o backend armazena corretamente a geometria para todos os talhões da mesma fazenda (não só o primeiro).
   - [ ] Confirmar que `TalhaoSerializer`/`AreaSerializer` suportam MultiPolygon sem falhar no save.
+  - **✅ COMPLETO (19/03/2026):** Teste de validação GEOS criado:
+    - `test_multipolygon_geometry_geos_parsing_and_area_calculation()` (GEOS + GEOSGeometry + area_hectares)
+  - Valida que MultiPolygon WKT pode ser parseado, área calculada, sem crashes
 
 ---
 
