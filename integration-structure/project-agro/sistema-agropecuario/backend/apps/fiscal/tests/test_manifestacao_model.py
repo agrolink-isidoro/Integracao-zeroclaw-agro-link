@@ -11,7 +11,7 @@ User = get_user_model()
 
 class ManifestacaoModelTest(TestCase):
     def setUp(self):
-        self.user = User.objects.create(username='tester')
+        self.user = User.objects.create(username='tester', is_staff=False)
         self.nfe = NFe.objects.create(
             chave_acesso='0'*44,
             numero='1',

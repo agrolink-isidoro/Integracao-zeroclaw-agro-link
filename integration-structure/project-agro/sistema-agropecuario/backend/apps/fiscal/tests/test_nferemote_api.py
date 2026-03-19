@@ -13,7 +13,7 @@ User = get_user_model()
 class NFeRemoteImportTest(TestCase):
     def setUp(self):
         self.client = APIClient()
-        self.user = User.objects.create(username='importuser')
+        self.user = User.objects.create(username='importuser', is_staff=False)
         self.client.force_authenticate(user=self.user)
         # Load XML fixture for remote entry
         possible_paths = [

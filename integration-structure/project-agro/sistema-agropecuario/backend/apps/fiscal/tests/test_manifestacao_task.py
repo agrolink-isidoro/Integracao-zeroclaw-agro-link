@@ -12,7 +12,7 @@ User = get_user_model()
 
 class ManifestacaoTaskTest(TestCase):
     def setUp(self):
-        self.user = User.objects.create(username='taskuser')
+        self.user = User.objects.create(username='taskuser', is_staff=False)
         self.nfe = NFe.objects.create(
             chave_acesso='8'*44,
             numero='1',

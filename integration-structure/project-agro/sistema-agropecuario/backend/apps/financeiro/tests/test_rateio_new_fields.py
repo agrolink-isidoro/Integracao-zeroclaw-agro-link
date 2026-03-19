@@ -13,7 +13,7 @@ User = get_user_model()
 
 class RateioModelAndServiceTests(TestCase):
     def setUp(self):
-        self.user = User.objects.create_user(username='u', password='p')
+        self.user = User.objects.create_user(username='u', password='p', is_staff=False)
         self.prop = Proprietario.objects.create(nome='P', cpf_cnpj='000')
         self.fazenda = Fazenda.objects.create(proprietario=self.prop, name='F', matricula='M')
         self.area = Area.objects.create(proprietario=self.prop, fazenda=self.fazenda, name='A', geom='POINT(0 0)')

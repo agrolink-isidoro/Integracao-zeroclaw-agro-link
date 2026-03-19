@@ -9,7 +9,7 @@ from apps.financeiro.models import ContaBancaria, BankStatementImport, BankTrans
 class BankStatementAPI(TestCase):
     def setUp(self):
         User = get_user_model()
-        self.user = User.objects.create_user(username='api_user', password='p')
+        self.user = User.objects.create_user(username='api_user', password='p', is_staff=False)
         self.client = APIClient()
         self.client.force_authenticate(self.user)
         self.conta = ContaBancaria.objects.create(banco='Test Bank', conta='999')

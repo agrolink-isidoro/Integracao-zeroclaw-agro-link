@@ -7,7 +7,7 @@ from pathlib import Path
 class NFeEdgeCasesTest(TestCase):
     def setUp(self):
         User = get_user_model()
-        self.user = User.objects.create_user(username='u', password='p')
+        self.user = User.objects.create_user(username='u', password='p', is_staff=False)
         self.client = APIClient()
         self.client.force_authenticate(self.user)
 
