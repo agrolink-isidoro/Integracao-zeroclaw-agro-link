@@ -17,7 +17,7 @@ class AutoRateioTests(TestCase):
         self.user = User.objects.create_user(username='u1', tenant=self.tenant)
 
     def test_movimentacao_with_plantio_and_custo_creates_rateio(self):
-        p = Produto.objects.create(codigo='PR-1', nome='Produto', unidade='kg', quantidade_estoque=Decimal('10'))
+        p = Produto.objects.create(codigo='PR-1', nome='Produto', unidade='kg', quantidade_estoque=Decimal('10'), tenant=self.tenant)
 
         prop = Proprietario.objects.create(nome='Prop', cpf_cnpj='00011122233', tenant=self.tenant)
         faz = Fazenda.objects.create(proprietario=prop, name='Faz A', matricula='M1', tenant=self.tenant)
