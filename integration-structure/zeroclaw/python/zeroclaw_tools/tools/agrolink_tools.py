@@ -813,12 +813,12 @@ def get_agrolink_tools(base_url: str, jwt_token: str, tenant_id: str = "") -> li
         talhao: str,
         peso_bruto: float,
         tara: float,
+        custo_transporte: float,
+        destino_tipo: str,
+        local_destino: str,
         placa: str = "",
         motorista: str = "",
-        destino_tipo: str = "armazenagem_interna",
-        local_destino: str = "",
         empresa_destino: str = "",
-        custo_transporte: float = 0.0,
         custo_transporte_unidade: str = "tonelada",
         descontos: float = 0.0,
         condicoes_graos: str = "",
@@ -828,31 +828,54 @@ def get_agrolink_tools(base_url: str, jwt_token: str, tenant_id: str = "") -> li
         """
         Registra uma movimentação de carga (caminhão carregado) durante a colheita.
 
-        FLUXO OBRIGATÓRIO antes de chamar esta ferramenta:
-          1. Chame consultar_sessoes_colheita_ativas() para verificar se há sessão ativa.
-             - Se NÃO houver sessão ativa: informe ao usuário que ele deve iniciar uma
-               sessão de colheita manualmente no sistema antes de registrar cargas.
-             - Se houver sessão ativa: apresente a safra e pergunte ao usuário qual talhão.
-          2. Pergunte o talhão onde a carga será realizada.
-          3. Colete os dados do caminhão (placa, motorista, peso_bruto, tara) e destino.
-          4. Chame esta ferramenta com todos os dados confirmados.
+        FLUXO OBRIGATÓRIO — 5 PASSOS (SEM EXCEÇÕES):
+        
+        PASSO 1️⃣: Verificar sessão ativa
+          └─ Chame: consultar_sessoes_colheita_ativas()
+             ├─ SEM sessão: "Inicie uma sessão de colheita no sistema antes"
+             └─ COM sessão: "Sessão ativa de [SAFRA]. Qual talhão vamos registrar?"
+        
+        PASSO 2️⃣: Coletar OBRIGATÓRIOS (não pule nenhum):
+          1. PESO BRUTO 🚫 → "Qual o peso bruto da carga em kg?"
+          2. TARA 🚫 → "Qual o peso da tara do caminhão em kg?"
+          3. CUSTO DE TRANSPORTE 🚫 → "Qual o custo TOTAL do transporte em R$?"
+          4. TIPO DE DESTINO 🚫 → "Para onde vai? (armazenagem_interna / externa / venda_direta)"
+          5. LOCAL DE ARMAZENAMENTO/DESTINO 🚫 → "Qual o local exato?"
+        
+        PASSO 3️⃣: SEMPRE perguntar (recomendado, não obrigatório):
+          6. PLACA DO CAMINHÃO 🚨 → "Qual a placa do caminhão?"
+          7. MOTORISTA 🚨 → "Quem é o motorista?"
+        
+        PASSO 4️⃣: Perguntar OPCIONAIS (uma única vez, agrupado):
+          └─ "Antes de registrar, há descontos por umidade, condições especiais dos grãos, NF/contrato?"
+             ├─ Se SIM: pergunte cada um sequencialmente
+             └─ Se NÃO: prossiga para Passo 5
+        
+        PASSO 5️⃣: Confirmar e chamar ferramenta:
+          ├─ Resuma TODOS os obrigatórios
+          ├─ "Está tudo correto?"
+          └─ Se SIM: CHAME AGORA sem mais perguntas
 
         Args:
-            safra: Nome ou identificação da safra ATIVA (ex: "Soja", "Safra Soja") — obrigatório
-            talhao: Nome ou código do talhão onde a carga será realizada — obrigatório
-            peso_bruto: Peso bruto do caminhão carregado em kg — obrigatório
-            tara: Tara (peso do caminhão vazio) em kg — obrigatório
-            placa: Placa do veículo (ex: ABC1D23)
-            motorista: Nome do motorista
-            destino_tipo: Destino da carga: 'armazenagem_interna' (padrão),
-                          'armazenagem_externa', 'venda_direta'
-            local_destino: Nome do local de armazenamento interno (se destino_tipo='armazenagem_interna')
-            empresa_destino: Nome da empresa destino (se destino_tipo='armazenagem_externa' ou 'venda_direta')
-            custo_transporte: Custo do frete em reais
-            custo_transporte_unidade: Unidade do custo: 'tonelada' (padrão), 'saca', 'unidade'
-            descontos: Descontos (ex: umidade, impureza) em kg
-            condicoes_graos: Condições dos grãos (ex: Boa, Avariado, Úmido)
-            contrato_ref: Número de nota fiscal provisória ou referência de contrato
+            safra: Nome ou identificação da safra ATIVA (ex: "Soja", "Safra Soja") — OBRIGATÓRIO
+            talhao: Nome ou código do talhão — OBRIGATÓRIO
+            peso_bruto: Peso bruto em kg — OBRIGATÓRIO
+            tara: Peso tara em kg — OBRIGATÓRIO
+            custo_transporte: Custo do frete em R$ — OBRIGATÓRIO
+            destino_tipo: Tipo de destino — OBRIGATÓRIO
+                          'armazenagem_interna' = Armazenagem na Propriedade
+                          'armazenagem_externa' = Armazenagem Externa
+                          'venda_direta' = Venda Direta
+            local_destino: Local específico ou empresa — OBRIGATÓRIO
+                          Se armazenagem_interna: nome do local (ex: "Silo Central", "Galpão A")
+                          Se armazenagem_externa/venda_direta: nome da empresa
+            placa: Placa do veículo (recomendado, ex: ABC1D23)
+            motorista: Nome do motorista (recomendado)
+            empresa_destino: (compatibilidade legada)
+            custo_transporte_unidade: Unidade ('tonelada', 'saca', 'unidade') — padrão: 'tonelada'
+            descontos: Descontos em kg (umidade, impureza) — padrão: 0
+            condicoes_graos: Condições (ex: "Boa", "Avariada")
+            contrato_ref: Referência NF/contrato
             observacoes: Observações adicionais
         """
         return _post_action(
