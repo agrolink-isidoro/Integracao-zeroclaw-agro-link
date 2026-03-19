@@ -16,7 +16,8 @@
 | **2** | Geo Endpoint Integration | ✅ DONE | 4/4 | test_geo_endpoint.py |
 | **2** | Tenant + Fazenda Filtering | ✅ DONE | 2/2 | test_geo_endpoint.py |
 | **3** | Frontend Refactor | ✅ DONE | — | GeoPolygonRenderer, GeoSidePanel |
-| **3** | Frontend Filter + E2E | ⏳ PENDING | — | — |
+| **3** | Frontend Filter + Default | ✅ DONE | 5/5 | FazendaMap (useEffect sync) |
+| **3** | E2E Tests (Playwright) | ⏳ PENDING | — | — |
 | **4** | Documentation | ⏳ PENDING | — | README |
 
 ---
@@ -121,13 +122,23 @@
 - Hooks criados: 1 (useGeoData)
 - Linhas do arquivo principal reduzidas: 600+ → 393 (34% reduction)
 
-### 3.2 - Frontend Filter + Default (⏳ NEXT)
+### 3.2 - Frontend Filter + Default (✅ COMPLETED)
+- **Status:** ✅ COMPLETED (19/03/2026)
 - **Objetivo:** Default selection + reload no change
-- **Implementar:**
-  - [ ] Default fazenda = user's primary fazenda (pré-selecionada)
-  - [ ] Dropdown recarrega query ao trocar de fazenda
-  - [ ] Consistência com endpoint `?fazenda=` param
-- **Arquivo:** `FazendaMap.tsx` (modificado)
+- **Implementado:**
+  - [x] **useEffect sync:** Sincroniza `fazendaFilter` com `user.fazenda` ao carregar
+  - [x] **Default selection:** Dropdown pré-selecionado com fazenda primária do usuário
+  - [x] **Reload on change:** onChange → query `/api/geo/?fazenda=X` disparada
+  - [x] **Filter clearing:** Permite limpar para "Todas fazendas"
+- **Arquivo:** `FazendaMap.tsx` (modificado, +11 linhas, incluindo useEffect)
+- **Testes:** 5 novos (T3.2.1-3.2.5) em `FazendaMapFilter.test.tsx`
+  - 3.2.1: Default selection on mount
+  - 3.2.2: Query with ?fazenda param
+  - 3.2.3: Dropdown responsiveness
+  - 3.2.4: Filter clearing support
+  - 3.2.5: Layer + fazenda combination
+- **Resultado:** ✅ ALL PASSING (100% compliance with TEST_POLICY_CORE)
+- **Commit:** `e503483`
 
 ### 3.3 - E2E Tests (Playwright)
 - **Objetivo:** Validação end-to-end mapa + KML
@@ -147,13 +158,13 @@
 ## 📊 MÉTRICAS
 
 ### Code Quality
-- **Tests:** 10 total (1.1/1.2/1.3 = 3, 2.1 = 4, 2.2 = 2, 3.x = TBD)
+- **Tests:** 14 total (1.1/1.2/1.3 = 3, 2.1 = 4, 2.2 = 2, 3.2 = 5)
 - **TEST_POLICY_CORE:** ✅ 100% compliant
-  - ✅ TDD_MINIMAL_TEST_RULE: 2-4 testes por tarefa
+  - ✅ TDD_MINIMAL_TEST_RULE: 2-5 testes por tarefa
   - ✅ TEST_VALUE_GATE: Cada teste protege comportamento crítico
   - ✅ TEST_STRENGTH: Assertions específicas, não generalizadas
   - ✅ TEST_DECOUPLING: Testes isolados, sem ordem dependência
-- **Coverage:** Multi-geometry, filtering, security (tenant), layer params
+- **Coverage:** Multi-geometry, filtering, security (tenant), layer params, default selection
 
 ### Execution Performance
 - **Backend tests:** 37.37s (6 testes) = ~6.2s/test
@@ -202,6 +213,28 @@ commit 5e980f7
   docs(checkpoint): Mark tarefa 2.2 with formal signature
 ```
 
+### Fase 3: Frontend Refactoring + Filter
+```
+commit 2596ede (tag: 3.1)
+  refactor(frontend): Separate FazendaMap into reusable components
+  - New: useGeoData hook (abstraction, memoization, caching)
+  - New: GeoPolygonRenderer component (polygon rendering)
+  - New: GeoSidePanel component (feature details panel)
+  - Refactored: FazendaMap.tsx (600+ → 393 lines, -34%)
+
+commit df16bb7
+  docs: Update progress - Task 3.1 Frontend Refactor COMPLETED
+
+commit e3de4b8
+  docs: Add executive summary for KML integration (Phases 1-3.1)
+
+commit e503483 (tag: 3.2)
+  feat(frontend): Implement default fazenda selection with sync effect
+  - useEffect syncs fazendaFilter with user.fazenda
+  - Dropdown pre-selected with primary fazenda on mount
+  - 5 tests: 3.2.1-3.2.5 (default, query, responsiveness, clearing, combination)
+```
+
 ---
 
 ## 📝 NOTAS TÉCNICAS
@@ -235,7 +268,9 @@ commit 5e980f7
 ## 🎯 AÇÃO RECOMENDADA
 
 ✅ **Fase 1 + 2 Backend concluída**  
-⏳ **Próximo:** Proceder com Fase 3 (Frontend refactor - Task 3.1)
+✅ **Fase 3.1 Frontend Refactor concluída**  
+✅ **Fase 3.2 Frontend Filter concluída**  
+⏳ **Próximo:** Task 3.3 (E2E Tests com Playwright)
 
 ### Pré-requisitos Cumpridos para 3.1
 - ✅ Backend endpoint funciona 100%
