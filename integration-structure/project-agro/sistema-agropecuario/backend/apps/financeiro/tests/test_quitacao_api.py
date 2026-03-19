@@ -2,6 +2,7 @@ from rest_framework.test import APIClient
 from django.test import TestCase
 from django.contrib.auth import get_user_model
 from apps.financeiro.models import Vencimento, LancamentoFinanceiro
+from apps.multi_tenancy.models import Tenant
 
 User = get_user_model()
 
@@ -9,9 +10,10 @@ User = get_user_model()
 class QuitacaoAPITests(TestCase):
     def setUp(self):
         self.client = APIClient()
-        self.user = User.objects.create_user(username='apiuser')
+        self.tenant = Tenant.objects.create(nome='test_tenant_quitacao_api', slug='test-tenant-quitacao-api')
+        self.user = User.objects.create_user(username='apiuser', tenant=self.tenant)
         self.client.force_authenticate(self.user)
-        self.v = Vencimento.objects.create(titulo='V-API-1', valor=150.00, data_vencimento='2025-12-01', tipo='despesa', status='pendente', criado_por=self.user)
+        self.v = Vencimento.objects.create(titulo='V-API-1', valor=150.00, data_vencimento='2025-12-01', tipo='despesa', status='pendente', criado_por=self.user, tenant=self.tenant)
 
     def test_quitar_creates_lancamento_and_marks_vencimento_paid(self):
         res = self.client.post(f'/api/financeiro/vencimentos/{self.v.id}/quitar/', data={}, format='json')

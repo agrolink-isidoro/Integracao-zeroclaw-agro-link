@@ -2,6 +2,7 @@ from rest_framework.test import APIClient
 from django.test import TestCase
 from django.contrib.auth import get_user_model
 from apps.financeiro.models import Vencimento
+from apps.multi_tenancy.models import Tenant
 
 User = get_user_model()
 
@@ -9,10 +10,11 @@ User = get_user_model()
 class VencimentoAPITests(TestCase):
     def setUp(self):
         self.client = APIClient()
-        self.user = User.objects.create_user(username='vuser')
-        Vencimento.objects.create(titulo='V1', valor=100, data_vencimento='2025-01-01', tipo='despesa', status='pendente', criado_por=self.user)
-        Vencimento.objects.create(titulo='V2', valor=200, data_vencimento='2025-01-02', tipo='despesa', status='pago', criado_por=self.user)
-        Vencimento.objects.create(titulo='V3', valor=50, data_vencimento='2025-01-03', tipo='despesa', status='atrasado', criado_por=self.user)
+        self.tenant = Tenant.objects.create(nome='test_tenant_vencimento_api', slug='test-tenant-vencimento-api')
+        self.user = User.objects.create_user(username='vuser', tenant=self.tenant)
+        Vencimento.objects.create(titulo='V1', valor=100, data_vencimento='2025-01-01', tipo='despesa', status='pendente', criado_por=self.user, tenant=self.tenant)
+        Vencimento.objects.create(titulo='V2', valor=200, data_vencimento='2025-01-02', tipo='despesa', status='pago', criado_por=self.user, tenant=self.tenant)
+        Vencimento.objects.create(titulo='V3', valor=50, data_vencimento='2025-01-03', tipo='despesa', status='atrasado', criado_por=self.user, tenant=self.tenant)
 
     def test_resumo_financeiro_endpoint(self):
         res = self.client.get('/api/financeiro/vencimentos/resumo_financeiro/')

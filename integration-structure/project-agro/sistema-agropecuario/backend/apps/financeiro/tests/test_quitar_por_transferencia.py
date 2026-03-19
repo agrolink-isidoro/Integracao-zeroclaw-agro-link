@@ -3,6 +3,7 @@ from django.contrib.auth import get_user_model
 from decimal import Decimal
 from apps.financeiro.models import ContaBancaria, LancamentoFinanceiro, Transferencia, PaymentAllocation, Vencimento
 from apps.financeiro.services import pagar_vencimentos_por_transferencia
+from apps.multi_tenancy.models import Tenant
 
 from apps.comercial.models import Fornecedor
 from apps.fazendas.models import Proprietario
@@ -11,11 +12,12 @@ User = get_user_model()
 
 class QuitarPorTransferenciaTests(TestCase):
     def setUp(self):
-        self.user = User.objects.create_user('tester2', 't2@example.com', 'pw')
-        self.c1 = ContaBancaria.objects.create(banco='Banco A', agencia='0001', conta='1111', saldo_inicial=Decimal('10000'))
-        self.c2 = ContaBancaria.objects.create(banco='Banco B', agencia='0002', conta='2222', saldo_inicial=Decimal('500'))
-        self.v1 = Vencimento.objects.create(titulo='Fatura 1', valor=Decimal('150.00'), data_vencimento='2026-02-01')
-        self.v2 = Vencimento.objects.create(titulo='Fatura 2', valor=Decimal('75.00'), data_vencimento='2026-02-05')
+        self.tenant = Tenant.objects.create(nome='test_tenant_quitar_transferencia', slug='test-tenant-quitar-transferencia')
+        self.user = User.objects.create_user('tester2', 't2@example.com', 'pw', tenant=self.tenant)
+        self.c1 = ContaBancaria.objects.create(banco='Banco A', agencia='0001', conta='1111', saldo_inicial=Decimal('10000'), tenant=self.tenant)
+        self.c2 = ContaBancaria.objects.create(banco='Banco B', agencia='0002', conta='2222', saldo_inicial=Decimal('500'), tenant=self.tenant)
+        self.v1 = Vencimento.objects.create(titulo='Fatura 1', valor=Decimal('150.00'), data_vencimento='2026-02-01', criado_por=self.user, tenant=self.tenant)
+        self.v2 = Vencimento.objects.create(titulo='Fatura 2', valor=Decimal('75.00'), data_vencimento='2026-02-05', criado_por=self.user, tenant=self.tenant)
 
     def test_quitar_por_transferencia_pix_sets_settled_and_marks_vencimento_paid(self):
         dados = {
