@@ -30,7 +30,17 @@
 
 ## 2) Garantir que o endpoint de Geo retorne todos os talhões da Fazenda
 
-- [ ] **2.1** Adicionar teste de integração para `GET /api/fazendas/geo/?fazenda=<id>&layer=talhoes` retornando todos os talhões cadastrados por KML.
+- [x] **2.1** Adicionar teste de integração para `GET /api/geo/?fazenda=<id>&layer=talhoes` retornando todos os talhões cadastrados por KML.
+  - [x] Test 1: Cria fazenda + 3 talhões → valida que retorna todos (não trunca)
+  - [x] Test 2: Cria 2 fazendas + 3 talhões → valida que filtra corretamente por fazenda_id
+  - [x] Test 3: Valida MultiPolygon geometry → convertido para GeoJSON corretamente
+  - [x] Test 4: Valida layer parameter (areas/talhoes/all)
+  - **✅ COMPLETO (19/03/2026):** 4 testes criados + todos PASSING:
+    - `test_geo_endpoint_returns_all_talhoes_for_fazenda()` — multi-talhão retrieval
+    - `test_geo_endpoint_filters_by_fazenda()` — filtering by fazenda_id
+    - `test_geo_endpoint_returns_areas_and_multipolygon()` — MultiPolygon GeoJSON conversion
+    - `test_geo_endpoint_layer_parameter()` — layer filtering (areas/talhoes/all)
+  - Conforme TEST_POLICY_CORE: 4 testes de alto valor, cada um foca em um aspecto crítico
 
 - [x] **2.2** Verificar filtros de tenant e `fazenda` funcionam corretamente no endpoint `/api/fazendas/geo/`.
   - [x] Garantir que `fazenda` parametrizada traga somente talhões da fazenda selecionada (e não de outras fazendas do mesmo tenant).
