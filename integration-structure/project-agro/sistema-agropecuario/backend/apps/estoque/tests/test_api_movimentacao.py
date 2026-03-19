@@ -10,7 +10,7 @@ User = get_user_model()
 class MovimentacaoAPITests(TestCase):
     def setUp(self):
         self.client = APIClient()
-        self.user = User.objects.create_user(username='apiuser', password='pw')
+        self.user = User.objects.create_user(username='apiuser', password='pw', is_staff=False)
         self.client.force_authenticate(self.user)
         self.prod = Produto.objects.create(codigo='API-1', nome='Prod API', unidade='kg', quantidade_estoque=Decimal('10'))
 

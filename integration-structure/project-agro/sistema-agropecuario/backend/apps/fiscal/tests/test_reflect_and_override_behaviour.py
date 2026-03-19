@@ -12,7 +12,7 @@ from apps.comercial.models import Fornecedor
 class ReflectAndOverrideBehaviourTests(TransactionTestCase):
     def setUp(self):
         User = get_user_model()
-        self.user = User.objects.create_user(username='tester', password='pwd')
+        self.user = User.objects.create_user(username='tester', password='pwd', is_staff=False)
         self.user.is_superuser = True
         self.user.save()
         self.client.force_login(self.user)
