@@ -136,14 +136,22 @@ const FazendaMap: React.FC = () => {
   const [activeLayer, setActiveLayer] = useState<'all' | 'areas' | 'talhoes'>('all');
   const { user } = useAuthContext();
 
-  const [fazendaFilter, setFazendaFilter] = useState<string>(() => {
-    try {
-      const id = (user as any)?.fazenda ?? (user as any)?.fazenda_id ?? null;
-      return id ? String(id) : '';
-    } catch {
-      return '';
+  // Initialize fazenda filter with user's primary fazenda
+  const [fazendaFilter, setFazendaFilter] = useState<string>('');
+
+  // Sync fazenda filter when user loads (handles async auth)
+  useEffect(() => {
+    if (user && !fazendaFilter) {
+      try {
+        const primaryFazendaId = (user as any)?.fazenda ?? (user as any)?.fazenda_id ?? null;
+        if (primaryFazendaId) {
+          setFazendaFilter(String(primaryFazendaId));
+        }
+      } catch (e) {
+        // If we can't get fazenda_id, just leave filter empty
+      }
     }
-  });
+  }, [user?.id]); // Re-run only if user.id changes (not whole user object)
 
   // Ensure we only auto-focus once per mount
   const didAutoFocusRef = useRef(false);
