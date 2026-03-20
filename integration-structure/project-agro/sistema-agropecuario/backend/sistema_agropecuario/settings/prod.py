@@ -9,8 +9,8 @@ DEBUG = False
 # SECURITY: Sem fallback! Se DJANGO_SECRET_KEY não existir no prod, quebra a subida do container.
 SECRET_KEY = env('DJANGO_SECRET_KEY')
 
-# SECURITY: Ler do env: "api.agrolink.com,admin.agrolink.com"
-ALLOWED_HOSTS = env.list('ALLOWED_HOSTS', default=['localhost', 'backend'])
+# SECURITY: Ler do env: "api.agrolink.com,admin.agrolink.com". Default: agrol1nk.com.br (Produção Oficial)
+ALLOWED_HOSTS = env.list('ALLOWED_HOSTS', default=['www.agrol1nk.com.br', 'agrol1nk.com.br', 'localhost', 'backend'])
 
 # SECURITY: Headers SSL e Cookies Seguros OBRIGATÓRIOS
 SECURE_SSL_REDIRECT = env.bool('SECURE_SSL_REDIRECT', default=True)
@@ -21,8 +21,17 @@ SECURE_CONTENT_TYPE_NOSNIFF = True
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 
 # SECURITY: Hardening de CORS
-CORS_ALLOWED_ORIGINS = env.list('CORS_ALLOWED_ORIGINS', default=[])
-CSRF_TRUSTED_ORIGINS = env.list('CSRF_TRUSTED_ORIGINS', default=[])
+# Default de produção: apenas o site principal / CRM e o domínio IA da frente.
+CORS_ALLOWED_ORIGINS = env.list('CORS_ALLOWED_ORIGINS', default=[
+    'https://www.agro-link.ia.br',
+    'https://agro-link.ia.br',
+])
+CSRF_TRUSTED_ORIGINS = env.list('CSRF_TRUSTED_ORIGINS', default=[
+    'https://www.agro-link.ia.br',
+    'https://agro-link.ia.br',
+    'https://www.agrol1nk.com.br',
+    'https://agrol1nk.com.br',
+])
 
 # Force PostgreSQL for production
 DATABASES = {

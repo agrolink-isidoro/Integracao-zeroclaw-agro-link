@@ -6,6 +6,7 @@ import path from 'path'
 
 
 export default defineConfig({
+  base: process.env.VITE_BASE_PATH || '/', // Para produção (ex: '/acesso/'), útil caso servido em subpath
   plugins: [react()],
   resolve: {
     alias: {
