@@ -10,7 +10,7 @@ from apps.fazendas.models import Fazenda, Talhao, Proprietario, Area
 from apps.agricultura.models import Plantio, Cultura, Colheita
 from apps.financeiro.models import RateioCusto, RateioTalhao
 from apps.administrativo.models import CentroCusto
-from apps.multi_tenancy.models import Tenant
+from apps.core.models import Tenant
 
 User = get_user_model()
 

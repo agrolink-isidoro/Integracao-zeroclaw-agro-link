@@ -4,7 +4,7 @@ from apps.agricultura.models import Manejo, Cultura
 from apps.agricultura.services import calcular_custo_manejo
 from django.contrib.auth import get_user_model
 from apps.estoque.models import Produto
-from apps.multi_tenancy.models import Tenant
+from apps.core.models import Tenant
 
 User = get_user_model()
 

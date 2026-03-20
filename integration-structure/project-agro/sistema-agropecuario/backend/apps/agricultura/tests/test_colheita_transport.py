@@ -4,7 +4,7 @@ from rest_framework.test import APIClient
 from apps.agricultura.models import Colheita, ColheitaTransporte
 from apps.fazendas.models import Fazenda, Area, Talhao
 from apps.agricultura.models import Plantio, Cultura
-from apps.multi_tenancy.models import Tenant
+from apps.core.models import Tenant
 
 User = get_user_model()
 

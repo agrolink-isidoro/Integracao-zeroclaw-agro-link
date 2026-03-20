@@ -1,7 +1,7 @@
 from django.test import TestCase
 from rest_framework.test import APIClient
 from apps.comercial.models import InstituicaoFinanceira
-from apps.multi_tenancy.models import Tenant
+from apps.core.models import Tenant
 
 
 class FinanciamentoTipoChoicesTest(TestCase):

@@ -2,7 +2,7 @@ from django.test import TestCase
 from apps.financeiro.models import LancamentoFinanceiro, ContaBancaria
 from django.contrib.auth import get_user_model
 from django.urls import reverse
-from apps.multi_tenancy.models import Tenant
+from apps.core.models import Tenant
 
 class ReconcileLancamentoTest(TestCase):
     def setUp(self):

@@ -3,7 +3,7 @@ from django.urls import reverse
 from django.contrib.auth import get_user_model
 from apps.estoque.models import Produto
 from apps.fazendas.models import Fazenda, Talhao
-from apps.multi_tenancy.models import Tenant
+from apps.core.models import Tenant
 
 User = get_user_model()
 

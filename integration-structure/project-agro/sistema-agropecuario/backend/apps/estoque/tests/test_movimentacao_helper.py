@@ -5,7 +5,7 @@ from django.core.exceptions import ValidationError
 
 from apps.estoque.models import Produto, MovimentacaoStatement
 from apps.estoque.services import create_movimentacao
-from apps.multi_tenancy.models import Tenant
+from apps.core.models import Tenant
 
 User = get_user_model()
 

@@ -14,7 +14,7 @@ from apps.comercial.models import Fornecedor
 
 
 def make_fornecedor_missing_fields(django_user_model):
-    from apps.multi_tenancy.models import Tenant
+    from apps.core.models import Tenant
     # create a Fornecedor with missing email and address fields
     tenant = Tenant.objects.create(nome='test_tenant_compra_nfe', slug='test-tenant-compra-nfe')
     user = django_user_model.objects.create(username='owner', tenant=tenant)
@@ -98,7 +98,7 @@ def test_compra_creates_notificacao_and_sends_email_when_fornecedor_incomplete(c
 
 def test_compra_sends_email_to_fornecedor_when_email_present(django_user_model):
     from apps.comercial.models import Fornecedor
-    from apps.multi_tenancy.models import Tenant
+    from apps.core.models import Tenant
 
     tenant = Tenant.objects.create(nome='test_tenant_compra_email', slug='test-tenant-compra-email')
     user = django_user_model.objects.create(username='owner2', tenant=tenant)

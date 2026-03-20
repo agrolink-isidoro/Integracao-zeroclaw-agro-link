@@ -95,9 +95,9 @@ const ArrendamentoForm: React.FC<ArrendamentoFormProps> = ({
   // Re-validar talhões quando fazendas são carregadas (em caso de race condition)
   useEffect(() => {
     if (formData.fazenda && formData.talhoes.length > 0 && fazendasArray.length > 0) {
-      const fazenda = fazendasArray.find(f => f.id === formData.fazenda);
-      if (fazenda && fazenda.areas_ids) {
-        const fazendasAreaIds = fazenda.areas_ids;
+      const fazenda_obj: any = fazendasArray.find(f => f.id === formData.fazenda);
+      if (fazenda_obj && fazenda_obj.areas_ids) {
+        const fazendasAreaIds = fazenda_obj.areas_ids;
         const invalidTalhoes = formData.talhoes.filter(id => !fazendasAreaIds.includes(id));
         
         if (invalidTalhoes.length > 0) {
@@ -123,11 +123,11 @@ const ArrendamentoForm: React.FC<ArrendamentoFormProps> = ({
       const areaIds = arrendamento.areas || [];
       
       // Validação: Verificar se as áreas carregadas pertencem à fazenda
-      const fazenda = fazendasArray.find(f => f.id === fazendaId);
+      const fazenda_obj: any = fazendasArray.find(f => f.id === fazendaId);
       let validTalhoes = areaIds;
       
-      if (fazenda && fazenda.areas_ids) {
-        const fazendasAreaIds = fazenda.areas_ids;
+      if (fazenda_obj && fazenda_obj.areas_ids) {
+        const fazendasAreaIds = fazenda_obj.areas_ids;
         const invalidTalhoes = areaIds.filter(id => !fazendasAreaIds.includes(id));
         
         if (invalidTalhoes.length > 0) {
@@ -164,12 +164,12 @@ const ArrendamentoForm: React.FC<ArrendamentoFormProps> = ({
     if (!formData.fazenda) return [];
     
     // Buscar a fazenda selecionada
-    const fazenda = fazendasArray.find(f => f.id === formData.fazenda);
-    if (!fazenda) return [];
+    const fazenda_obj: any = fazendasArray.find(f => f.id === formData.fazenda);
+    if (!fazenda_obj) return [];
     
     // Obter IDs de todas as áreas que pertencem à fazenda
     // O backend retorna areas_ids como um array simples de IDs para facilitar filtragem
-    const areaIds = fazenda.areas_ids || [];
+    const areaIds = fazenda_obj.areas_ids || [];
     
     // Rastreamento: Talhão → area_id → Área (que pertence à Fazenda)
     // Filtrar apenas talhões que tem area_id válido vinculado à fazenda

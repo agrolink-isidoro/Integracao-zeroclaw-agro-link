@@ -1,7 +1,7 @@
 from rest_framework.test import APITestCase
 from apps.estoque.serializers import MovimentacaoEstoqueSerializer
 from apps.estoque.models import MovimentacaoEstoque
-from apps.multi_tenancy.models import Tenant
+from apps.core.models import Tenant
 
 class MovimentacaoSerializerSafeTests(APITestCase):
     def setUp(self):

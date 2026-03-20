@@ -3,7 +3,7 @@ from rest_framework.test import APITestCase
 from apps.estoque.models import Produto, LocalArmazenamento, Lote
 from apps.fazendas.models import Proprietario, Fazenda
 from apps.core.models import CustomUser
-from apps.multi_tenancy.models import Tenant
+from apps.core.models import Tenant
 from decimal import Decimal
 
 

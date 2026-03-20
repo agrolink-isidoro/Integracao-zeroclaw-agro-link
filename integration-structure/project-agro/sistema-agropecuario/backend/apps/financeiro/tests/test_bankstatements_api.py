@@ -4,7 +4,7 @@ from rest_framework.test import APIClient
 from django.core.files.uploadedfile import SimpleUploadedFile
 import io
 from apps.financeiro.models import ContaBancaria, BankStatementImport, BankTransaction
-from apps.multi_tenancy.models import Tenant
+from apps.core.models import Tenant
 
 
 class BankStatementAPI(TestCase):

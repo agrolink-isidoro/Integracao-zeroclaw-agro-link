@@ -3,7 +3,7 @@ from django.contrib.auth import get_user_model
 from apps.agricultura.models import MovimentacaoCarga
 from apps.estoque.models import Produto, MovimentacaoEstoque, Lote
 from django.urls import reverse
-from apps.multi_tenancy.models import Tenant
+from apps.core.models import Tenant
 
 User = get_user_model()
 

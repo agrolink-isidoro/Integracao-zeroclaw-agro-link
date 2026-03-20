@@ -5,7 +5,7 @@ from apps.administrativo.models import CentroCusto, DespesaAdministrativa, Notif
 from apps.financeiro.services import create_rateio_from_despesa
 from apps.financeiro.models import RateioCusto, RateioApproval
 from apps.agricultura.models import Plantio
-from apps.multi_tenancy.models import Tenant
+from apps.core.models import Tenant
 
 User = get_user_model()
 

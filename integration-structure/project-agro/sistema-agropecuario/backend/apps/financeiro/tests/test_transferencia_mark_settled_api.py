@@ -4,7 +4,7 @@ from apps.financeiro.models import ContaBancaria, Vencimento, Transferencia
 from rest_framework.test import APIClient
 from decimal import Decimal
 from apps.financeiro.services import pagar_vencimentos_por_transferencia
-from apps.multi_tenancy.models import Tenant
+from apps.core.models import Tenant
 
 User = get_user_model()
 

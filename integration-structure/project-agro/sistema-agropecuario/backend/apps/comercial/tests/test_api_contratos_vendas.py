@@ -34,7 +34,7 @@ def test_create_and_list_contrato():
 
 @pytest.mark.django_db
 def test_vendas_compras_list_and_create_compra():
-    from apps.multi_tenancy.models import Tenant
+    from apps.core.models import Tenant
     
     tenant = Tenant.objects.create(nome='test_tenant_vendas_compras', slug='test-tenant-vendas-compras')
     user = User.objects.create_user(username='u2', password='pass', tenant=tenant)

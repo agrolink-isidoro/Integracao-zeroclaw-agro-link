@@ -71,7 +71,7 @@ export function useGeoData({ layer = 'all', fazendaId }: UseGeoDataParams): UseG
     geoData.features.forEach((f) => {
       // Only include fazendas with at least one feature with valid geometry
       if (f.properties.fazenda_id) {
-        map.set(f.properties.fazenda_id, f.properties.fazenda_name);
+        map.set(f.properties.fazenda_id, f.properties.fazenda_name || '');
       }
     });
     return Array.from(map.entries()).sort((a, b) => a[1].localeCompare(b[1]));

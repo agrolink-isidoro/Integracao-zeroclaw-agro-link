@@ -6,7 +6,7 @@ from decimal import Decimal
 from apps.fiscal.models import NFe, ItemNFe
 from apps.fiscal.models_overrides import ItemNFeOverride
 from apps.estoque.models import Produto, MovimentacaoEstoque
-from apps.multi_tenancy.models import Tenant
+from apps.core.models import Tenant
 
 
 class ItemNFeOverrideTests(TestCase):

@@ -4,7 +4,7 @@ from datetime import date
 from django.contrib.auth import get_user_model
 from apps.estoque.models import Produto
 from apps.agricultura.serializers import OperacaoSerializer
-from apps.multi_tenancy.models import Tenant
+from apps.core.models import Tenant
 
 User = get_user_model()
 

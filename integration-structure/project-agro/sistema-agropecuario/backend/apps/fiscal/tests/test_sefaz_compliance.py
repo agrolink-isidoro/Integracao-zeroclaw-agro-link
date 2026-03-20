@@ -3,7 +3,7 @@ from django.test import TestCase
 from django.core.exceptions import ValidationError
 from apps.fiscal.models import ItemNFe, NFe
 from apps.fiscal.models_overrides import ItemNFeOverride
-from apps.multi_tenancy.models import Tenant
+from apps.core.models import Tenant
 
 
 class SEFAZComplianceTests(TestCase):

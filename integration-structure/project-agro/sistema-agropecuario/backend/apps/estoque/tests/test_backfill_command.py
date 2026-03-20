@@ -1,7 +1,7 @@
 from django.core.management import call_command
 from django.test import TestCase
 from apps.estoque.models import MovimentacaoEstoque, MovimentacaoStatement, ProdutoAuditoria, Produto
-from apps.multi_tenancy.models import Tenant
+from apps.core.models import Tenant
 
 
 class BackfillCommandTests(TestCase):

@@ -4,7 +4,7 @@ from django.utils import timezone
 from apps.financeiro.models import Financiamento, Emprestimo, ParcelaFinanciamento, ParcelaEmprestimo
 from apps.financeiro.services import gerar_parcelas_financiamento, gerar_parcelas_emprestimo
 from django.contrib.auth import get_user_model
-from apps.multi_tenancy.models import Tenant
+from apps.core.models import Tenant
 
 User = get_user_model()
 

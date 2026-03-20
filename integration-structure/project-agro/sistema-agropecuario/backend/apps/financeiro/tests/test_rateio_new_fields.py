@@ -5,7 +5,7 @@ from apps.financeiro.models import RateioCusto, RateioApproval
 from apps.financeiro import services as financeiro_services
 from apps.fazendas.models import Talhao, Area, Proprietario, Fazenda
 from apps.administrativo.models import CentroCusto, DespesaAdministrativa
-from apps.multi_tenancy.models import Tenant
+from apps.core.models import Tenant
 from decimal import Decimal
 from django.utils import timezone
 

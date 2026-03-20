@@ -305,7 +305,7 @@ type MovFormState = {
 
           <TransportFields
             value={formState.transporte}
-            onChange={(v: Partial<TransportPayload>) => setFormState((s: MovFormState) => ({ ...s, transporte: v }))}
+            onChange={(v: any) => setFormState((s: MovFormState) => ({ ...s, transporte: v }))}
             showMotorista={true}
             showDescontos={true}
             showCusto={true}

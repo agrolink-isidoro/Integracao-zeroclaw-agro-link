@@ -3,7 +3,7 @@ from django.contrib.auth import get_user_model
 from apps.financeiro.models import ContaBancaria, Vencimento, Transferencia
 from rest_framework.test import APIClient
 from decimal import Decimal
-from apps.multi_tenancy.models import Tenant
+from apps.core.models import Tenant
 
 User = get_user_model()
 

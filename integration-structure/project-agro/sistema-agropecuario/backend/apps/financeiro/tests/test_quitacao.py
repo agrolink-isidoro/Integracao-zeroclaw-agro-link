@@ -3,7 +3,7 @@ from django.contrib.auth import get_user_model
 from django.utils import timezone
 from apps.financeiro.services import quitar_vencimento
 from apps.financeiro.models import Vencimento, LancamentoFinanceiro
-from apps.multi_tenancy.models import Tenant
+from apps.core.models import Tenant
 
 User = get_user_model()
 

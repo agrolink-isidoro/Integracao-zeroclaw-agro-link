@@ -3,7 +3,7 @@ from apps.fazendas.models import Fazenda, Talhao, Proprietario, Area
 from apps.agricultura.models import Plantio, Cultura
 from apps.agricultura.services import calcular_custos_plantio
 from django.contrib.auth import get_user_model
-from apps.multi_tenancy.models import Tenant
+from apps.core.models import Tenant
 
 User = get_user_model()
 

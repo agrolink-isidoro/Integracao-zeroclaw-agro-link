@@ -6,7 +6,7 @@ from apps.estoque.services import create_movimentacao
 from apps.estoque.models import Produto, MovimentacaoEstoque, MovimentacaoStatement
 from apps.agricultura.models import Cultura, Plantio
 from apps.fazendas.models import Proprietario, Fazenda
-from apps.multi_tenancy.models import Tenant
+from apps.core.models import Tenant
 
 User = get_user_model()
 

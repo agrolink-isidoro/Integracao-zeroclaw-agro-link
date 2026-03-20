@@ -6,7 +6,7 @@ from apps.estoque.models import Produto, MovimentacaoEstoque
 from apps.agricultura.models import Operacao, OperacaoProduto
 from datetime import date
 from apps.core.models import CustomUser
-from apps.multi_tenancy.models import Tenant
+from apps.core.models import Tenant
 
 
 class ReservationTests(TestCase):

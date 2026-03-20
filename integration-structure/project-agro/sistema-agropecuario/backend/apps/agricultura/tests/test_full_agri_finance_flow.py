@@ -11,7 +11,7 @@ from apps.maquinas.models import Equipamento, Abastecimento
 from apps.financeiro.models import RateioCusto, RateioApproval
 from apps.financeiro import services as financeiro_services
 from apps.administrativo.models import Notificacao
-from apps.multi_tenancy.models import Tenant
+from apps.core.models import Tenant
 
 
 User = get_user_model()

@@ -1,7 +1,7 @@
 from django.test import TestCase
 from apps.estoque.models import MovimentacaoEstoque, Produto
 from django.contrib.auth import get_user_model
-from apps.multi_tenancy.models import Tenant
+from apps.core.models import Tenant
 
 User = get_user_model()
 

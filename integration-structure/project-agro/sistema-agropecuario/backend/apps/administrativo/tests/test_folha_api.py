@@ -10,7 +10,7 @@ BASE = '/api/administrativo/folha-pagamento/'
 @pytest.fixture
 def user_with_tenant():
     """User autenticado com tenant para testes (resolve 403)"""
-    from apps.multi_tenancy.models import Tenant
+    from apps.core.models import Tenant
     from apps.fazendas.models import Proprietario, Fazenda
     
     # 1. Criar tenant

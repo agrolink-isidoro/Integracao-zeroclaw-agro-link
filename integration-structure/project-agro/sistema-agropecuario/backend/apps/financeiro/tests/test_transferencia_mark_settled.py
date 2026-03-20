@@ -3,7 +3,7 @@ from django.contrib.auth import get_user_model
 from decimal import Decimal
 from apps.financeiro.models import ContaBancaria, Vencimento, Transferencia, LancamentoFinanceiro, PaymentAllocation
 from apps.financeiro.services import pagar_vencimentos_por_transferencia, marcar_transferencia_settled
-from apps.multi_tenancy.models import Tenant
+from apps.core.models import Tenant
 
 User = get_user_model()
 

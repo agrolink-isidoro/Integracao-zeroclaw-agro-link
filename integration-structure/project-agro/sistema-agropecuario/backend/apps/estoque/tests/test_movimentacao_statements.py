@@ -2,7 +2,7 @@ from django.test import TestCase
 from apps.estoque.models import Produto, Lote, MovimentacaoEstoque, MovimentacaoStatement, ProdutoAuditoria
 from apps.fazendas.models import Fazenda
 from apps.core.models import CustomUser
-from apps.multi_tenancy.models import Tenant
+from apps.core.models import Tenant
 
 
 class MovimentacaoStatementTests(TestCase):

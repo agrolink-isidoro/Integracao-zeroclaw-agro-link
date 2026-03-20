@@ -3,7 +3,7 @@ from django.contrib.auth import get_user_model
 from apps.estoque.models import Produto, MovimentacaoEstoque
 from apps.maquinas.models import CategoriaEquipamento, Equipamento
 from apps.fazendas.models import Proprietario, Fazenda
-from apps.multi_tenancy.models import Tenant
+from apps.core.models import Tenant
 from decimal import Decimal
 
 User = get_user_model()

@@ -3,7 +3,7 @@ from rest_framework.test import APITestCase
 from django.test import override_settings
 from apps.estoque.models import Produto
 from apps.core.models import CustomUser
-from apps.multi_tenancy.models import Tenant
+from apps.core.models import Tenant
 
 
 class ProdutoListPaginationTests(APITestCase):

@@ -3,7 +3,7 @@ from django.test import TestCase
 from apps.estoque.models import Produto, LocalArmazenamento, Localizacao, ProdutoArmazenado, MovimentacaoEstoque
 from apps.estoque.services import create_movimentacao
 from apps.core.models import CustomUser
-from apps.multi_tenancy.models import Tenant
+from apps.core.models import Tenant
 
 class MovimentacaoLocalizacaoTests(TestCase):
     def setUp(self):

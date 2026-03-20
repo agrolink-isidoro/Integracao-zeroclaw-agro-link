@@ -11,7 +11,7 @@ from django.contrib.auth import get_user_model
 from apps.fiscal.models import NFe, ItemNFe
 from apps.estoque.models import Produto
 from apps.estoque.utils import ProdutoNFeValidator, FornecedorManager
-from apps.multi_tenancy.models import Tenant
+from apps.core.models import Tenant
 
 User = get_user_model()
 

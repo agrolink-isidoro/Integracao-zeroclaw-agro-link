@@ -5,7 +5,7 @@ from apps.fazendas.models import Fazenda, Talhao, Proprietario
 from apps.agricultura.models import Plantio, Manejo, Colheita, Cultura
 from apps.financeiro.models import RateioCusto, RateioApproval
 from apps.administrativo.models import Notificacao
-from apps.multi_tenancy.models import Tenant
+from apps.core.models import Tenant
 
 User = get_user_model()
 

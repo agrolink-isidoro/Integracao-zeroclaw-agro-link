@@ -1,7 +1,7 @@
 from django.test import TestCase
 from django.contrib.auth import get_user_model
 from apps.financeiro.models import RateioCusto, RateioApproval
-from apps.multi_tenancy.models import Tenant
+from apps.core.models import Tenant
 
 User = get_user_model()
 

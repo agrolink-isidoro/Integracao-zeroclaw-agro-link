@@ -5,7 +5,7 @@ from apps.fazendas.models import Proprietario, Fazenda, Area, Talhao
 from apps.agricultura.models import Cultura, Plantio
 from django.utils import timezone
 from decimal import Decimal
-from apps.multi_tenancy.models import Tenant
+from apps.core.models import Tenant
 
 User = get_user_model()
 

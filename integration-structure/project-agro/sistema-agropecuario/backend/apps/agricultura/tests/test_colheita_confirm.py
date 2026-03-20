@@ -2,7 +2,7 @@ from django.test import TestCase
 from django.contrib.auth import get_user_model
 from rest_framework.test import APIClient
 from apps.fazendas.models import Fazenda, Area, Talhao, Proprietario
-from apps.multi_tenancy.models import Tenant
+from apps.core.models import Tenant
 from apps.agricultura.models import Plantio, Cultura
 
 User = get_user_model()

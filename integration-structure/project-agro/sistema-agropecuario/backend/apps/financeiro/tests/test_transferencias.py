@@ -5,7 +5,7 @@ from apps.financeiro.models import ContaBancaria, LancamentoFinanceiro, Transfer
 from apps.financeiro.services import transferir_entre_contas
 from apps.comercial.models import Fornecedor
 from apps.fazendas.models import Proprietario
-from apps.multi_tenancy.models import Tenant
+from apps.core.models import Tenant
 
 User = get_user_model()
 

@@ -48,6 +48,7 @@ Uso:
 from __future__ import annotations
 
 import json
+import time
 import logging
 from difflib import SequenceMatcher
 from functools import lru_cache
@@ -57,6 +58,18 @@ import httpx
 from langchain_core.tools import tool
 
 logger = logging.getLogger(__name__)
+
+def _with_retries(func, max_retries=3, base_delay=1.0):
+    for attempt in range(max_retries):
+        try:
+            return func()
+        except (httpx.ConnectError, httpx.TimeoutException, httpx.ReadTimeout, httpx.NetworkError) as e:
+            if attempt == max_retries - 1:
+                logger.error(f"Falha de conexão persistente na API: {str(e)}")
+                raise
+            delay = base_delay * (2 ** attempt)
+            logger.warning(f"Erro de conexão na API ({str(e)}). Retentando {attempt+1}/{max_retries} em {delay}s...")
+            time.sleep(delay)
 
 # ── Client singleton por chamada ─────────────────────────────────────────────
 
@@ -159,16 +172,19 @@ def _post_action(
         "meta": meta or {"origem": "isidoro", "canal": "whatsapp"},
     }
     try:
-        with _client(base_url, jwt_token, tenant_id) as c:
-            resp = c.post("/actions/", json=payload)
-            resp.raise_for_status()
-            data = resp.json()
-            return json.dumps({
-                "sucesso": True,
-                "action_id": data.get("id"),
-                "status": data.get("status"),
-                "mensagem": "Ação criada e aguardando aprovação humana.",
-            })
+        def _do_post():
+            with _client(base_url, jwt_token, tenant_id) as c:
+                resp = c.post("/actions/", json=payload)
+                resp.raise_for_status()
+                return resp.json()
+        
+        data = _with_retries(_do_post)
+        return json.dumps({
+            "sucesso": True,
+            "action_id": data.get("id"),
+            "status": data.get("status"),
+            "mensagem": "Ação criada e aguardando aprovação humana.",
+        })
     except httpx.HTTPStatusError as exc:
         return json.dumps({"sucesso": False, "erro": exc.response.text})
     except Exception as exc:
@@ -193,12 +209,11 @@ def _fuzzy_resolve_maquina(
         return None, []
 
     try:
-        with _client(base_url, jwt_token, tenant_id) as c:
-            resp = c.get("/maquinas/equipamentos/")
-            resp.raise_for_status()
-            payload = resp.json()
+        raw_resp = _get_cached(base_url, jwt_token, tenant_id, "/maquinas/equipamentos/")
+        payload = json.loads(raw_resp)
+        if "erro" in payload:
+            return nome_usuario, []
     except Exception:
-        # Se falhar a consulta, retorna sem resolver — o executor tentará depois
         return nome_usuario, []
 
     equipamentos = payload.get("results", payload) if isinstance(payload, dict) else payload
@@ -291,10 +306,10 @@ def _fuzzy_resolve_talhao(
         return None, []
 
     try:
-        with _client(base_url, jwt_token, tenant_id) as c:
-            resp = c.get("/talhoes/")
-            resp.raise_for_status()
-            payload = resp.json()
+        raw_resp = _get_cached(base_url, jwt_token, tenant_id, "/talhoes/")
+        payload = json.loads(raw_resp)
+        if "erro" in payload:
+            return nome_usuario, []
     except Exception:
         return nome_usuario, []
 
@@ -366,10 +381,10 @@ def _resolve_produto_combustivel(
     Retorna o nome do produto ou None se não encontrar.
     """
     try:
-        with _client(base_url, jwt_token, tenant_id) as c:
-            resp = c.get("/estoque/produtos/")
-            resp.raise_for_status()
-            payload = resp.json()
+        raw_resp = _get_cached(base_url, jwt_token, tenant_id, "/estoque/produtos/")
+        payload = json.loads(raw_resp)
+        if "erro" in payload:
+            return None
     except Exception:
         return None
 
@@ -392,10 +407,12 @@ def _resolve_produto_combustivel(
 def _get(base_url: str, jwt_token: str, tenant_id: str, path: str, params: dict | None = None) -> str:
     """Realiza GET na API Agrolink."""
     try:
-        with _client(base_url, jwt_token, tenant_id) as c:
-            resp = c.get(path, params=params or {})
-            resp.raise_for_status()
-            return resp.text
+        def _do_get():
+            with _client(base_url, jwt_token, tenant_id) as c:
+                resp = c.get(path, params=params or {})
+                resp.raise_for_status()
+                return resp.text
+        return _with_retries(_do_get)
     except httpx.HTTPStatusError as exc:
         return json.dumps({"erro": exc.response.text})
     except Exception as exc:

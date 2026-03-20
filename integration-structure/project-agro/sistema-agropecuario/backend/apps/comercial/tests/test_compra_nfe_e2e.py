@@ -14,7 +14,7 @@ from pathlib import Path
 
 class CompraNFeE2ETest(TestCase):
     def setUp(self):
-        from apps.multi_tenancy.models import Tenant
+        from apps.core.models import Tenant
         User = get_user_model()
         
         # Create tenant

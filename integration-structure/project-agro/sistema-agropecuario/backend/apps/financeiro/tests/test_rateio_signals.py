@@ -3,7 +3,7 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
 
 from apps.financeiro.models import RateioCusto
-from apps.multi_tenancy.models import Tenant
+from apps.core.models import Tenant
 
 User = get_user_model()
 

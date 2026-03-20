@@ -131,7 +131,7 @@ describe('FazendaMap - Filter + Default Selection (Task 3.2)', () => {
     const fazendaSelect = screen.getAllByRole('combobox')[1]; // 2nd select (first is layer filter)
     
     // Change selection to Fazenda B
-    await user.selectOption(fazendaSelect, '99');
+    await user.selectOptions(fazendaSelect, '99');
 
     // Verify that useGeoData was called again with new fazendaId
     await waitFor(() => {
@@ -156,7 +156,7 @@ describe('FazendaMap - Filter + Default Selection (Task 3.2)', () => {
 
     // Find fazenda filter select and clear it
     const fazendaSelect = screen.getAllByRole('combobox')[1];
-    await user.selectOption(fazendaSelect, '');
+    await user.selectOptions(fazendaSelect, '');
 
     // Verify that useGeoData is called with fazendaId = null (no filter)
     await waitFor(() => {
@@ -182,7 +182,7 @@ describe('FazendaMap - Filter + Default Selection (Task 3.2)', () => {
 
     // Change layer to "Talhões"
     const layerSelect = screen.getAllByRole('combobox')[0]; // First select is layer filter
-    await user.selectOption(layerSelect, 'talhoes');
+    await user.selectOptions(layerSelect, 'talhoes');
 
     // Verify that useGeoData is called with BOTH layer and fazendaId params
     await waitFor(() => {
