@@ -88,10 +88,10 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
   return isAuthenticated ? <>{children}</> : <Navigate to="/login" replace />;
 };
 
-/** Ponte entre AuthContext e TenantProvider — permite passar is_staff como prop */
+/** Ponte entre AuthContext e TenantProvider — permite passar is_superuser como prop */
 const TenantBridge: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user } = useAuthContext();
-  const isSuperuser = !!(user as any)?.is_superuser || !!(user as any)?.is_staff;
+  const isSuperuser = !!(user as any)?.is_superuser;
   return <TenantProvider isSuperuser={isSuperuser}>{children}</TenantProvider>;
 };
 
