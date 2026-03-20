@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useApiQuery, useApiCreate } from '../../hooks/useApi';
+import api from '../../services/api';
 import type { Abastecimento, Equipamento } from '../../types';
 
 interface MovimentacaoEstoque {
@@ -50,12 +51,13 @@ const Abastecimentos: React.FC = () => {
 
       // 2) Fallback: buscar produto Diesel e pedir ultimo_preco endpoint
       try {
-        const resp = await fetch('/api/estoque/produtos/?search=diesel&page_size=1');
-        const data = await resp.json();
+        // Use axios instance so Authorization and X-Tenant-ID headers are sent
+        const resp = await api.get('/estoque/produtos/?search=diesel&page_size=1');
+        const data = resp.data;
         const first = Array.isArray(data) ? data[0] : data.results?.[0];
         if (first && first.id) {
-          const p = await fetch(`/api/estoque/produto-ultimo-preco/?produto_id=${first.id}`);
-          const pr = await p.json();
+          const p = await api.get(`/estoque/produto-ultimo-preco/?produto_id=${first.id}`);
+          const pr = p.data;
           if (pr && pr.valor_unitario) {
             setForm((prev: any) => ({ ...prev, valor_unitario: Number(pr.valor_unitario), produto_estoque: first.id }));
           } else {
