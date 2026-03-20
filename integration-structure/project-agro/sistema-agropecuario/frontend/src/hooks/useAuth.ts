@@ -101,7 +101,7 @@ export default function useAuth() {
     setStoredUser(null)
     clearStoredTenant()
     delete api.defaults.headers.common['Authorization']
-    delete api.defaults.headers.common['X-Tenant-ID']
+    // delete api.defaults.headers.common['X-Tenant-ID']
     setUser(null)
     // Limpar cache React Query — dados do tenant anterior não devem vazar
     queryClient.clear()
@@ -134,9 +134,9 @@ export default function useAuth() {
         api.defaults.headers.common['Authorization'] = `Bearer ${tokens.access}`
         // Restaurar header X-Tenant-ID do localStorage
         const storedTenant = getStoredTenant()
-        if (storedTenant?.id) {
+        /* if (storedTenant?.id) {
           api.defaults.headers.common['X-Tenant-ID'] = storedTenant.id
-        }
+        } */
         try {
           const profile = await authService.getCurrentUser()
           // Validate profile - backend sometimes returns a 200-with-error payload (e.g., { code: 403 })
@@ -149,9 +149,9 @@ export default function useAuth() {
             // Atualizar tenant do perfil fresco
             const freshTenant = (profile as any)?.tenant_info || null
             setStoredTenant(freshTenant)
-            if (freshTenant?.id) {
+            /* if (freshTenant?.id) {
               api.defaults.headers.common['X-Tenant-ID'] = freshTenant.id
-            }
+            } */
           }
         } catch (err) {
           console.debug('useAuth: error fetching profile, attempting refresh', err)
@@ -210,11 +210,11 @@ export default function useAuth() {
       setStoredTenant(tenantInfo)
       // SEMPRE atualizar (ou remover) o header em memória — evita que o tenant
       // de uma sessão anterior vaze para a sessão do novo usuário.
-      if (tenantInfo?.id) {
+      /* if (tenantInfo?.id) {
         api.defaults.headers.common['X-Tenant-ID'] = tenantInfo.id
       } else {
         delete api.defaults.headers.common['X-Tenant-ID']
-      }
+      } */
       // Limpar cache React Query — dados cacheados do tenant anterior não devem
       // aparecer para o novo usuário.
       queryClient.clear()

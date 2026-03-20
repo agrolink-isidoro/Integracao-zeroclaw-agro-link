@@ -61,6 +61,7 @@ const api = axios.create({
     }
     // Sincronizar X-Tenant-ID sempre a partir do localStorage.
     // Nunca usar valor legado de api.defaults (pode ser de outra sessão).
+    /*
     const tenantInfo = getStoredTenant();
     cfg.headers = cfg.headers || {};
     if (tenantInfo?.id) {
@@ -72,6 +73,7 @@ const api = axios.create({
       // Limpar também os defaults — evita que Axios re-injete o valor stale
       delete api.defaults.headers.common['X-Tenant-ID'];
     }
+    */
     return cfg;
   },
   (error: any) => Promise.reject(error)

@@ -151,8 +151,8 @@ class FornecedorViewSet(TenantQuerySetMixin, viewsets.ModelViewSet):
 
         return Response(FornecedorSerializer(fornecedor).data)
 
-    @action(detail=True, methods=['get'], url_path='dashboard')
-    def dashboard_detail(self, request, pk=None):
+    @action(detail=True, methods=['get'])
+    def dashboard(self, request, pk=None):
         """Dashboard específico do fornecedor"""
         fornecedor = self.get_object()
         data = {
@@ -169,7 +169,7 @@ class FornecedorViewSet(TenantQuerySetMixin, viewsets.ModelViewSet):
         }
         return Response(data)
 
-    @action(detail=False, methods=['get'])
+    @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated, IsComercialAdmin, CanExportCSV])
     def dashboard(self, request):
         """Dashboard geral de fornecedores com KPIs agregados"""
         hoje = timezone.now().date()

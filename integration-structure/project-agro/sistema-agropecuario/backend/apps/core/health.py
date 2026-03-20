@@ -40,34 +40,6 @@ def health_check(request):
             data["db"] = f"error: {msg}"
             status_code = 503
 
-    # Check if admin user exists
-    try:
-        from django.contrib.auth import get_user_model
-        User = get_user_model()
-        admin_user = User.objects.filter(username='admin').first()
-        if admin_user:
-            data["admin_user"] = f"exists (id: {admin_user.id}, active: {admin_user.is_active})"
-            # Also check password and force-reset to the known development password.
-            # WARNING: this forces the admin password to 'admin123' on health-check
-            # and is extremely insecure in production. See START-INTEGRATION-MANUAL.md
-            # for an explicit warning added alongside this change.
-            password_check = admin_user.check_password('admin123')
-            if not password_check:
-                try:
-                    admin_user.set_password('admin123')
-                    admin_user.save()
-                    data["admin_password"] = "reset to admin123 (insecure)"
-                except Exception as e:
-                    data["admin_password"] = f"failed_to_reset: {str(e)}"
-            else:
-                data["admin_password"] = f"valid: {password_check}"
-        else:
-            data["admin_user"] = "not found"
-            data["admin_password"] = "N/A"
-    except Exception as e:
-        data["admin_user"] = f"error: {str(e)}"
-        data["admin_password"] = "N/A"
-
     # Check Redis only if DB is OK and REDIS_URL is set and redis lib available
     redis_url = os.environ.get("REDIS_URL")
     # Resolve Redis class dynamically from the module so monkeypatching works reliably in tests

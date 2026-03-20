@@ -1,10 +1,28 @@
+import environ
 from .base import *
+
+env = environ.Env()
+env.read_env(env.str('ENV_FILE', '.env'))
 
 DEBUG = False
 
-SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY", "prod-secret-key")
+# SECURITY: Sem fallback! Se DJANGO_SECRET_KEY não existir no prod, quebra a subida do container.
+SECRET_KEY = env('DJANGO_SECRET_KEY')
 
-ALLOWED_HOSTS = ['*']
+# SECURITY: Ler do env: "api.agrolink.com,admin.agrolink.com"
+ALLOWED_HOSTS = env.list('ALLOWED_HOSTS', default=['localhost', 'backend'])
+
+# SECURITY: Headers SSL e Cookies Seguros OBRIGATÓRIOS
+SECURE_SSL_REDIRECT = env.bool('SECURE_SSL_REDIRECT', default=True)
+SESSION_COOKIE_SECURE = True
+CSRF_COOKIE_SECURE = True
+SECURE_BROWSER_XSS_FILTER = True
+SECURE_CONTENT_TYPE_NOSNIFF = True
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+
+# SECURITY: Hardening de CORS
+CORS_ALLOWED_ORIGINS = env.list('CORS_ALLOWED_ORIGINS', default=[])
+CSRF_TRUSTED_ORIGINS = env.list('CSRF_TRUSTED_ORIGINS', default=[])
 
 # Force PostgreSQL for production
 DATABASES = {

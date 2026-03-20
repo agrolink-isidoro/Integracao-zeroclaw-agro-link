@@ -21,3 +21,8 @@ pip-wheel-metadata/
 __pycache__/
 *.egg
 *.log
+
+# Test artifacts
+test_nfe.xml
+test-results/
+
