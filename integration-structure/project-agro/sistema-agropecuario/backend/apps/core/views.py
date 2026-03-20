@@ -57,6 +57,13 @@ class UserViewSet(TenantQuerySetMixin, viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated, IsRBACAdmin]
     pagination_class = None
 
+    def get_queryset(self):
+        # Superusers devem ver todos os usuários de todos os tenants
+        # para gerenciamento (mesmo se tiverem tenant_id próprio)
+        if self.request.user and self.request.user.is_superuser:
+            return User.objects.all().order_by("username")
+        return super().get_queryset()
+
     def get_serializer_class(self):
         if self.action == 'list':
             return UserListSerializer
