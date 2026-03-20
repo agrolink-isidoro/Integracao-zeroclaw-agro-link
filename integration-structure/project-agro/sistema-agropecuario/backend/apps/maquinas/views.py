@@ -324,12 +324,19 @@ class AbastecimentoViewSet(TenantQuerySetMixin, viewsets.ModelViewSet):
 
         # Abastecimentos do mês
         qs = self.get_queryset()
-        abastecimentos_mes = qs.filter(
-            data_abastecimento__gte=mes_atual
-        ).aggregate(
-            total=Count('id'),
-            custo_total=Sum('valor_total')
-        )
+        qs_mes = qs.filter(data_abastecimento__gte=mes_atual)
+        abastecimentos_mes = qs_mes.aggregate(total=Count('id'), custo_total=Sum('valor_total'))
+
+        # Debug: log detalhado para investigar discrepâncias de soma
+        try:
+            ids = list(qs_mes.values_list('id', flat=True))
+            # compute iterative sum to compare with DB aggregate
+            iterative_sum = sum([getattr(a, 'valor_total', 0) or 0 for a in qs_mes.only('valor_total')])
+            logger = logging.getLogger(__name__)
+            logger.info('Dashboard Abastecimentos: count_ids=%d aggregate_total=%s iterative_sum=%s ids=%s',
+                        abastecimentos_mes.get('total'), str(abastecimentos_mes.get('custo_total')), str(iterative_sum), ids)
+        except Exception:
+            logging.getLogger(__name__).exception('Erro ao gerar debug info para dashboard de abastecimentos')
 
         # Consumo médio diário (últimos 30 dias)
         ultimos_30_dias = hoje - timedelta(days=30)
