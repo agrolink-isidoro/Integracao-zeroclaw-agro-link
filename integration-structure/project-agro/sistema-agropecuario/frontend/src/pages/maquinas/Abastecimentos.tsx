@@ -139,8 +139,8 @@ const Abastecimentos: React.FC = () => {
             <div className="col-md-2 col-6">
               <label className="form-label" htmlFor="valor_unitario">
                 Valor Unit.
-                {movimentacoesDiesel.length > 0 && movimentacoesDiesel[0].valor_unitario && (
-                  <span className="badge bg-success ms-2" title="Preenchido automaticamente com o último preço de entrada do diesel no estoque">
+                {form.valor_unitario > 0 && (
+                  <span className="badge bg-success ms-2" title="Preenchido automaticamente com o último preço do diesel no estoque">
                     <i className="bi bi-check-circle me-1"></i>Auto
                   </span>
                 )}
@@ -155,17 +155,9 @@ const Abastecimentos: React.FC = () => {
                 className="form-control" 
                 placeholder="R$/L"
               />
-              {movimentacoesDiesel.length > 0 && movimentacoesDiesel[0].valor_unitario && (
-                <small className="text-muted">Último preço: R$ {Number(movimentacoesDiesel[0].valor_unitario).toFixed(2)}/L</small>
+              {form.valor_unitario > 0 && (
+                <small className="text-muted">Último preço: R$ {Number(form.valor_unitario).toFixed(2)}/L</small>
               )}
-
-              {/* Hidden select to allow explicit produto_estoque association (auto-filled) */}
-              <select name="produto_estoque" value={form.produto_estoque ?? ''} onChange={handleChange} style={{ display: 'none' }}>
-                <option value="">—</option>
-                {movimentacoesDiesel.map(m => (
-                  <option key={m.id} value={m.produto}>{m.produto_nome}</option>
-                ))}
-              </select>
             </div>
             <div className="col-md-2 col-6">
               <label className="form-label" htmlFor="horimetro_km">Horímetro/Km</label>
