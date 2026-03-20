@@ -115,7 +115,7 @@ export interface ColheitaTransporte {
   peso_liquido?: number;
   custo_transporte?: number;
   // Unidade do custo: 'unidade' | 'saca' | 'tonelada'
-  custo_transporte_unidade?: 'unidade' | 'saca' | 'tonelada';
+  custo_transporte_unidade?: 'unidade' | 'saca' | 'tonelada' | 'total';
   criado_em?: string;
 }
 

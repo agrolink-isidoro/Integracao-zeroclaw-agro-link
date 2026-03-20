@@ -26,52 +26,42 @@ const Abastecimentos: React.FC = () => {
 
   const createMutation = useApiCreate('/maquinas/abastecimentos/', [['abastecimentos']]);
 
-  // Preencher automaticamente o preço do diesel quando abrir o formulário
+  // Preencher preço do diesel: 1º última entrada no estoque, 2º custo unitário do produto
   useEffect(() => {
     if (!showForm) return;
 
     async function fillPrice() {
       try {
-        // Step 1: Buscar produto Diesel
         const resp = await api.get('/estoque/produtos/?search=diesel&page_size=1');
         const productsData = resp.data;
-        
-        // Handle both direct array and paginated response {results: [...]}
         const products = Array.isArray(productsData) ? productsData : productsData?.results || [];
         
-        if (products.length === 0) {
-          console.debug('[Abastecimentos] No diesel product found');
-          return;
-        }
+        if (products.length === 0) return;
         
         const dieselProduct = products[0];
-        if (!dieselProduct?.id) {
-          console.debug('[Abastecimentos] Diesel product has no id');
-          return;
+        if (!dieselProduct?.id) return;
+
+        // Tentar buscar preço da última movimentação de entrada
+        let preco: number | null = null;
+        try {
+          const priceResp = await api.get(`/estoque/produto-ultimo-preco/?produto_id=${dieselProduct.id}`);
+          if (priceResp.data?.valor_unitario) {
+            preco = Number(priceResp.data.valor_unitario);
+          }
+        } catch { /* endpoint pode não ter dados */ }
+
+        // Fallback: custo unitário cadastrado no produto
+        if (!preco && dieselProduct.custo_unitario && Number(dieselProduct.custo_unitario) > 0) {
+          preco = Number(dieselProduct.custo_unitario);
         }
-        
-        // Step 2: Buscar último preço do produto
-        const priceResp = await api.get(`/estoque/produto-ultimo-preco/?produto_id=${dieselProduct.id}`);
-        const priceData = priceResp.data;
-        
-        if (priceData?.valor_unitario) {
-          setForm((prev: any) => ({
-            ...prev,
-            valor_unitario: Number(priceData.valor_unitario),
-            produto_estoque: dieselProduct.id
-          }));
-          console.debug('[Abastecimentos] Diesel price auto-filled', {
-            preco: priceData.valor_unitario,
-            produto_id: dieselProduct.id
-          });
-        } else {
-          // Even if no price found, set produto_estoque so the Abastecimento links the product
-          setForm((prev: any) => ({ ...prev, produto_estoque: dieselProduct.id }));
-          console.debug('[Abastecimentos] No recent diesel price, linking product only');
-        }
+
+        setForm((prev: any) => ({
+          ...prev,
+          ...(preco ? { valor_unitario: preco } : {}),
+          produto_estoque: dieselProduct.id
+        }));
       } catch (e) {
         console.debug('[Abastecimentos] Error loading diesel price', e);
-        // Não bloquear o formulário em caso de erro
       }
     }
 
