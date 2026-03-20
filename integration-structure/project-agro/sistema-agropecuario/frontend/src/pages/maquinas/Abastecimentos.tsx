@@ -24,18 +24,6 @@ const Abastecimentos: React.FC = () => {
   const { data: dashboard } = useApiQuery<any>(['abastecimentos-dashboard'], '/maquinas/abastecimentos/dashboard/');
   const { data: consumoPorEquipamento = [] } = useApiQuery<any>(['abastecimentos-por-equipamento'], '/maquinas/abastecimentos/por_equipamento/?dias=30');
 
-  // Buscar último preço do diesel no estoque (primeira página)
-  const { data: movimentacoesDieselRaw = null } = useApiQuery<any>(
-    ['movimentacoes-diesel'],
-    '/estoque/movimentacoes/?tipo=entrada&search=diesel&ordering=-data_movimentacao&page_size=1&page=1',
-    { enabled: showForm }
-  );
-
-  // Normalize para sempre termos um array simples em movimentacoesDiesel
-  const movimentacoesDiesel: MovimentacaoEstoque[] = Array.isArray(movimentacoesDieselRaw)
-    ? movimentacoesDieselRaw
-    : (movimentacoesDieselRaw && movimentacoesDieselRaw.results) ? movimentacoesDieselRaw.results : [];
-
   const createMutation = useApiCreate('/maquinas/abastecimentos/', [['abastecimentos']]);
 
   // Preencher automaticamente o preço do diesel quando abrir o formulário
@@ -43,36 +31,52 @@ const Abastecimentos: React.FC = () => {
     if (!showForm) return;
 
     async function fillPrice() {
-      // 1) Prefer usar movimentacoesDiesel (busca por 'diesel')
-      if (movimentacoesDiesel.length > 0 && movimentacoesDiesel[0].valor_unitario) {
-        setForm((prev: any) => ({ ...prev, valor_unitario: Number(movimentacoesDiesel[0].valor_unitario), produto_estoque: movimentacoesDiesel[0].produto || prev.produto_estoque }));
-        return;
-      }
-
-      // 2) Fallback: buscar produto Diesel e pedir ultimo_preco endpoint
       try {
-        // Use axios instance so Authorization and X-Tenant-ID headers are sent
+        // Step 1: Buscar produto Diesel
         const resp = await api.get('/estoque/produtos/?search=diesel&page_size=1');
-        const data = resp.data;
-        const first = Array.isArray(data) ? data[0] : data.results?.[0];
-        if (first && first.id) {
-          const p = await api.get(`/estoque/produto-ultimo-preco/?produto_id=${first.id}`);
-          const pr = p.data;
-          if (pr && pr.valor_unitario) {
-            setForm((prev: any) => ({ ...prev, valor_unitario: Number(pr.valor_unitario), produto_estoque: first.id }));
-          } else {
-            // Even if there's no price, we set produto_estoque so the Abastecimento explicitly links the product
-            setForm((prev: any) => ({ ...prev, produto_estoque: first.id }));
-          }
+        const productsData = resp.data;
+        
+        // Handle both direct array and paginated response {results: [...]}
+        const products = Array.isArray(productsData) ? productsData : productsData?.results || [];
+        
+        if (products.length === 0) {
+          console.debug('[Abastecimentos] No diesel product found');
+          return;
+        }
+        
+        const dieselProduct = products[0];
+        if (!dieselProduct?.id) {
+          console.debug('[Abastecimentos] Diesel product has no id');
+          return;
+        }
+        
+        // Step 2: Buscar último preço do produto
+        const priceResp = await api.get(`/estoque/produto-ultimo-preco/?produto_id=${dieselProduct.id}`);
+        const priceData = priceResp.data;
+        
+        if (priceData?.valor_unitario) {
+          setForm((prev: any) => ({
+            ...prev,
+            valor_unitario: Number(priceData.valor_unitario),
+            produto_estoque: dieselProduct.id
+          }));
+          console.debug('[Abastecimentos] Diesel price auto-filled', {
+            preco: priceData.valor_unitario,
+            produto_id: dieselProduct.id
+          });
+        } else {
+          // Even if no price found, set produto_estoque so the Abastecimento links the product
+          setForm((prev: any) => ({ ...prev, produto_estoque: dieselProduct.id }));
+          console.debug('[Abastecimentos] No recent diesel price, linking product only');
         }
       } catch (e) {
-        // não bloquear o formulário em caso de erro
-        // console.debug('Erro ao buscar preço automático do diesel', e)
+        console.debug('[Abastecimentos] Error loading diesel price', e);
+        // Não bloquear o formulário em caso de erro
       }
     }
 
     fillPrice();
-  }, [showForm, movimentacoesDiesel]);
+  }, [showForm]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
