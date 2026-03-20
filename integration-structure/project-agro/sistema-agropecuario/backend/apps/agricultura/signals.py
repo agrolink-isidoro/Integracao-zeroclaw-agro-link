@@ -244,6 +244,7 @@ def movimentacao_carga_transport_rateio(sender, instance, created, **kwargs):
             criado_por=instance.criado_por,
             safra=plantio,
             destino='operacional',
+            **({'tenant_id': instance.tenant_id} if getattr(instance, 'tenant_id', None) else {}),
         )
         ct = ContentType.objects.get_for_model(instance)
         RateioCusto.objects.filter(pk=rateio.pk).update(

@@ -407,7 +407,7 @@ class FolhaPagamentoViewSet(TenantQuerySetMixin, viewsets.ModelViewSet):
             total += float(liquido)
 
         # Create record to keep trace (not executed)
-        folha = FolhaPagamento.objects.create(descricao=f'Folha {periodo_mes}/{periodo_ano}', periodo_mes=periodo_mes or 0, periodo_ano=periodo_ano or 0, valor_total=total, criado_por=request.user if request.user.is_authenticated else None)
+        folha = FolhaPagamento.objects.create(descricao=f'Folha {periodo_mes}/{periodo_ano}', periodo_mes=periodo_mes or 0, periodo_ano=periodo_ano or 0, valor_total=total, criado_por=request.user if request.user.is_authenticated else None, **self._get_tenant_kwargs())
         # create items for persistence
         for it in itens:
             # determine an aggregate hora_extra_type for persistence
@@ -483,6 +483,7 @@ class FolhaPagamentoViewSet(TenantQuerySetMixin, viewsets.ModelViewSet):
             from django.utils import timezone
 
             item_ct = ContentType.objects.get_for_model(FolhaPagamentoItem)
+            _tk = self._get_tenant_kwargs()
             created_vencimentos = []
             for item in folha.itens.all():
                 # avoid duplicating a vencimento for the same folha-item
@@ -497,6 +498,7 @@ class FolhaPagamentoViewSet(TenantQuerySetMixin, viewsets.ModelViewSet):
                         criado_por=request.user,
                         content_type=item_ct,
                         object_id=item.id,
+                        **_tk,
                     )
                     created_vencimentos.append(v.id)
 
@@ -510,7 +512,8 @@ class FolhaPagamentoViewSet(TenantQuerySetMixin, viewsets.ModelViewSet):
                     data=timezone.now().date(),
                     centro=centro,
                     pendente_rateio=True,
-                    criado_por=request.user
+                    criado_por=request.user,
+                    **_tk,
                 )
         except Exception:
             # Do not fail execution if financeiro app is missing or any error happens here; we
@@ -569,7 +572,8 @@ class FolhaPagamentoViewSet(TenantQuerySetMixin, viewsets.ModelViewSet):
                         valor=valor,
                         data_vencimento=timezone.now().date(),
                         tipo='despesa',
-                        criado_por=request.user
+                        criado_por=request.user,
+                        **self._get_tenant_kwargs(),
                     )
                     venc_id = v.id
                 else:

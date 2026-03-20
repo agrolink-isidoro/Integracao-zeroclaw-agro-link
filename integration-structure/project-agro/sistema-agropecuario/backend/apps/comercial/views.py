@@ -108,7 +108,7 @@ class FornecedorViewSet(TenantQuerySetMixin, viewsets.ModelViewSet):
 
         serializer = self.get_serializer(data=data, context={'request': request})
         serializer.is_valid(raise_exception=True)
-        fornecedor = serializer.save(criado_por=request.user)
+        fornecedor = serializer.save(criado_por=request.user, **self._get_tenant_kwargs())
 
         # Criar documentos associados se houver
         if docs:
@@ -117,7 +117,7 @@ class FornecedorViewSet(TenantQuerySetMixin, viewsets.ModelViewSet):
                 d['fornecedor'] = fornecedor.id
                 doc_serializer = DocumentoFornecedorSerializer(data=d, context={'request': request})
                 if doc_serializer.is_valid():
-                    doc_serializer.save(criado_por=request.user)
+                    doc_serializer.save(criado_por=request.user, **self._get_tenant_kwargs())
                 else:
                     errors[i] = doc_serializer.errors
             if errors:
@@ -144,7 +144,7 @@ class FornecedorViewSet(TenantQuerySetMixin, viewsets.ModelViewSet):
                 d['fornecedor'] = fornecedor.id
                 doc_serializer = DocumentoFornecedorSerializer(data=d, context={'request': request})
                 if doc_serializer.is_valid():
-                    doc_serializer.save(criado_por=request.user)
+                    doc_serializer.save(criado_por=request.user, **self._get_tenant_kwargs())
                 else:
                     # ignorar documentos inválidos na atualização (poderíamos retornar erro se preferir)
                     pass
@@ -516,7 +516,12 @@ class VendasComprasViewSet(viewsets.ViewSet):
 
         # Tenant filtering — get tenant from request
         _tenant = getattr(request, 'tenant', None) or getattr(request.user, 'tenant', None)
-        _tf = {'tenant': _tenant} if _tenant else {}
+        if _tenant:
+            _tf = {'tenant': _tenant}
+        elif request.user and request.user.is_superuser:
+            _tf = {}
+        else:
+            return Response([])  # No tenant, no data
 
         # basic combined list sorted by date descending
         compras = Compra.objects.filter(**_tf).order_by('-data')[:100]
@@ -556,18 +561,20 @@ class VendasComprasViewSet(viewsets.ViewSet):
     def create(self, request):
         payload = request.data
         tipo = payload.get('tipo_operacao')
+        _tenant = getattr(request, 'tenant', None) or getattr(request.user, 'tenant', None)
+        _tk = {'tenant': _tenant} if _tenant else {}
         if tipo == 'compra':
             # delegate to CompraSerializer
             from .serializers import CompraSerializer
             serializer = CompraSerializer(data=payload, context={'request': request})
             serializer.is_valid(raise_exception=True)
-            obj = serializer.save()
+            obj = serializer.save(**_tk)
             return Response(CompraSerializer(obj).data, status=201)
         elif tipo == 'venda':
             from .serializers import VendaColheitaSerializer
             serializer = VendaColheitaSerializer(data=payload, context={'request': request})
             serializer.is_valid(raise_exception=True)
-            obj = serializer.save(criado_por=request.user)
+            obj = serializer.save(criado_por=request.user, **_tk)
             return Response(VendaColheitaSerializer(obj).data, status=201)
         else:
             return Response({'detail': 'tipo_operacao must be compra or venda'}, status=400)

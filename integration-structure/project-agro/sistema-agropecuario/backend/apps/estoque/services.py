@@ -156,7 +156,8 @@ def create_movimentacao(*, produto: Produto = None, produto_id: int = None, tipo
                     titulo=f"Auto-rateio movimentacao {movimentacao.id}",
                     descricao=f"Rateio automático gerado para movimentacao {movimentacao.id}",
                     valor_total=movimentacao.custo_alocado,
-                    criado_por=criado_por
+                    criado_por=criado_por,
+                    **({'tenant_id': movimentacao.tenant_id} if getattr(movimentacao, 'tenant_id', None) else {}),
                 )
 
                 # Mark movimentacao as pending rateio and link

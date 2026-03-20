@@ -223,12 +223,21 @@ def categorias_list(request):
 
 @api_view(['GET'])
 def produto_ultimo_preco_entrada(request):
-    """Retorna o último valor unitário de entrada (tipo=entrada) para um produto dado `produto_id` como query param."""
+    """Retorna o último valor unitário de entrada (tipo=entrada) para um produto dado `produto_id` como query param.
+    Se não houver movimentação de entrada, busca qualquer movimentação com valor_unitario preenchido."""
     produto_id = request.query_params.get('produto_id')
     if not produto_id:
         return Response({'error': 'produto_id é obrigatório'}, status=400)
     try:
-        mov = MovimentacaoEstoque.objects.filter(produto_id=produto_id, tipo='entrada').order_by('-data_movimentacao').first()
+        # Primeiro tenta entrada
+        mov = MovimentacaoEstoque.objects.filter(
+            produto_id=produto_id, tipo='entrada', valor_unitario__isnull=False
+        ).order_by('-data_movimentacao').first()
+        # Fallback: qualquer movimentação com valor_unitario preenchido
+        if not mov:
+            mov = MovimentacaoEstoque.objects.filter(
+                produto_id=produto_id, valor_unitario__isnull=False
+            ).exclude(valor_unitario=0).order_by('-data_movimentacao').first()
         if not mov:
             return Response({'valor_unitario': None}, status=200)
         return Response({'valor_unitario': str(mov.valor_unitario) if mov.valor_unitario is not None else None, 'data_movimentacao': mov.data_movimentacao}, status=200)

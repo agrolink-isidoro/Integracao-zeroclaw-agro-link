@@ -155,7 +155,9 @@ def process_folha_impostos(instance, force=False, dry_run=False):
     if not dry_run:
         from .models_impostos import ImpostoTrabalhista, ImpostoFederal
         comp_date = competencia or timezone.now().date()
-        ImpostoTrabalhista.objects.update_or_create(
+        # Propagate tenant from FolhaPagamento
+        _tenant_kw = {'tenant_id': instance.tenant_id} if getattr(instance, 'tenant_id', None) else {}
+        trab, _ = ImpostoTrabalhista.objects.update_or_create(
             folha=instance,
             defaults={
                 'competencia': competencia or timezone.now().date(),
@@ -164,6 +166,7 @@ def process_folha_impostos(instance, force=False, dry_run=False):
                 'fgts': total_fgts,
                 'base_inss': total_salario,
                 'base_ir': total_salario,
+                **_tenant_kw,
             }
         )
         # federais
@@ -171,14 +174,14 @@ def process_folha_impostos(instance, force=False, dry_run=False):
             competencia=comp_date,
             tipo_imposto='INSS',
             folha=instance,
-            defaults={'valor': total_inss, 'referencia': f'Folha {instance.id}'}
+            defaults={'valor': total_inss, 'referencia': f'Folha {instance.id}', **_tenant_kw}
         )
         fed_created += 1
         ImpostoFederal.objects.update_or_create(
             competencia=comp_date,
             tipo_imposto='IR',
             folha=instance,
-            defaults={'valor': total_ir, 'referencia': f'Folha {instance.id}'}
+            defaults={'valor': total_ir, 'referencia': f'Folha {instance.id}', **_tenant_kw}
         )
         fed_created += 1
         trabal_created = True

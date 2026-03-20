@@ -69,7 +69,7 @@ class VencimentoViewSet(TenantQuerySetMixin, viewsets.ModelViewSet):
             from datetime import datetime
             data_referencia = datetime.fromisoformat(data_referencia).date()
 
-        resumo = resumo_financeiro(data_referencia)
+        resumo = resumo_financeiro(data_referencia, tenant=self._get_request_tenant())
         return Response(resumo)
     @action(detail=False, methods=['post'])
     def bulk_marcar_pago(self, request):
@@ -204,7 +204,7 @@ class RateioCustoViewSet(TenantQuerySetMixin, viewsets.ModelViewSet):
             origem_content_type=ContentType.objects.get_for_model(rateio),
             origem_object_id=rateio.id,
             criado_por=request.user,
-            tenant=request.user.tenant  # FIX: Ensure tenant isolation
+            **self._get_tenant_kwargs(),
         )
 
         from .serializers import VencimentoSerializer
@@ -342,7 +342,8 @@ class TransferenciaViewSet(TenantQuerySetMixin, viewsets.ModelViewSet):
             pix_key_origem=data.get('pix_key_origem'),
             pix_key_destino=data.get('pix_key_destino'),
             origem_ct=origem_ct, origem_obj=origem_obj,
-            destino_ct=destino_ct, destino_obj=destino_obj
+            destino_ct=destino_ct, destino_obj=destino_obj,
+            tenant=self._get_request_tenant(),
         )
 
         out_ser = self.get_serializer(transfer)
@@ -681,7 +682,7 @@ class CreditCardViewSet(TenantQuerySetMixin, viewsets.ModelViewSet):
             tipo='despesa',
             conta_bancaria=card.conta,
             criado_por=request.user,
-            tenant=request.user.tenant  # FIX: Ensure tenant isolation
+            **self._get_tenant_kwargs(),
         )
 
         # Mark transactions as billed

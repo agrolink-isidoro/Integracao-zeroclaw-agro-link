@@ -152,6 +152,9 @@ def try_create_nfe_from_compra(sender, instance, created, **kwargs):
         from apps.fiscal.models import ItemNFe
 
         with transaction.atomic():
+            # Propagate tenant from Compra
+            if getattr(instance, 'tenant_id', None) and 'tenant_id' not in nfe_data and 'tenant' not in nfe_data:
+                nfe_data['tenant_id'] = instance.tenant_id
             nfe_obj = NFe.objects.create(**nfe_data)
             # associate supplier from the compra when possible
             try:

@@ -13,7 +13,7 @@ from ..models import (
 from django.contrib.contenttypes.models import ContentType
 
 
-def transferir_entre_contas(conta_origem, conta_destino, valor, tipo='interno', criado_por=None, descricao=None, pix_key_origem=None, pix_key_destino=None, origem_ct=None, origem_obj=None, destino_ct=None, destino_obj=None):
+def transferir_entre_contas(conta_origem, conta_destino, valor, tipo='interno', criado_por=None, descricao=None, pix_key_origem=None, pix_key_destino=None, origem_ct=None, origem_obj=None, destino_ct=None, destino_obj=None, tenant=None):
     """Realiza uma transferência entre contas criande objeto Transferencia e dois lancamentos (saida/entrada).
 
     Para transferências PIX, `conta_destino` pode ser None (o dinheiro sai para um destinatário
@@ -33,6 +33,7 @@ def transferir_entre_contas(conta_origem, conta_destino, valor, tipo='interno', 
             raise ValueError('conta_destino é obrigatória para transferências do tipo ' + tipo)
 
     with transaction.atomic():
+        _tk = {'tenant': tenant} if tenant else {}
         transfer = Transferencia.objects.create(
             conta_origem=conta_origem,
             conta_destino=conta_destino,
@@ -41,7 +42,8 @@ def transferir_entre_contas(conta_origem, conta_destino, valor, tipo='interno', 
             descricao=descricao or '',
             pix_key_origem=pix_key_origem,
             pix_key_destino=pix_key_destino,
-            criado_por=criado_por
+            criado_por=criado_por,
+            **_tk,
         )
 
         # set optional generic relations
@@ -62,7 +64,8 @@ def transferir_entre_contas(conta_origem, conta_destino, valor, tipo='interno', 
             descricao=f"Transferencia {transfer.id} -> {descricao or ''}",
             origem_content_type=ContentType.objects.get_for_model(transfer),
             origem_object_id=transfer.id,
-            criado_por=criado_por
+            criado_por=criado_por,
+            **_tk,
         )
 
         # Create LancamentoFinanceiro: 'entrada' in destino (only if conta_destino is set)
@@ -75,7 +78,8 @@ def transferir_entre_contas(conta_origem, conta_destino, valor, tipo='interno', 
                 descricao=f"Transferencia {transfer.id} <- {descricao or ''}",
                 origem_content_type=ContentType.objects.get_for_model(transfer),
                 origem_object_id=transfer.id,
-                criado_por=criado_por
+                criado_por=criado_por,
+                **_tk,
             )
 
         return transfer
@@ -470,7 +474,8 @@ def create_rateio_from_despesa(despesa, created_by):
         criado_por=created_by,
         safra=getattr(despesa, 'safra', None),
         centro_custo=getattr(despesa, 'centro', None),
-        destino='despesa_adm'
+        destino='despesa_adm',
+        **({'tenant_id': despesa.tenant_id} if getattr(despesa, 'tenant_id', None) else {}),
     )
 
     # Set origem generic link to the DespesaAdministrativa
@@ -637,6 +642,7 @@ def create_rateios_proporcional_safras(valor, titulo, data, source_obj, destino=
             criado_por=created_by,
             safra=safra,
             destino=destino,
+            **({'tenant_id': source_obj.tenant_id} if getattr(source_obj, 'tenant_id', None) else {}),
         )
 
         # Vincular origem (GFK)
@@ -906,15 +912,17 @@ def match_bank_transaction_to_transfer(transaction):
     return None
 
 
-def resumo_financeiro(data_referencia=None):
+def resumo_financeiro(data_referencia=None, tenant=None):
     """
     Retorna um resumo financeiro completo
     """
     if data_referencia is None:
         data_referencia = timezone.now().date()
 
+    _tf = {'tenant': tenant} if tenant else {}
+
     # Vencimentos
-    vencimentos = Vencimento.objects.all()
+    vencimentos = Vencimento.objects.filter(**_tf)
     resumo_vencimentos = {
         'total_pendente': vencimentos.filter(status='pendente').aggregate(
             total=models.Sum('valor'))['total'] or Decimal('0'),
@@ -928,7 +936,7 @@ def resumo_financeiro(data_referencia=None):
     }
 
     # Financiamentos
-    financiamentos = Financiamento.objects.filter(status='ativo')
+    financiamentos = Financiamento.objects.filter(status='ativo', **_tf)
     resumo_financiamentos = {
         'total_financiado': financiamentos.aggregate(
             total=models.Sum('valor_financiado'))['total'] or Decimal('0'),
@@ -937,7 +945,7 @@ def resumo_financeiro(data_referencia=None):
     }
 
     # Empréstimos
-    emprestimos = Emprestimo.objects.filter(status='ativo')
+    emprestimos = Emprestimo.objects.filter(status='ativo', **_tf)
     resumo_emprestimos = {
         'total_emprestado': emprestimos.aggregate(
             total=models.Sum('valor_emprestimo'))['total'] or Decimal('0'),

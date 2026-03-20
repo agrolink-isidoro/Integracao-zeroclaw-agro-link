@@ -1172,6 +1172,10 @@ class NFeViewSet(TenantQuerySetMixin, viewsets.ModelViewSet):
 
             from django.db import transaction
             with transaction.atomic():
+                # Inject tenant from request
+                _tenant = getattr(request, 'tenant', None) or getattr(request.user, 'tenant', None)
+                if _tenant and 'tenant_id' not in nfe_data and 'tenant' not in nfe_data:
+                    nfe_data['tenant'] = _tenant
                 logger.debug(f'Creating NFe in DB with create()')
                 nfe = NFe.objects.create(**nfe_data)
                 logger.debug(f'NFe created in DB, id={nfe.id}')
@@ -2302,7 +2306,14 @@ class NFeRemoteImportView(APIView):
         from .models_sync import NFeRemote
         from .serializers_import import NFeRemoteImportRequestSerializer
         try:
-            remote = NFeRemote.objects.get(pk=pk)
+            # Filter by tenant to prevent cross-tenant access
+            tenant = getattr(request, 'tenant', None) or getattr(request.user, 'tenant', None)
+            qs = NFeRemote.objects.all()
+            if tenant:
+                qs = qs.filter(tenant=tenant)
+            elif not (request.user and request.user.is_superuser):
+                return Response({'detail': 'tenant_required'}, status=403)
+            remote = qs.get(pk=pk)
         except NFeRemote.DoesNotExist:
             return Response({'detail': 'not_found'}, status=404)
 
@@ -2392,6 +2403,10 @@ class NFeRemoteImportView(APIView):
             nfe_data = view._extract_nfe_data(proc_nfe, xml_content, request)
             logger.debug(f"NFe data extracted: chave_acesso={nfe_data.get('chave_acesso')} for remote_id={remote.id}")
 
+            # Inject tenant from request
+            if tenant and 'tenant_id' not in nfe_data and 'tenant' not in nfe_data:
+                nfe_data['tenant'] = tenant
+
             # Basic validation: avoid duplicate
             from .models import NFe
             if NFe.objects.filter(chave_acesso=nfe_data.get('chave_acesso')).exists():
@@ -2470,8 +2485,15 @@ class NFeRemoteListView(ListAPIView):
     pagination_class = None
     
     def get_queryset(self):
-        """Filter queryset by import_status if provided."""
+        """Filter queryset by tenant and optional filters."""
         qs = super().get_queryset()
+        # Tenant isolation
+        tenant = getattr(self.request, 'tenant', None) or getattr(self.request.user, 'tenant', None)
+        if tenant:
+            if hasattr(qs.model, 'tenant_id'):
+                qs = qs.filter(tenant=tenant)
+        elif not (self.request.user and self.request.user.is_superuser):
+            return qs.none()
         import_status = self.request.query_params.get('import_status')
         if import_status:
             qs = qs.filter(import_status=import_status)
@@ -2879,6 +2901,10 @@ class NFeRemoteListView(ListAPIView):
             try:
                 # Criar NFe e processar itens dentro de uma transação atômica
                 with transaction.atomic():
+                    # Inject tenant from request
+                    _tenant = getattr(request, 'tenant', None) or getattr(request.user, 'tenant', None)
+                    if _tenant and 'tenant_id' not in nfe_data and 'tenant' not in nfe_data:
+                        nfe_data['tenant'] = _tenant
                     nfe = NFe.objects.create(**nfe_data)
                     self._process_nfe_items(proc_nfe, nfe)
 
@@ -3343,15 +3369,23 @@ class ImpostosListView(APIView):
         impostos_federais = []
         impostos_trabalhistas = []
 
+        # Tenant isolation
+        tenant = getattr(request, 'tenant', None) or getattr(request.user, 'tenant', None)
+        tenant_filter = {}
+        if tenant:
+            tenant_filter = {'tenant': tenant}
+        elif not (request.user and request.user.is_superuser):
+            return Response({'federais': [], 'trabalhistas': []}, status=status.HTTP_200_OK)
+
         if comp and re.match(r'^\d{4}-\d{2}$', comp):
             year, month = comp.split('-')
             from .models_impostos import ImpostoFederal, ImpostoTrabalhista
-            qs_fed = ImpostoFederal.objects.filter(competencia__year=int(year), competencia__month=int(month))
-            qs_trab = ImpostoTrabalhista.objects.filter(competencia__year=int(year), competencia__month=int(month))
+            qs_fed = ImpostoFederal.objects.filter(competencia__year=int(year), competencia__month=int(month), **tenant_filter)
+            qs_trab = ImpostoTrabalhista.objects.filter(competencia__year=int(year), competencia__month=int(month), **tenant_filter)
         else:
             from .models_impostos import ImpostoFederal, ImpostoTrabalhista
-            qs_fed = ImpostoFederal.objects.all()
-            qs_trab = ImpostoTrabalhista.objects.all()
+            qs_fed = ImpostoFederal.objects.filter(**tenant_filter)
+            qs_trab = ImpostoTrabalhista.objects.filter(**tenant_filter)
 
         impostos_federais = ImpostoFederalSerializer(qs_fed, many=True).data
         impostos_trabalhistas = ImpostoTrabalhistaSerializer(qs_trab, many=True).data
