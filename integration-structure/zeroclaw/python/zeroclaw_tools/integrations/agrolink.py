@@ -516,14 +516,16 @@ CAMPOS OBRIGATÓRIOS POR FORMULÁRIO (sempre pergunte todos):
     ↳ quantidade_litros: somente o número (ex: 305.0)
     ↳ valor_unitario: preço por litro em R$ obtido do estoque ou informado pelo usuário (ex: 5.45)
     ↳ horimetro: leitura do horímetro em horas (ex: 2196.37)
-  registrar_ordem_servico_maquina → equipamento*, descricao_problema*, tipo, prioridade, status,
-                            data_previsao, custo_mao_obra, responsavel, prestador_servico, observacoes
-    ↳ ⚠️ MANDATÓRIO: ANTES de registrar a OS, execute consultar_maquinas() para validar o `equipamento` exato.
+  registrar_ordem_servico_maquina → equipamento*, descricao_problema*, tipo, prioridade, status,                                                                      
+                            data_previsao, custo_mao_obra, responsavel, prestador_servico, observacoes                                                                
+    ↳ ⚠️ MANDATÓRIO 1: ANTES de registrar a OS, execute consultar_maquinas() para validar o `equipamento` exato.                                                         
+    ↳ ⚠️ MANDATÓRIO 2 (PREÇO INTELIGENTE DE PEÇAS): Se o produtor relatar uso de peças (ex: filtro, óleo, correia), ANTES de perguntar o valor da peça, use consultar_estoque() para ver se a peça já existe no sistema. Se existir com preço, use o preço do sistema e NÃO pergunte ao usuário o valor. Só pergunte o valor se for uma peça nova e não localizada no estoque.
     
     
-  registrar_manutencao_maquina → maquina_nome*, tipo_registro*, data*, descricao*, custo,
-                            tecnico, horas_trabalhadas, km_rodados, prestador_servico, prioridade, observacoes
-    ↳ ⚠️ MANDATÓRIO: ANTES de registrar manutenção, execute consultar_maquinas() para validar a `maquina_nome` exata.
+  registrar_manutencao_maquina → maquina_nome*, tipo_registro*, data*, descricao*, custo,                                                                             
+                            tecnico, horas_trabalhadas, km_rodados, prestador_servico, prioridade, observacoes                                                        
+    ↳ ⚠️ MANDATÓRIO 1: ANTES de registrar manutenção, execute consultar_maquinas() para validar a `maquina_nome` exata.                                                  
+    ↳ ⚠️ MANDATÓRIO 2 (PREÇO INTELIGENTE DE PEÇAS): O mesmo princípio acima. Consulte o estoque antes de perguntar valores de peças.
     
     
     ↳ tipo_registro valores: manutencao | revisao | reparo | troca_oleo | parada
@@ -859,9 +861,10 @@ Movimentação de Carga (colheita) — SEMPRE: consultar_sessoes_colheita_ativas
   3. PESO BRUTO (ex: 28.500 kg) — "Qual o peso bruto da carga?"
   4. TARA (ex: 13.200 kg) — "Qual o peso da tara do caminhão?"
   5. CUSTO DE TRANSPORTE em R$ — "Qual foi o custo DO TRANSPORTE em reais?"
-     - Se R$/ton: registre com `custo_transporte_unidade='tonelada'`
-     - Se R$/saca: registre com `custo_transporte_unidade='saca'`
-     - Se valor fixo R$: registre com `custo_transporte_unidade=''`
+     🚨 NUNCA CALCULE O VALOR TOTAL DO FRETE MULTIPLICANDO PELO PESO! APENAS REPASSE O VALOR UNITÁRIO INFORMADO.
+     - Se R$/ton: registre com `custo_transporte` = VALOR_INFORMADO e `custo_transporte_unidade='tonelada'`
+     - Se R$/saca: registre com `custo_transporte` = VALOR_INFORMADO e `custo_transporte_unidade='saca'`
+     - Se valor fixo R$: registre com `custo_transporte` = VALOR_INFORMADO e `custo_transporte_unidade=''`
   6. TIPO DE DESTINO — "Para onde vai a carga? (armazenagem_interna / armazenagem_externa / venda_direta)"
   7. LOCAL DE ARMAZENAMENTO/DESTINO — consultar lista do sistema antes de perguntar
 
@@ -894,9 +897,10 @@ PASSO 3️⃣: Coletar OBRIGATÓRIOS — Pesos e Custos (não pule nenhum):
   3️⃣ PESO BRUTO 🔴 → "Qual o peso bruto da carga em kg?" (ex: 67650)
   4️⃣ TARA 🔴 → "Qual o peso da tara (caminhão vazio) em kg?" (ex: 17650)
   5️⃣ CUSTO DE TRANSPORTE 🔴 → "Qual é o custo do transporte?" 
-     • Se responder valor total em R$ (ex: "R$ 3.600") → custo_transporte_unidade = ""
-     • Se responder "R$/ton" (ex: "R$ 72 por tonelada") → custo_transporte_unidade = "tonelada"
-     • Se responder "R$/saca" (ex: "R$ 4,32 por saca") → custo_transporte_unidade = "saca"
+     🚨 NUNCA multiplique o preço por tonelada/saca pelo peso! Repasse apenas o número exato falado (ex: "R$ 72 por tonelada" → 72.0). O sistema calculará o total.
+     • Se responder valor total em R$ (ex: "R$ 3.600 no total") → custo_transporte_unidade = ""
+     • Se responder "R$/ton" (ex: "R$ 72 por tonelada") → custo_transporte = 72.0 e custo_transporte_unidade = "tonelada"
+     • Se responder "R$/saca" (ex: "R$ 4,32 por saca") → custo_transporte = 4.32 e custo_transporte_unidade = "saca"
 
 PASSO 4️⃣: Coletar OBRIGATÓRIOS — Destino com FETCH de Opções:
   6️⃣ TIPO DE DESTINO 🔴 → "Para onde vai a carga?" com opções
