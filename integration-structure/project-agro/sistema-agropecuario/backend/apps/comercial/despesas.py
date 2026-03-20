@@ -1,12 +1,13 @@
 from rest_framework import viewsets
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import SearchFilter, OrderingFilter
+from apps.core.mixins import TenantQuerySetMixin
 
 from .models import DespesaPrestadora
 from .serializers import DespesaPrestadoraSerializer
 
 
-class DespesaPrestadoraViewSet(viewsets.ModelViewSet):
+class DespesaPrestadoraViewSet(TenantQuerySetMixin, viewsets.ModelViewSet):
     """ViewSet para DespesaPrestadora"""
     queryset = DespesaPrestadora.objects.select_related('empresa', 'prestador', 'criado_por')
     serializer_class = DespesaPrestadoraSerializer
@@ -24,7 +25,7 @@ class DespesaPrestadoraViewSet(viewsets.ModelViewSet):
 from .models import Compra
 from .serializers import CompraSerializer
 
-class CompraViewSet(viewsets.ModelViewSet):
+class CompraViewSet(TenantQuerySetMixin, viewsets.ModelViewSet):
     """ViewSet para Compra"""
     queryset = Compra.objects.select_related('fornecedor', 'criado_por')
     serializer_class = CompraSerializer

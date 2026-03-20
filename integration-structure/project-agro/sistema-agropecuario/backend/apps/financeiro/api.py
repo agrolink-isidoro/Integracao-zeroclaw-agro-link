@@ -4,6 +4,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.decorators import action
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import SearchFilter, OrderingFilter
+from apps.core.mixins import TenantQuerySetMixin
 
 from .serializers import (
     BankStatementImportSerializer, 
@@ -20,7 +21,7 @@ from .models import (
 import io, csv, hashlib, datetime, decimal
 
 
-class BankTransactionViewSet(viewsets.ReadOnlyModelViewSet):
+class BankTransactionViewSet(TenantQuerySetMixin, viewsets.ReadOnlyModelViewSet):
     permission_classes = [IsAuthenticated]
     queryset = BankTransaction.objects.all().select_related('importacao')
     serializer_class = BankTransactionSerializer
@@ -29,7 +30,7 @@ class BankTransactionViewSet(viewsets.ReadOnlyModelViewSet):
     search_fields = ['description', 'external_id']
 
 
-class BankStatementImportViewSet(viewsets.ModelViewSet):
+class BankStatementImportViewSet(TenantQuerySetMixin, viewsets.ModelViewSet):
     """Upload and history endpoints for bank statement imports"""
     permission_classes = [IsAuthenticated]
     queryset = BankStatementImport.objects.all().select_related('conta', 'criado_por').prefetch_related('transactions')
@@ -164,7 +165,7 @@ class BankStatementImportViewSet(viewsets.ModelViewSet):
             )
 
 
-class ItemExtratoBancarioViewSet(viewsets.ModelViewSet):
+class ItemExtratoBancarioViewSet(TenantQuerySetMixin, viewsets.ModelViewSet):
     """
     FASE 5: ViewSet para gerenciar itens de extrato bancário e conciliação.
     """

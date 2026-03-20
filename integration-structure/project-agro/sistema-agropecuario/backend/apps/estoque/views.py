@@ -228,9 +228,16 @@ def produto_ultimo_preco_entrada(request):
     if not produto_id:
         return Response({'error': 'produto_id é obrigatório'}, status=400)
     try:
-        mov = MovimentacaoEstoque.objects.filter(
+        qs = MovimentacaoEstoque.objects.filter(
             produto_id=produto_id, tipo='entrada', valor_unitario__isnull=False
-        ).order_by('-data_movimentacao').first()
+        )
+        # Filtrar por tenant do request
+        tenant = getattr(request, 'tenant', None)
+        if tenant is None and hasattr(request, 'user') and request.user and hasattr(request.user, 'tenant'):
+            tenant = request.user.tenant
+        if tenant:
+            qs = qs.filter(tenant=tenant)
+        mov = qs.order_by('-data_movimentacao').first()
         if not mov:
             return Response({'valor_unitario': None}, status=200)
         return Response({'valor_unitario': str(mov.valor_unitario) if mov.valor_unitario is not None else None, 'data_movimentacao': mov.data_movimentacao}, status=200)

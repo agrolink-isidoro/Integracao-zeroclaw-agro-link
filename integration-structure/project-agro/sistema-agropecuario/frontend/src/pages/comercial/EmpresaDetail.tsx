@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useEmpresa, useEmpresaDespesas, useEmpresaAgregados } from '@/hooks/useEmpresa';
+import api from '@/services/api';
 
 function downloadCSV(filename: string, csv: string) {
   const blob = new Blob([csv], { type: 'text/csv' });
@@ -29,11 +30,13 @@ const EmpresaDetail: React.FC = () => {
 
   const handleDownload = async () => {
     try {
-      // try to fetch CSV from backend
-      const resp = await fetch(`/api/comercial/empresas/${empresaId}/agregados/?periodo=${periodo}&format=csv`);
-      if (resp.ok && resp.headers.get('content-type')?.includes('text/csv')) {
-        const text = await resp.text();
-        downloadCSV(`agregados_empresa_${empresaId}_${periodo}.csv`, text);
+      // try to fetch CSV from backend using authenticated api instance
+      const resp = await api.get(`/comercial/empresas/${empresaId}/agregados/`, {
+        params: { periodo, format: 'csv' },
+        responseType: 'text',
+      });
+      if (typeof resp.data === 'string' && resp.data.includes(',')) {
+        downloadCSV(`agregados_empresa_${empresaId}_${periodo}.csv`, resp.data);
         return;
       }
     } catch (e) {

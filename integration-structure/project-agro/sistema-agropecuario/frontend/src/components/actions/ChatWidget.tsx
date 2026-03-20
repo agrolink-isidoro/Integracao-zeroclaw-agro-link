@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { useActions } from '../../contexts/ActionsContext';
-import { getStoredTokens } from '../../hooks/useAuth';
+import { getStoredTokens, getStoredTenant } from '../../hooks/useAuth';
 import type { ChatMessage } from '../../contexts/ActionsContext';
 import type { ActionModule } from '../../services/actions';
 
@@ -51,11 +51,13 @@ async function exportMessageToPdf(
 
     const htmlContent = messageElement.innerHTML;
 
+    const tenantInfo = getStoredTenant();
     const response = await fetch('/api/actions/chat-pdf-export/', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${tokens.access}`,
+        ...(tenantInfo?.id ? { 'X-Tenant-ID': tenantInfo.id } : {}),
       },
       body: JSON.stringify({
         html_content: htmlContent,

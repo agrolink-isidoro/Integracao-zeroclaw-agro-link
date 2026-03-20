@@ -8,6 +8,7 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from django_filters.rest_framework import DjangoFilterBackend
 from django.db.models import Sum, F, DecimalField
+from apps.core.mixins import TenantQuerySetMixin
 
 from .models import (
     ContratoCompra, ItemCompra, CondicaoCompra,
@@ -28,7 +29,7 @@ from .contratos_serializers import (
 # CONTRATO DE COMPRA VIEWSETS
 # ========================================
 
-class ContratoCompraViewSet(viewsets.ModelViewSet):
+class ContratoCompraViewSet(TenantQuerySetMixin, viewsets.ModelViewSet):
     """ViewSet para Contratos de Compra"""
     
     queryset = ContratoCompra.objects.all()
@@ -56,7 +57,7 @@ class ContratoCompraViewSet(viewsets.ModelViewSet):
         })
 
 
-class ItemCompraViewSet(viewsets.ModelViewSet):
+class ItemCompraViewSet(TenantQuerySetMixin, viewsets.ModelViewSet):
     """ViewSet para Itens de Compra"""
     
     queryset = ItemCompra.objects.all()
@@ -66,8 +67,17 @@ class ItemCompraViewSet(viewsets.ModelViewSet):
     filterset_fields = ['contrato']
     search_fields = ['descricao_item']
 
+    def get_queryset(self):
+        qs = self.queryset.all()
+        tenant = self._get_request_tenant()
+        if tenant is None:
+            if self.request.user and self.request.user.is_superuser:
+                return qs
+            return qs.none()
+        return qs.filter(contrato__tenant=tenant)
 
-class CondicaoCompraViewSet(viewsets.ModelViewSet):
+
+class CondicaoCompraViewSet(TenantQuerySetMixin, viewsets.ModelViewSet):
     """ViewSet para Condições de Compra"""
     
     queryset = CondicaoCompra.objects.all()
@@ -77,12 +87,21 @@ class CondicaoCompraViewSet(viewsets.ModelViewSet):
     filterset_fields = ['contrato', 'tipo_condicao']
     search_fields = ['descricao']
 
+    def get_queryset(self):
+        qs = self.queryset.all()
+        tenant = self._get_request_tenant()
+        if tenant is None:
+            if self.request.user and self.request.user.is_superuser:
+                return qs
+            return qs.none()
+        return qs.filter(contrato__tenant=tenant)
+
 
 # ========================================
 # CONTRATO DE VENDA VIEWSETS
 # ========================================
 
-class ContratoVendaViewSet(viewsets.ModelViewSet):
+class ContratoVendaViewSet(TenantQuerySetMixin, viewsets.ModelViewSet):
     """ViewSet para Contratos de Venda"""
     
     queryset = ContratoVenda.objects.all()
@@ -152,7 +171,7 @@ class ContratoVendaViewSet(viewsets.ModelViewSet):
         })
 
 
-class ItemVendaViewSet(viewsets.ModelViewSet):
+class ItemVendaViewSet(TenantQuerySetMixin, viewsets.ModelViewSet):
     """ViewSet para Itens de Venda"""
     
     queryset = ItemVenda.objects.all()
@@ -162,8 +181,17 @@ class ItemVendaViewSet(viewsets.ModelViewSet):
     filterset_fields = ['contrato']
     search_fields = ['descricao_produto']
 
+    def get_queryset(self):
+        qs = self.queryset.all()
+        tenant = self._get_request_tenant()
+        if tenant is None:
+            if self.request.user and self.request.user.is_superuser:
+                return qs
+            return qs.none()
+        return qs.filter(contrato__tenant=tenant)
 
-class ParcelaVendaViewSet(viewsets.ModelViewSet):
+
+class ParcelaVendaViewSet(TenantQuerySetMixin, viewsets.ModelViewSet):
     """ViewSet para Parcelas de Venda"""
     
     queryset = ParcelaVenda.objects.all()
@@ -174,6 +202,15 @@ class ParcelaVendaViewSet(viewsets.ModelViewSet):
     ordering_fields = ['data_vencimento', 'numero_parcela']
     ordering = ['numero_parcela']
     
+    def get_queryset(self):
+        qs = self.queryset.all()
+        tenant = self._get_request_tenant()
+        if tenant is None:
+            if self.request.user and self.request.user.is_superuser:
+                return qs
+            return qs.none()
+        return qs.filter(contrato__tenant=tenant)
+
     @action(detail=True, methods=['post'])
     def marcar_paga(self, request, pk=None):
         """Marks a installment as paid"""
@@ -192,7 +229,7 @@ class ParcelaVendaViewSet(viewsets.ModelViewSet):
         return Response(self.get_serializer(parcela).data)
 
 
-class CondicaoVendaViewSet(viewsets.ModelViewSet):
+class CondicaoVendaViewSet(TenantQuerySetMixin, viewsets.ModelViewSet):
     """ViewSet para Condições de Venda"""
     
     queryset = CondicaoVenda.objects.all()
@@ -202,12 +239,21 @@ class CondicaoVendaViewSet(viewsets.ModelViewSet):
     filterset_fields = ['contrato', 'tipo_condicao']
     search_fields = ['descricao']
 
+    def get_queryset(self):
+        qs = self.queryset.all()
+        tenant = self._get_request_tenant()
+        if tenant is None:
+            if self.request.user and self.request.user.is_superuser:
+                return qs
+            return qs.none()
+        return qs.filter(contrato__tenant=tenant)
+
 
 # ========================================
 # CONTRATO FINANCEIRO VIEWSETS
 # ========================================
 
-class ContratoFinanceiroViewSet(viewsets.ModelViewSet):
+class ContratoFinanceiroViewSet(TenantQuerySetMixin, viewsets.ModelViewSet):
     """ViewSet para Contratos Financeiros (Empréstimos, Consórcios, Seguros, Aplicações)"""
     
     queryset = ContratoFinanceiro.objects.all()
@@ -262,7 +308,7 @@ class ContratoFinanceiroViewSet(viewsets.ModelViewSet):
         return Response(resumo)
 
 
-class DadosEmprestimoViewSet(viewsets.ModelViewSet):
+class DadosEmprestimoViewSet(TenantQuerySetMixin, viewsets.ModelViewSet):
     """ViewSet para Dados de Empréstimo"""
     
     queryset = DadosEmprestimo.objects.all()
@@ -271,8 +317,17 @@ class DadosEmprestimoViewSet(viewsets.ModelViewSet):
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ['contrato']
 
+    def get_queryset(self):
+        qs = self.queryset.all()
+        tenant = self._get_request_tenant()
+        if tenant is None:
+            if self.request.user and self.request.user.is_superuser:
+                return qs
+            return qs.none()
+        return qs.filter(contrato__tenant=tenant)
 
-class DadosConsorcioViewSet(viewsets.ModelViewSet):
+
+class DadosConsorcioViewSet(TenantQuerySetMixin, viewsets.ModelViewSet):
     """ViewSet para Dados de Consórcio"""
     
     queryset = DadosConsorcio.objects.all()
@@ -281,8 +336,17 @@ class DadosConsorcioViewSet(viewsets.ModelViewSet):
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ['contrato']
 
+    def get_queryset(self):
+        qs = self.queryset.all()
+        tenant = self._get_request_tenant()
+        if tenant is None:
+            if self.request.user and self.request.user.is_superuser:
+                return qs
+            return qs.none()
+        return qs.filter(contrato__tenant=tenant)
 
-class DadosSeguroViewSet(viewsets.ModelViewSet):
+
+class DadosSeguroViewSet(TenantQuerySetMixin, viewsets.ModelViewSet):
     """ViewSet para Dados de Seguro"""
     
     queryset = DadosSeguro.objects.all()
@@ -291,8 +355,17 @@ class DadosSeguroViewSet(viewsets.ModelViewSet):
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ['contrato']
 
+    def get_queryset(self):
+        qs = self.queryset.all()
+        tenant = self._get_request_tenant()
+        if tenant is None:
+            if self.request.user and self.request.user.is_superuser:
+                return qs
+            return qs.none()
+        return qs.filter(contrato__tenant=tenant)
 
-class DadosAplicacaoFinanceiraViewSet(viewsets.ModelViewSet):
+
+class DadosAplicacaoFinanceiraViewSet(TenantQuerySetMixin, viewsets.ModelViewSet):
     """ViewSet para Dados de Aplicação Financeira"""
     
     queryset = DadosAplicacaoFinanceira.objects.all()
@@ -301,8 +374,17 @@ class DadosAplicacaoFinanceiraViewSet(viewsets.ModelViewSet):
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ['contrato']
 
+    def get_queryset(self):
+        qs = self.queryset.all()
+        tenant = self._get_request_tenant()
+        if tenant is None:
+            if self.request.user and self.request.user.is_superuser:
+                return qs
+            return qs.none()
+        return qs.filter(contrato__tenant=tenant)
 
-class DocumentoAdicionalFinanceiroViewSet(viewsets.ModelViewSet):
+
+class DocumentoAdicionalFinanceiroViewSet(TenantQuerySetMixin, viewsets.ModelViewSet):
     """ViewSet para Documentos Adicionais de Contratos Financeiros"""
     
     queryset = DocumentoAdicionalFinanceiro.objects.all()
@@ -311,8 +393,17 @@ class DocumentoAdicionalFinanceiroViewSet(viewsets.ModelViewSet):
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ['contrato', 'tipo_documento']
 
+    def get_queryset(self):
+        qs = self.queryset.all()
+        tenant = self._get_request_tenant()
+        if tenant is None:
+            if self.request.user and self.request.user.is_superuser:
+                return qs
+            return qs.none()
+        return qs.filter(contrato__tenant=tenant)
 
-class CondicaoFinanceiraViewSet(viewsets.ModelViewSet):
+
+class CondicaoFinanceiraViewSet(TenantQuerySetMixin, viewsets.ModelViewSet):
     """ViewSet para Condições Financeiras"""
     
     queryset = CondicaoFinanceira.objects.all()
@@ -320,3 +411,12 @@ class CondicaoFinanceiraViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ['contrato', 'tipo_condicao']
+
+    def get_queryset(self):
+        qs = self.queryset.all()
+        tenant = self._get_request_tenant()
+        if tenant is None:
+            if self.request.user and self.request.user.is_superuser:
+                return qs
+            return qs.none()
+        return qs.filter(contrato__tenant=tenant)
