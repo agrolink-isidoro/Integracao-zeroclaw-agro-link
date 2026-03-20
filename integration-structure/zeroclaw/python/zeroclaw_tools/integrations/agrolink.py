@@ -438,6 +438,7 @@ CONFIRMAÇÃO DE PRÉ-REQUISITOS:
 CAMPOS OBRIGATÓRIOS POR FORMULÁRIO (sempre pergunte todos):
 
 ▶ FAZENDAS
+  (── OBRIGATÓRIO VERIFICAR EXISTÊNCIA ANTES DE CRIAR: Se for criar fazenda, use consultar_proprietarios(); se for criar área, use consultar_fazendas(); se for criar talhão, use consultar_areas() ──)
   criar_proprietario    → nome*, cpf_cnpj*, telefone, email, endereco
   criar_fazenda         → name*, matricula*, proprietario*
   criar_area            → name*, fazenda*, proprietario*, tipo(propria/arrendada)*, custo_arrendamento(se arrendada)
@@ -481,6 +482,7 @@ CAMPOS OBRIGATÓRIOS POR FORMULÁRIO (sempre pergunte todos):
   registrar_ordem_servico_agricola → safra(ativa)*, tarefa*, data_inicio*, talhoes*, maquina, data_fim, status, observacoes
 
 ▶ ESTOQUE
+  (── OBRIGATÓRIO ANTES DE SAÍDAS E ENTRADAS: chame consultar_estoque() para obter o NOME EXATO do produto que já existe no banco ──)
   criar_produto_estoque → nome*, categoria*, unidade*, codigo, principio_ativo, concentracao,
                           composicao_quimica, estoque_minimo, custo_unitario, preco_unitario,
                           fornecedor_nome, vencimento, lote, local_armazenamento,
@@ -509,6 +511,7 @@ CAMPOS OBRIGATÓRIOS POR FORMULÁRIO (sempre pergunte todos):
       5) Quando usuário confirmar — CHAMAR criar_equipamento() COM A CATEGORIA SELECIONADA PELO USUÁRIO
       6) Nunca criar equipamento sem apresentar as categorias reais do banco ao usuário
   registrar_abastecimento → maquina_nome*, quantidade_litros*, valor_unitario*, data*,
+    ↳ ⚠️ MANDATÓRIO: ANTES de registrar o abastecimento ou serviço, execute consultar_maquinas() para validar o `maquina_nome` exato.
                             horimetro, responsavel, local_abastecimento, observacoes
     ↳ SEMPRE use esta ferramenta para abastecimento de combustível (diesel, gasolina, etc.)
     ↳ maquina_nome: nome ou modelo (ex: "CR5.85" ou "Colheitadeira NH CR5.85")
@@ -517,8 +520,14 @@ CAMPOS OBRIGATÓRIOS POR FORMULÁRIO (sempre pergunte todos):
     ↳ horimetro: leitura do horímetro em horas (ex: 2196.37)
   registrar_ordem_servico_maquina → equipamento*, descricao_problema*, tipo, prioridade, status,
                             data_previsao, custo_mao_obra, responsavel, prestador_servico, observacoes
+    ↳ ⚠️ MANDATÓRIO: ANTES de registrar a OS, execute consultar_maquinas() para validar o `equipamento` exato.
+    
+    
   registrar_manutencao_maquina → maquina_nome*, tipo_registro*, data*, descricao*, custo,
                             tecnico, horas_trabalhadas, km_rodados, prestador_servico, prioridade, observacoes
+    ↳ ⚠️ MANDATÓRIO: ANTES de registrar manutenção, execute consultar_maquinas() para validar a `maquina_nome` exata.
+    
+    
     ↳ tipo_registro valores: manutencao | revisao | reparo | troca_oleo | parada
     ↳ NÃO use para abastecimento — use registrar_abastecimento
 
