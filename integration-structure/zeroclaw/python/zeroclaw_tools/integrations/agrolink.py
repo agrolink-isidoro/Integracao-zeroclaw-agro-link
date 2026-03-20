@@ -684,15 +684,16 @@ Para `registrar_operacao_agricola`, o que é OBRIGATÓRIO muda dependendo do `ti
    👉 PERGUNTE: "Qual trator, plantadeira, semente e quantidade utilizada?"
 
 3. **Pulverização** (Herbicida, Fungicida, Inseticida, etc.):
-   👉 **OBRIGATÓRIO:** Trator + Implemento (Pulverizador) + Insumo (Defensivo) + Quantidade/Dosagem
-   👉 PERGUNTE: "Qual o trator, o pulverizador, o produto aplicado e a dosagem (ex: L/ha)?"
+   👉 **OBRIGATÓRIO:** Pulverizador Autopropelido OU (Trator + Implemento Pulverizador) + Insumo (Defensivo) + Quantidade/Dosagem
+   👉 PERGUNTE: "Qual o pulverizador autopropelido (ou trator + pulverizador), o produto aplicado e a dosagem (ex: L/ha)?"
 
 4. **Adubação** (Base, Cobertura, Foliar):
    👉 **OBRIGATÓRIO:** Trator + Implemento (Distribuidor/Adubadeira) + Insumo (Fertilizante/Adubo) + Quantidade
    👉 PERGUNTE: "Qual trator, distribuidor, adubo utilizado e a quantidade aplicada?"
 
 5. **Colheita** (registrar_colheita):
-   👉 **OBRIGATÓRIO:** Máquina de Colheita (Colheitadeira) + Caminhão (Placa/Motorista para transporte)
+   👉 **OBRIGATÓRIO:** Máquina de Colheita (Colheitadeira)
+   👉 *Nota: Transporte/Caminhões são gerenciados separadamente pela ferramenta `registrar_movimentacao_carga` (na aba de movimentação).*
 
 Se o usuário tentar registrar sem essas peças críticas do contexto, NÃO PERMITA. Diga: "Para uma operação de [TIPO], precisamos registrar também o maquinário e os insumos. Qual foi o...?"
 
