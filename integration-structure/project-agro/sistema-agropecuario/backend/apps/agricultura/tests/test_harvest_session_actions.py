@@ -23,7 +23,7 @@ class HarvestSessionActionTests(TestCase):
         self.fazenda = Fazenda.objects.create(proprietario=self.proprietario, name='F2', matricula='M2', tenant=self.tenant)
         self.cultura = Cultura.objects.create(nome='Milho', tenant=self.tenant)
         self.plantio = Plantio.objects.create(fazenda=self.fazenda, cultura=self.cultura, data_plantio='2025-02-01', tenant=self.tenant)
-        self.area = Area.objects.create(proprietario=self.proprietario, fazenda=self.fazenda, name='Area2', tenant=self.tenant)
+        self.area = Area.objects.create(proprietario=self.proprietario, fazenda=self.fazenda, name='Area2')
         self.talhao1 = Talhao.objects.create(area=self.area, name='T1', area_size=10, tenant=self.tenant)
         self.talhao2 = Talhao.objects.create(area=self.area, name='T2', area_size=5, tenant=self.tenant)
         self.plantio.talhoes.add(self.talhao1)

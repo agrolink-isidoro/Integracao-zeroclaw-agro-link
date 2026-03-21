@@ -21,7 +21,7 @@ class OperacaoReservationSerializerTests(TestCase):
         self.owner = Proprietario.objects.create(nome='Owner', cpf_cnpj='00000000000', tenant=self.tenant)
         self.fazenda = Fazenda.objects.create(name='Fazenda Teste', proprietario=self.owner, matricula='M-1', tenant=self.tenant)
         from apps.fazendas.models import Area
-        self.area = Area.objects.create(proprietario=self.owner, fazenda=self.fazenda, name='Area 1', tenant=self.tenant)
+        self.area = Area.objects.create(proprietario=self.owner, fazenda=self.fazenda, name='Area 1')
         self.talhao = Talhao.objects.create(name='Talhao 1', area_size=1.0, area=self.area, tenant=self.tenant)
 
     def test_serializer_create_reserves_stock(self):

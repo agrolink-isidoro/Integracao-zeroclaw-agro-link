@@ -60,7 +60,7 @@ export function useGeoData({ layer = 'all', fazendaId }: UseGeoDataParams): UseG
 
   // Fetch from API
   const { data: geoData, isLoading, error } = useApiQuery<GeoFeatureCollection>(
-    ['fazendas-geo', layer, fazendaId],
+    ['fazendas-geo', layer, fazendaId ?? null],
     geoUrl
   );
 

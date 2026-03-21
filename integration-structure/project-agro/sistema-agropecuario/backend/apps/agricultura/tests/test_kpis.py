@@ -29,7 +29,7 @@ class SafraKPIsAPITests(TestCase):
 
         self.proprietario = Proprietario.objects.create(nome='Produtor', cpf_cnpj='00000000001', tenant=self.tenant)
         self.fazenda = Fazenda.objects.create(proprietario=self.proprietario, name='Fazenda KPI', matricula='M-KPI', tenant=self.tenant)
-        self.area = Area.objects.create(proprietario=self.proprietario, fazenda=self.fazenda, name='Area KPI', geom='POINT(0 0)', tenant=self.tenant)
+        self.area = Area.objects.create(proprietario=self.proprietario, fazenda=self.fazenda, name='Area KPI', geom='POINT(0 0)')
         self.talhao1 = Talhao.objects.create(area=self.area, name='T1', area_size=50, tenant=self.tenant)
         self.talhao2 = Talhao.objects.create(area=self.area, name='T2', area_size=30, tenant=self.tenant)
         self.cultura = Cultura.objects.create(nome='Soja', tenant=self.tenant)

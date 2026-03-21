@@ -24,7 +24,7 @@ class ColheitaTransportTests(TestCase):
         self.fazenda = Fazenda.objects.create(proprietario=self.proprietario, name='F', matricula='M1', tenant=self.tenant)
         self.cultura = Cultura.objects.create(nome='Soja', tenant=self.tenant)
         self.plantio = Plantio.objects.create(fazenda=self.fazenda, cultura=self.cultura, data_plantio='2025-01-01', tenant=self.tenant)
-        self.area = Area.objects.create(proprietario=self.proprietario, fazenda=self.fazenda, name='Area', tenant=self.tenant)
+        self.area = Area.objects.create(proprietario=self.proprietario, fazenda=self.fazenda, name='Area')
         self.talhao = Talhao.objects.create(area=self.area, name='T1', area_size=10, tenant=self.tenant)
         self.plantio.talhoes.add(self.talhao)
 

@@ -16,7 +16,7 @@ class ManejoServiceTests(TestCase):
         )
         self.proprietario = Proprietario.objects.create(nome='Produtor', cpf_cnpj='00000000000', tenant=self.tenant)
         self.fazenda = Fazenda.objects.create(proprietario=self.proprietario, name='Fazenda Teste', matricula='M-001', tenant=self.tenant)
-        self.area = Area.objects.create(proprietario=self.proprietario, fazenda=self.fazenda, name='A', geom='POINT(0 0)', tenant=self.tenant)
+        self.area = Area.objects.create(proprietario=self.proprietario, fazenda=self.fazenda, name='A', geom='POINT(0 0)')
         self.talhao = Talhao.objects.create(area=self.area, name='Talhao 1', area_size=10, tenant=self.tenant)
         self.user = User.objects.create_user(username='u', is_staff=False, tenant=self.tenant)
         self.produto = Produto.objects.create(codigo='P1', nome='Semente X', unidade='kg', custo_unitario=5, tenant=self.tenant)

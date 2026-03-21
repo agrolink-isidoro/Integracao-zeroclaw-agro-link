@@ -12,7 +12,7 @@ class ServicesTests(TestCase):
         self.tenant = Tenant.objects.create(nome='test_tenant_agri_services', slug='test-tenant-agri-services')
         self.proprietario = Proprietario.objects.create(nome='Produtor', cpf_cnpj='00000000000', tenant=self.tenant)
         self.fazenda = Fazenda.objects.create(proprietario=self.proprietario, name='Fazenda Teste', matricula='M-001', tenant=self.tenant)
-        self.area = Area.objects.create(proprietario=self.proprietario, fazenda=self.fazenda, name='A', geom='POINT(0 0)', tenant=self.tenant)
+        self.area = Area.objects.create(proprietario=self.proprietario, fazenda=self.fazenda, name='A', geom='POINT(0 0)')
         self.talhao = Talhao.objects.create(area=self.area, name='Talhao 1', area_size=10, tenant=self.tenant)
         self.cultura = Cultura.objects.create(nome='Cultura Teste', tenant=self.tenant)
         self.user = User.objects.create_user(username='u', is_staff=False, tenant=self.tenant)

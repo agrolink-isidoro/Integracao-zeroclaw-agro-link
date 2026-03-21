@@ -25,7 +25,7 @@ class FinanceIntegrationTests(TestCase):
         self.fazenda = Fazenda.objects.create(proprietario=self.proprietario, name='Fazenda Teste', matricula='M-001', tenant=self.tenant)
         self.cultura = Cultura.objects.create(nome='Cultura Teste', tenant=self.tenant)
         from apps.fazendas.models import Area
-        self.area = Area.objects.create(proprietario=self.proprietario, fazenda=self.fazenda, name='A', geom='POINT(0 0)', tenant=self.tenant)
+        self.area = Area.objects.create(proprietario=self.proprietario, fazenda=self.fazenda, name='A', geom='POINT(0 0)')
         self.talhao = Talhao.objects.create(area=self.area, name='Talhao 1', area_size=10, tenant=self.tenant)
 
     def test_manejo_generates_rateio_and_notification(self):

@@ -22,7 +22,7 @@ class PlantioUpdateAPITest(TestCase):
 
         self.prop = Proprietario.objects.create(nome='Test', cpf_cnpj='123', tenant=self.tenant)
         self.faz = Fazenda.objects.create(proprietario=self.prop, name='Faz', matricula='M', tenant=self.tenant)
-        self.area = Area.objects.create(proprietario=self.prop, fazenda=self.faz, name='A', geom='POINT(0 0)', tenant=self.tenant)
+        self.area = Area.objects.create(proprietario=self.prop, fazenda=self.faz, name='A', geom='POINT(0 0)')
         self.t1 = Talhao.objects.create(area=self.area, name='T1', area_size=10, tenant=self.tenant)
         self.t2 = Talhao.objects.create(area=self.area, name='T2', area_size=5, tenant=self.tenant)
 

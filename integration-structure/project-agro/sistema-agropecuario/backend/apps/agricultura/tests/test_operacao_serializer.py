@@ -20,7 +20,7 @@ class OperacaoSerializerTests(APITestCase):
         proprietario = Proprietario.objects.create(nome='Produtor Teste', cpf_cnpj='00011122233', tenant=self.tenant)
         self.fazenda = Fazenda.objects.create(name='Fazenda Teste', proprietario=proprietario, matricula='TEST-001', tenant=self.tenant)
         from apps.fazendas.models import Area
-        self.area = Area.objects.create(name='Area 1', tipo='propria', geom='', fazenda=self.fazenda, proprietario=proprietario, tenant=self.tenant)
+        self.area = Area.objects.create(name='Area 1', tipo='propria', geom='', fazenda=self.fazenda, proprietario=proprietario)
         self.talhao = Talhao.objects.create(name='T1', area_size=10, area=self.area, tenant=self.tenant)
 
     def test_create_operacao_with_produto_without_dosagem_uses_produto_defaults(self):

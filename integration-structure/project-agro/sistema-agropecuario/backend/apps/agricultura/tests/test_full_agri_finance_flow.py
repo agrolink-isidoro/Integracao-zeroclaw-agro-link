@@ -36,7 +36,7 @@ class FullAgricultureFinanceFlowTests(TestCase):
         from apps.agricultura.models import Cultura
         self.cultura = Cultura.objects.create(nome='Cultura Flow', tenant=self.tenant)
         from apps.fazendas.models import Area
-        self.area = Area.objects.create(proprietario=self.proprietario, fazenda=self.fazenda, name='A', geom='POINT(0 0)', tenant=self.tenant)
+        self.area = Area.objects.create(proprietario=self.proprietario, fazenda=self.fazenda, name='A', geom='POINT(0 0)')
         self.talhao = Talhao.objects.create(area=self.area, name='Talhao Flow', area_size=10, tenant=self.tenant)
 
         # Produto for harvested crop (name must include culture name so armazenar_em_estoque finds it)
