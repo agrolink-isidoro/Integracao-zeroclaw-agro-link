@@ -38,6 +38,10 @@ O cérebro do Agente Isidoro foi auditado na sua camada de integração HTTP e s
     *   **Auditoria de Injeção concluída:** O Isidoro **não possui** meios de salvar diretamente nada na base final de dados do backend.
     *   Toda e qualquer Tool (da criação de Safra ao Lançamento de Estoque) passa pelo funil `_post_action` e engatilha **apenas** o endpoint `/actions/`. 
     *   Tudo sobe na chave `"draft_data"`, ficando obrigatoriamente retido na **Fila de Aprovação (Status: Draft/Rascunho)** para o gestor. Isso cumpre totalmente o seu preceito de evitar injeção indiscriminada por alucinações. 🔒
+*   **Inteligência de Custos (Preço Inteligente)**:
+    *   Implementamos regras obrigatórias (`MANDATÓRIO`) para que a IA consulte o sistema (`consultar_estoque`) antes de perguntar ao usuário o preço de combustíveis, insumos químicos e peças de reposição (Ordens de Serviço). O produtor só é questionado caso o item seja novo ou não esteja no estoque, reduzindo a fricção e perguntas redundantes.
+*   **Correção do Cálculo de Frete**:
+    *   Adicionada uma `REGRA DE OURO` para impedir que a IA calcule matematicamente o valor total do frete ao registrar movimentações de carga (colheita). A IA agora repassa estritamente o valor unitário informado (R$/ton ou R$/saca), delegando o cálculo total ao sistema.
 
 ---
 
