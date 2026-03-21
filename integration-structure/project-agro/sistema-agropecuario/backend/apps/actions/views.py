@@ -760,6 +760,10 @@ class ActionSchemaView(APIView):
                 'modules': self._group_by_module(all_types)
             })
         
+        # Resolve alias if user queries by tool name instead of exact schema name
+        from .ACTION_FIELDS_SCHEMA import ACTION_FIELDS_SCHEMA, TOOL_TO_ACTION_TYPE
+        action_type = TOOL_TO_ACTION_TYPE.get(action_type, action_type)
+        
         # Case 2: Get schema for specific action_type
         schema = ACTION_FIELDS_SCHEMA.get(action_type)
         if not schema:

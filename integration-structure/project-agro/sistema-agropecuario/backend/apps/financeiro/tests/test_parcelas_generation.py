@@ -15,11 +15,11 @@ class ParcelasGenerationTests(TestCase):
             nome='test_tenant_financeiro_parcelas',
             slug='test-tenant-financeiro-parcelas'
         )
-        self.user = User.objects.create_user(username='tester', tenant=self.tenant)
+        self.user = User.objects.create_user(username='tester', )
         from apps.comercial.models import InstituicaoFinanceira
         from apps.financeiro.models import ContaBancaria
-        self.instituicao = InstituicaoFinanceira.objects.create(codigo_bacen='000', nome='Banco Test', tenant=self.tenant)
-        self.conta = ContaBancaria.objects.create(banco='Banco Local', agencia='0001', conta='1111', tenant=self.tenant)
+        self.instituicao, _ = InstituicaoFinanceira.objects.get_or_create(codigo_bacen='999', defaults={'nome': 'Banco Test'})
+        self.conta = ContaBancaria.objects.create(banco='Banco Local', agencia='0001', conta='1111', )
 
     def test_financiamento_calculo_price_and_sac(self):
         c = self.conta
@@ -38,7 +38,7 @@ class ParcelasGenerationTests(TestCase):
             criado_por=self.user,
             instituicao_financeira=self.instituicao,
             conta_destino=c,
-            tenant=self.tenant
+            
         )
 
         parcelas_price = f.calcular_parcelas_price()
@@ -76,7 +76,7 @@ class ParcelasGenerationTests(TestCase):
             criado_por=self.user,
             instituicao_financeira=self.instituicao,
             conta_destino=self.conta,
-            tenant=self.tenant
+            
         )
 
         parcelas = gerar_parcelas_financiamento(f)
@@ -100,7 +100,7 @@ class ParcelasGenerationTests(TestCase):
             data_primeiro_vencimento=timezone.now().date(),
             criado_por=self.user,
             instituicao_financeira=self.instituicao,
-            tenant=self.tenant
+            
         )
 
         parcelas = gerar_parcelas_emprestimo(e)

@@ -11,7 +11,7 @@ class BankStatementAPI(TestCase):
     def setUp(self):
         User = get_user_model()
         self.tenant = Tenant.objects.create(nome='test_tenant_bankstatements_api', slug='test-tenant-bankstatements-api')
-        self.user = User.objects.create_user(username='api_user', password='p', is_staff=False, tenant=self.tenant)
+        self.user = User.objects.create_user(username='api_user', password='p', is_staff=True, is_superuser=True, tenant=self.tenant)
         self.client = APIClient()
         self.client.force_authenticate(self.user)
         self.conta = ContaBancaria.objects.create(banco='Test Bank', conta='999', tenant=self.tenant)

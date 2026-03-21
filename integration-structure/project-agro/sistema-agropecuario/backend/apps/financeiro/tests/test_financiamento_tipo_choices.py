@@ -14,7 +14,7 @@ class FinanciamentoTipoChoicesTest(TestCase):
         # create admin user and login via token obtain
         from django.contrib.auth import get_user_model
         User = get_user_model()
-        self.user = User.objects.create_superuser('testadmin', 'test@example.com', 'pass', tenant=self.tenant)
+        self.user = User.objects.create_superuser('testadmin', 'test@example.com', 'pass', )
         # get tokens
         resp = self.client.post('/api/auth/login/', {'username': 'testadmin', 'password': 'pass'}, format='json')
         self.assertEqual(resp.status_code, 200)
@@ -22,7 +22,7 @@ class FinanciamentoTipoChoicesTest(TestCase):
         self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {token}')
 
         # create institution
-        self.inst = InstituicaoFinanceira.objects.create(codigo_bacen='999', nome='TEST BANK', tenant=self.tenant)
+        self.inst = InstituicaoFinanceira.objects.create(codigo_bacen='999', nome='TEST BANK', )
 
     def test_create_financiamento_with_cpr(self):
         payload = {

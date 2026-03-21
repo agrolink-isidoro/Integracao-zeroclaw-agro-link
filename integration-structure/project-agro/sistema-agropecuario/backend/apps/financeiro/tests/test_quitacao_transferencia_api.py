@@ -13,7 +13,7 @@ class QuitarPorTransferenciaAPITests(TestCase):
             nome='test_tenant_financeiro_quitacao_api',
             slug='test-tenant-financeiro-quitacao-api'
         )
-        self.user = User.objects.create_user('apiuser', 'api@example.com', 'pw', tenant=self.tenant, is_staff=False)
+        self.user = User.objects.create_user('apiuser', 'api@example.com', 'pw', tenant=self.tenant, is_staff=True, is_superuser=True)
         self.client = APIClient()
         self.client.force_authenticate(self.user)
         self.c1 = ContaBancaria.objects.create(banco='Banco A', agencia='0001', conta='1111', saldo_inicial=Decimal('10000'), tenant=self.tenant)

@@ -12,6 +12,7 @@ class VencimentoAPITests(TestCase):
         self.client = APIClient()
         self.tenant = Tenant.objects.create(nome='test_tenant_vencimento_api', slug='test-tenant-vencimento-api')
         self.user = User.objects.create_user(username='vuser', tenant=self.tenant)
+        self.client.force_authenticate(self.user)
         Vencimento.objects.create(titulo='V1', valor=100, data_vencimento='2025-01-01', tipo='despesa', status='pendente', criado_por=self.user, tenant=self.tenant)
         Vencimento.objects.create(titulo='V2', valor=200, data_vencimento='2025-01-02', tipo='despesa', status='pago', criado_por=self.user, tenant=self.tenant)
         Vencimento.objects.create(titulo='V3', valor=50, data_vencimento='2025-01-03', tipo='despesa', status='atrasado', criado_por=self.user, tenant=self.tenant)
@@ -33,7 +34,7 @@ class VencimentoAPITests(TestCase):
         from apps.financeiro.models import Financiamento, ParcelaFinanciamento
         from decimal import Decimal
 
-        inst = InstituicaoFinanceira.objects.create(nome='Inst Test', codigo_bacen='000')
+        inst, _ = InstituicaoFinanceira.objects.get_or_create(codigo_bacen='997', defaults={'nome': 'Inst Test'})
         fin = Financiamento.objects.create(
             titulo='F1',
             valor_total=Decimal('5000.00'),

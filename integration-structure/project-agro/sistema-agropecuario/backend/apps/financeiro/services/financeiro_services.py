@@ -43,6 +43,7 @@ def transferir_entre_contas(conta_origem, conta_destino, valor, tipo='interno', 
             pix_key_origem=pix_key_origem,
             pix_key_destino=pix_key_destino,
             criado_por=criado_por,
+            tenant=getattr(conta_origem, 'tenant', None),
             **_tk,
         )
 
@@ -65,6 +66,7 @@ def transferir_entre_contas(conta_origem, conta_destino, valor, tipo='interno', 
             origem_content_type=ContentType.objects.get_for_model(transfer),
             origem_object_id=transfer.id,
             criado_por=criado_por,
+            tenant=getattr(conta_origem, 'tenant', None),
             **_tk,
         )
 
@@ -79,6 +81,7 @@ def transferir_entre_contas(conta_origem, conta_destino, valor, tipo='interno', 
                 origem_content_type=ContentType.objects.get_for_model(transfer),
                 origem_object_id=transfer.id,
                 criado_por=criado_por,
+            tenant=getattr(conta_origem, 'tenant', None),
                 **_tk,
             )
 
@@ -143,7 +146,8 @@ def pagar_vencimentos_por_transferencia(conta_origem, itens, tipo='interno', dad
             status=status,
             payment_metadata=dados_bancarios or {},
             client_tx_id=client_tx_id,
-            criado_por=criado_por
+            criado_por=criado_por,
+            tenant=getattr(conta_origem, 'tenant', None)
         )
 
         # Create allocations and update vencimentos
@@ -152,7 +156,7 @@ def pagar_vencimentos_por_transferencia(conta_origem, itens, tipo='interno', dad
             alloc = PaymentAllocation.objects.create(
                 transferencia=transfer,
                 vencimento=venc,
-                valor_alocado=it['valor']
+                valor_alocado=it['valor'], tenant=getattr(conta_origem, 'tenant', None)
             )
 
             # If transfer is settled (PIX/interno) and allocation covers the full value, mark as paid
@@ -179,7 +183,8 @@ def pagar_vencimentos_por_transferencia(conta_origem, itens, tipo='interno', dad
             descricao=f"Pagamento por transferencia {transfer.id} -> {descricao or ''}",
             origem_content_type=ContentType.objects.get_for_model(transfer),
             origem_object_id=transfer.id,
-            criado_por=criado_por
+            criado_por=criado_por,
+            tenant=getattr(conta_origem, 'tenant', None)
         )
 
         # If conta_destino present and is a ContaBancaria instance, create entrada
@@ -202,7 +207,8 @@ def pagar_vencimentos_por_transferencia(conta_origem, itens, tipo='interno', dad
                 descricao=f"Pagamento por transferencia {transfer.id} <- {descricao or ''}",
                 origem_content_type=ContentType.objects.get_for_model(transfer),
                 origem_object_id=transfer.id,
-                criado_por=criado_por
+                criado_por=criado_por,
+            tenant=getattr(conta_origem, 'tenant', None)
             )
 
         return transfer
@@ -244,7 +250,8 @@ def marcar_transferencia_settled(transferencia, settlement_date=None, external_r
                 descricao=f"Transferencia {transferencia.id} liquidada",
                 origem_content_type=ContentType.objects.get_for_model(transferencia),
                 origem_object_id=transferencia.id,
-                criado_por=criado_por
+                criado_por=criado_por,
+            tenant=getattr(conta_origem, 'tenant', None)
             )
 
         # Update allocations / vencimentos

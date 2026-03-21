@@ -13,11 +13,11 @@ class FinanciamentoFieldsTest(TestCase):
             nome='test_tenant_financeiro_fields',
             slug='test-tenant-financeiro-fields'
         )
-        self.user = User.objects.create_user('tester', 'tester@example.com', 'pw', tenant=self.tenant)
+        self.user = User.objects.create_user('tester', 'tester@example.com', 'pw', )
         self.client.force_login(self.user)
         # create required related objects
-        self.conta = ContaBancaria.objects.create(banco='Banco', agencia='0001', conta='12345', tenant=self.tenant)
-        self.inst = InstituicaoFinanceira.objects.create(nome='Inst Test', codigo_bacen='0001', tenant=self.tenant)
+        self.conta = ContaBancaria.objects.create(banco='Banco', agencia='0001', conta='12345', )
+        self.inst, _ = InstituicaoFinanceira.objects.get_or_create(codigo_bacen='998', defaults={'nome': 'Inst Test'})
 
     def test_create_financiamento_requires_conta_destino(self):
         payload = {

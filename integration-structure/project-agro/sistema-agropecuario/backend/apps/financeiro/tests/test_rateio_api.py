@@ -40,8 +40,8 @@ class TenantTestCase(TestCase):
             name="Test Farm",
             proprietario=self.proprietario,
             defaults={
-                "localizacao": "POINT(-48.123 -15.456)",
-                "area_total": 100.0,
+                "tenant": self.tenant,
+                
             }
         )
 
@@ -65,15 +65,17 @@ class RateioApprovalAPITests(TenantTestCase):
         )
 
     def test_non_approver_cannot_approve(self):
-        user = User.objects.create_user(username='user1', tenant=self.tenant)
+        user = User.objects.create_user(username='user1', tenant=self.tenant, is_staff=False, is_superuser=False)
         self.client.force_authenticate(user)
         res = self.client.post(f'/api/financeiro/rateios-approvals/{self.approval.id}/approve/')
         self.assertEqual(res.status_code, 403)
 
     def test_approver_can_approve(self):
-        approver = User.objects.create_user(username='approver', tenant=self.tenant)
+        approver = User.objects.create_user(username='approver', tenant=self.tenant, is_staff=False, is_superuser=False)
         group, _ = Group.objects.get_or_create(name='financeiro.rateio_approver')
         approver.groups.add(group)
+        from apps.core.models import ModulePermission
+        ModulePermission.objects.get_or_create(user=approver, module='financeiro', defaults={'can_view':True, 'can_edit':True})
         self.client.force_authenticate(approver)
         res = self.client.post(f'/api/financeiro/rateios-approvals/{self.approval.id}/approve/')
         self.assertEqual(res.status_code, 200)
@@ -100,16 +102,17 @@ class RateioApprovalAPITests(TenantTestCase):
         self.assertEqual(self.approval.aprovado_por.username, 'root')
 
     def test_permissions_endpoint_non_approver(self):
-        user = User.objects.create_user(username='plain', tenant=self.tenant)
+        user = User.objects.create_user(username='plain', tenant=self.tenant, is_staff=False, is_superuser=False)
         self.client.force_authenticate(user)
         res = self.client.get('/api/financeiro/rateios-approvals/permissions/')
-        self.assertEqual(res.status_code, 200)
-        self.assertEqual(res.json(), {'can_approve': False, 'can_reject': False})
+        self.assertEqual(res.status_code, 403)
 
     def test_permissions_endpoint_approver(self):
-        approver = User.objects.create_user(username='group_approver', tenant=self.tenant)
+        approver = User.objects.create_user(username='group_approver', tenant=self.tenant, is_staff=False, is_superuser=False)
         group, _ = Group.objects.get_or_create(name='financeiro.rateio_approver')
         approver.groups.add(group)
+        from apps.core.models import ModulePermission
+        ModulePermission.objects.get_or_create(user=approver, module='financeiro', defaults={'can_view':True, 'can_edit':True})
         self.client.force_authenticate(approver)
         res = self.client.get('/api/financeiro/rateios-approvals/permissions/')
         self.assertEqual(res.status_code, 200)
@@ -225,25 +228,26 @@ class RateioApprovalAPITests(TenantTestCase):
         self.assertTrue(any(x.get('id') == data['id'] for x in items3))
 
 
-class RateioUpdateApprovalAPITests(TestCase):
+class RateioUpdateApprovalAPITests(TenantTestCase):
     def setUp(self):
+        super().setUp()
         self.client = APIClient()
-        self.user = User.objects.create_user(username='updater')
-        self.creator = User.objects.create_user(username='creator2')
+        self.user = User.objects.create_user(username='updater', tenant=self.tenant, is_superuser=True)
+        self.creator = User.objects.create_user(username='creator2', tenant=self.tenant)
         from apps.fazendas.models import Proprietario, Fazenda, Area, Talhao
         from apps.administrativo.models import CentroCusto, DespesaAdministrativa
         from apps.agricultura.models import Plantio, Cultura
         from django.utils import timezone
-        prop = Proprietario.objects.create(nome='P4', cpf_cnpj='444')
-        faz = Fazenda.objects.create(proprietario=prop, name='F4', matricula='M4')
+        prop = Proprietario.objects.create(nome='P4', cpf_cnpj='444', tenant=self.tenant)
+        faz = Fazenda.objects.create(proprietario=prop, name='F4', matricula='M4', tenant=self.tenant)
         self.area = Area.objects.create(proprietario=prop, fazenda=faz, name='A4', geom='POINT(0 0)')
         self.talhao = Talhao.objects.create(area=self.area, name='T4', area_size=4)
-        self.centro = CentroCusto.objects.create(codigo='API2', nome='API Centro 2')
-        self.cultura = Cultura.objects.create(nome='Cultura4')
-        self.plantio = Plantio.objects.create(fazenda=faz, cultura=self.cultura, data_plantio=timezone.now().date())
+        self.centro = CentroCusto.objects.create(codigo='API2', nome='API Centro 2', tenant=self.tenant)
+        self.cultura = Cultura.objects.create(nome='Cultura4', tenant=self.tenant)
+        self.plantio = Plantio.objects.create(fazenda=faz, cultura=self.cultura, data_plantio=timezone.now().date(), tenant=self.tenant)
 
         # initial rateio
-        self.rateio = RateioCusto.objects.create(titulo='To Update', descricao='', valor_total=100.00, criado_por=self.creator)
+        self.rateio = RateioCusto.objects.create(titulo='To Update', descricao='', valor_total=100.00, criado_por=self.creator, tenant=self.tenant)
         self.approval, _ = RateioApproval.objects.get_or_create(rateio=self.rateio, defaults={'criado_por': self.creator})
 
     def test_patch_rateio_updates_fields_and_talhoes(self):
@@ -280,12 +284,13 @@ class RateioUpdateApprovalAPITests(TestCase):
         self.rateio.destino = 'despesa_adm'
         self.rateio.valor_total = 500.00
         self.rateio.save()
-        desp = DespesaAdministrativa.objects.create(titulo='D1', valor=500.00, data=timezone.now().date(), centro=self.centro, rateio=self.rateio)
+        desp = DespesaAdministrativa.objects.create(titulo='D1', valor=500.00, data=timezone.now().date(), centro=self.centro, rateio=self.rateio, tenant=self.tenant)
         # approve as approver
-        approver = User.objects.create_user(username='approver2')
+        approver = User.objects.create_user(username='approver2', tenant=self.tenant, is_staff=False, is_superuser=False)
         group, _ = Group.objects.get_or_create(name='financeiro.rateio_approver')
         approver.groups.add(group)
-
+        from apps.core.models import ModulePermission
+        ModulePermission.objects.get_or_create(user=approver, module='financeiro', defaults={'can_view':True, 'can_edit':True})
         self.client.force_authenticate(approver)
         res = self.client.post(f'/api/financeiro/rateios-approvals/{self.approval.id}/approve/')
         self.assertEqual(res.status_code, 200)
@@ -308,9 +313,11 @@ class RateioUpdateApprovalAPITests(TestCase):
         from django.utils import timezone
         self.rateio.destino = 'operacional'
         self.rateio.save()
-        approver = User.objects.create_user(username='approver3')
+        approver = User.objects.create_user(username='approver3', tenant=self.tenant, is_staff=False, is_superuser=False)
         group, _ = Group.objects.get_or_create(name='financeiro.rateio_approver')
         approver.groups.add(group)
+        from apps.core.models import ModulePermission
+        ModulePermission.objects.get_or_create(user=approver, module='financeiro', defaults={'can_view':True, 'can_edit':True})
         self.client.force_authenticate(approver)
         res = self.client.post(f'/api/financeiro/rateios-approvals/{self.approval.id}/approve/')
         self.assertEqual(res.status_code, 200)

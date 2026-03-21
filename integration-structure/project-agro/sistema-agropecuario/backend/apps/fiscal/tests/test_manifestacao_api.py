@@ -59,8 +59,7 @@ class TenantTestCase(TestCase):
             name="Test Farm",
             proprietario=self.proprietario,
             defaults={
-                "localizacao": "POINT(-48.123 -15.456)",
-                "area_total": 100.0,
+                
             }
         )
         
@@ -171,7 +170,7 @@ class ManifestacaoAPITest(TenantTestCase):
 
     def test_post_manifestacao_block_ciencia_after_conclusive(self):
         # create a conclusive manifestation first
-        Manifestacao.objects.create(nfe=self.nfe, tipo='confirmacao', criado_por=self.user)
+        Manifestacao.objects.create(tenant=self.tenant, nfe=self.nfe, tipo='confirmacao', status_envio='sent', criado_por=self.user)
         url = reverse('nfe-manifestacao', args=[self.nfe.id])
         resp = self.client.post(url, {'tipo': 'ciencia'}, format='json')
         self.assertEqual(resp.status_code, 400)
@@ -181,8 +180,8 @@ class ManifestacaoAPITest(TenantTestCase):
 
     def test_post_manifestacao_reject_more_than_two(self):
         # create two prior conclusive manifestations
-        Manifestacao.objects.create(nfe=self.nfe, tipo='confirmacao', criado_por=self.user)
-        Manifestacao.objects.create(nfe=self.nfe, tipo='confirmacao', criado_por=self.user)
+        Manifestacao.objects.create(tenant=self.tenant, nfe=self.nfe, tipo='confirmacao', status_envio='sent', criado_por=self.user)
+        Manifestacao.objects.create(tenant=self.tenant, nfe=self.nfe, tipo='confirmacao', status_envio='sent', criado_por=self.user)
         url = reverse('nfe-manifestacao', args=[self.nfe.id])
         resp = self.client.post(url, {'tipo': 'confirmacao'}, format='json')
         self.assertEqual(resp.status_code, 400)
@@ -193,15 +192,16 @@ class ManifestacaoAPITest(TenantTestCase):
     def test_manifestacao_authorization_restricted(self):
         """Authenticated users who are not recipient, staff, or have module permission must be 403'd."""
         # create an authenticated user without special permissions
-        other = User.objects.create(username='otheruser', email='other@example.com')
+        other = User.objects.create(tenant=self.tenant, is_staff=False, is_superuser=False, username='otheruser', email='other@example.com')
         self.client.force_authenticate(user=other)
+        print("OTHER USER IN TEST:", other.username, other.is_staff, other.is_superuser)
         url = f'/api/fiscal/nfes/{self.nfe.id}/manifestacao/'
         resp = self.client.post(url, {'tipo': 'ciencia'}, format='json')
         self.assertEqual(resp.status_code, 403)
 
     def test_manifestacao_recipient_allowed(self):
         """User with email equal to destinatario_email may manifest."""
-        recipient = User.objects.create(username='recipient', email=self.nfe.destinatario_email or 'dest@example.com')
+        recipient = User.objects.create(tenant=self.tenant, username='recipient', email=self.nfe.destinatario_email or 'dest@example.com')
         self.client.force_authenticate(user=recipient)
         url = f'/api/fiscal/nfes/{self.nfe.id}/manifestacao/'
         with mock.patch('apps.fiscal.tasks.send_manifestacao_task') as mocked_task_module:
@@ -210,7 +210,7 @@ class ManifestacaoAPITest(TenantTestCase):
             self.assertEqual(resp.status_code, 201)
 
     def test_manifestacao_staff_allowed(self):
-        staff = User.objects.create(username='staffuser', is_staff=True)
+        staff = User.objects.create(tenant=self.tenant, username='staffuser', is_staff=True)
         self.client.force_authenticate(user=staff)
         url = f'/api/fiscal/nfes/{self.nfe.id}/manifestacao/'
         with mock.patch('apps.fiscal.tasks.send_manifestacao_task') as mocked_task_module:
@@ -228,14 +228,14 @@ class ManifestacaoAPITest(TenantTestCase):
 
         from apps.core.models import ModulePermission
         # Create a single user instance (CustomUser if available) and attach ModulePermission to it.
-        pm_user = User.objects.create(username='pmuser', email='pm@example.com')
+        pm_user = User.objects.create(tenant=self.tenant, username='pmuser', email='pm@example.com')
         try:
             ModulePermission.objects.create(user=pm_user, module='fiscal', can_view=True, can_edit=False, can_respond=True)
         except Exception:
             # If ModulePermission model isn't available or FK issues occur, fall back to creating a CustomUser and attach permission to it.
             try:
                 from apps.core.models import CustomUser
-                pm_user_core = CustomUser.objects.create(username='pmuser', email='pm@example.com')
+                pm_user_core = CustomUser.objects.create(tenant=self.tenant, username='pmuser', email='pm@example.com')
                 ModulePermission.objects.create(user=pm_user_core, module='fiscal', can_view=True, can_edit=False, can_respond=True)
                 # authenticate as the core user
                 self.client.force_authenticate(user=pm_user_core)
@@ -253,8 +253,8 @@ class ManifestacaoAPITest(TenantTestCase):
             self.assertEqual(resp.status_code, 201)
 
     def test_retry_manifestacao_enqueues_for_staff(self):
-        m = Manifestacao.objects.create(nfe=self.nfe, tipo='ciencia', criado_por=self.user)
-        staff = User.objects.create(username='staffretry', is_staff=True)
+        m = Manifestacao.objects.create(tenant=self.tenant, nfe=self.nfe, tipo='ciencia', criado_por=self.user)
+        staff = User.objects.create(tenant=self.tenant, username='staffretry', is_staff=True)
         self.client.force_authenticate(user=staff)
         url = f'/api/fiscal/manifestacoes/{m.id}/retry/'
         with mock.patch('apps.fiscal.tasks.send_manifestacao_task') as mocked_task:
@@ -267,15 +267,15 @@ class ManifestacaoAPITest(TenantTestCase):
             mocked_task.delay.assert_called_once_with(m.id)
 
     def test_retry_manifestacao_forbidden_for_non_staff(self):
-        m = Manifestacao.objects.create(nfe=self.nfe, tipo='ciencia', criado_por=self.user)
-        other = User.objects.create(username='otherretry', email='other@example.com')
+        m = Manifestacao.objects.create(tenant=self.tenant, nfe=self.nfe, tipo='ciencia', criado_por=self.user)
+        other = User.objects.create(tenant=self.tenant, is_staff=False, is_superuser=False, username='otherretry', email='other@example.com')
         self.client.force_authenticate(user=other)
         url = f'/api/fiscal/manifestacoes/{m.id}/retry/'
         resp = self.client.post(url, {}, format='json')
         self.assertEqual(resp.status_code, 403)
 
     def test_retry_manifestacao_not_found(self):
-        staff = User.objects.create(username='staffretry', is_staff=True)
+        staff = User.objects.create(tenant=self.tenant, username='staffretry', is_staff=True)
         self.client.force_authenticate(user=staff)
         url = f'/api/fiscal/manifestacoes/99999/retry/'
         resp = self.client.post(url, {}, format='json')
@@ -321,7 +321,7 @@ class ManifestacaoAPITest(TenantTestCase):
 
     def test_post_manifestacao_reject_other_user_certificado(self):
         """API deve rejeitar certificado de outro usuário"""
-        other_user = User.objects.create(username='otheruser2')
+        other_user = User.objects.create(tenant=self.tenant, username='otheruser2')
         cert = CertificadoSefaz.objects.create(
             nome='Certificado Outro',
             arquivo_encrypted=b'fake_encrypted_content',
