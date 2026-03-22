@@ -22,7 +22,7 @@ def test_empresa_agregados_json_and_csv():
     client = APIClient()
     user = User.objects.create_user(username='tester', password='pass', tenant=tenant)
     from apps.core.models import Tenant
-    tenant, _ = Tenant.objects.get_or_create(nome='Test Tenant ' + str(hash(user.username) % 10000), defaults={'subdominio': 'test' + str(hash(user.username) % 10000)})
+    tenant, _ = Tenant.objects.get_or_create(nome='Test Tenant ' + str(hash(user.username) % 10000), defaults={'slug': 'test' + str(hash(user.username) % 10000)})
     user.tenant = tenant
     user.save()
     client.force_authenticate(user=user)
@@ -68,7 +68,7 @@ def test_global_agregados_pagination():
     client = APIClient()
     user = User.objects.create_user(username='tester2', password='pass', is_staff=True, tenant=tenant)
     from apps.core.models import Tenant
-    tenant, _ = Tenant.objects.get_or_create(nome='Test Tenant ' + str(hash(user.username) % 10000), defaults={'subdominio': 'test' + str(hash(user.username) % 10000)})
+    tenant, _ = Tenant.objects.get_or_create(nome='Test Tenant ' + str(hash(user.username) % 10000), defaults={'slug': 'test' + str(hash(user.username) % 10000)})
     user.tenant = tenant
     user.save()
     client.force_authenticate(user=user)

@@ -7,7 +7,7 @@ class FornecedorApiTests(APITestCase):
         from apps.core.models import CustomUser
         self.user = CustomUser.objects.create_user(username='tester', password='pass', is_staff=False)
         from apps.core.models import Tenant
-        tenant, _ = Tenant.objects.get_or_create(nome='Test Tenant ' + str(hash(self.user.username) % 10000), defaults={'subdominio': 'test' + str(hash(self.user.username) % 10000)})
+        tenant, _ = Tenant.objects.get_or_create(nome='Test Tenant ' + str(hash(self.user.username) % 10000), defaults={'slug': 'test' + str(hash(self.user.username) % 10000)})
         self.user.tenant = tenant
         self.user.save()
         self.client.force_authenticate(user=self.user)

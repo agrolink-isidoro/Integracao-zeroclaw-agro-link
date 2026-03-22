@@ -10,7 +10,7 @@ User = get_user_model()
 def test_create_and_list_contrato():
     user = User.objects.create_user(username='cuser', password='pass')
     from apps.core.models import Tenant
-    tenant, _ = Tenant.objects.get_or_create(nome='Test Tenant ' + str(hash(user.username) % 10000), defaults={'subdominio': 'test' + str(hash(user.username) % 10000)})
+    tenant, _ = Tenant.objects.get_or_create(nome='Test Tenant ' + str(hash(user.username) % 10000), defaults={'slug': 'test' + str(hash(user.username) % 10000)})
     user.tenant = tenant
     user.save()
     client = APIClient()
@@ -43,7 +43,7 @@ def test_vendas_compras_list_and_create_compra():
     tenant = Tenant.objects.create(nome='test_tenant_vendas_compras', slug='test-tenant-vendas-compras')
     user = User.objects.create_user(username='u2', password='pass', tenant=tenant)
     from apps.core.models import Tenant
-    tenant, _ = Tenant.objects.get_or_create(nome='Test Tenant ' + str(hash(user.username) % 10000), defaults={'subdominio': 'test' + str(hash(user.username) % 10000)})
+    tenant, _ = Tenant.objects.get_or_create(nome='Test Tenant ' + str(hash(user.username) % 10000), defaults={'slug': 'test' + str(hash(user.username) % 10000)})
     user.tenant = tenant
     user.save()
     fornecedor = Fornecedor.objects.create(nome='F', tipo_pessoa='pj', cpf_cnpj='000', criado_por=user, tenant=tenant)
@@ -81,7 +81,7 @@ def test_vendas_compras_list_and_create_compra():
 def test_create_venda_via_unified_endpoint():
     user = User.objects.create_user(username='uv', password='pass')
     from apps.core.models import Tenant
-    tenant, _ = Tenant.objects.get_or_create(nome='Test Tenant ' + str(hash(user.username) % 10000), defaults={'subdominio': 'test' + str(hash(user.username) % 10000)})
+    tenant, _ = Tenant.objects.get_or_create(nome='Test Tenant ' + str(hash(user.username) % 10000), defaults={'slug': 'test' + str(hash(user.username) % 10000)})
     user.tenant = tenant
     user.save()
     client = APIClient()

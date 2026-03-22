@@ -9,7 +9,7 @@ User = get_user_model()
 def test_create_and_list_cliente():
     user = User.objects.create_user(username='cuser2', password='pass', is_staff=False)
     from apps.core.models import Tenant
-    tenant, _ = Tenant.objects.get_or_create(nome='Test Tenant ' + str(hash(user.username) % 10000), defaults={'subdominio': 'test' + str(hash(user.username) % 10000)})
+    tenant, _ = Tenant.objects.get_or_create(nome='Test Tenant ' + str(hash(user.username) % 10000), defaults={'slug': 'test' + str(hash(user.username) % 10000)})
     user.tenant = tenant
     user.save()
     client = APIClient()

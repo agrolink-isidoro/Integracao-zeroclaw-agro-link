@@ -46,7 +46,7 @@ def user(db):
         is_staff=True, is_superuser=True,
     )
     from apps.core.models import Tenant
-    tenant, _ = Tenant.objects.get_or_create(nome='Test Tenant', defaults={'subdominio': 'test'})
+    tenant, _ = Tenant.objects.get_or_create(nome='Test Tenant', defaults={'slug': 'test'})
     user.tenant = tenant
     user.save()
     return user
