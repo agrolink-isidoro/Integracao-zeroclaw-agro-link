@@ -68,9 +68,16 @@ class OverrideSyncApplyTests(TestCase):
         nfe = NFe.objects.create(chave_acesso='T'*44, numero='1', serie='1', data_emissao=timezone.now(), emitente_nome='E', destinatario_nome='D', valor_produtos=0, valor_nota=0, tenant=self.tenant)
         item = ItemNFe.objects.create(nfe=nfe, numero_item=1, codigo_produto='SYNC-B', descricao='Produto Teste', cfop='5102', unidade_comercial='UN', quantidade_comercial=Decimal('8'), valor_unitario_comercial=Decimal('5.00'), valor_produto=Decimal('40.00'))
 
+        # Allow confirming as superuser first
+        self.user.is_superuser = True
+        self.user.save()
         # Confirm estoque
         resp = self.client.post(f'/api/fiscal/nfes/{nfe.id}/confirmar_estoque/')
         self.assertEqual(resp.status_code, 200)
+
+        # Revert to normal user for the negative test
+        self.user.is_superuser = False
+        self.user.save()
 
         # Create override with aplicado=True using a non-super user (no special permission)
         payload = {

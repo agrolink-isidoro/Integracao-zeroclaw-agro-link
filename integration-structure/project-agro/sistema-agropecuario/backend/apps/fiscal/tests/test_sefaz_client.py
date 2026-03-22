@@ -2,12 +2,13 @@ from django.test import TestCase
 from apps.fiscal.services.sefaz_client import SefazClient
 from types import SimpleNamespace
 from unittest import mock
+from django.test import override_settings
 
-
+@override_settings(SEFAZ_SIMULATE_ONLY=False)
 class SefazClientTest(TestCase):
     def test_simulate_emit_success(self):
         client = SefazClient(simulate=True)
-        nfe = SimpleNamespace(xml_content='<xml/>', chave_acesso='0001')
+        nfe = SimpleNamespace(xml_content='<NFe xmlns="http://www.portalfiscal.inf.br/nfe"><infNFe Id="NFe0001"><emit/><dest/><det/><total/><transp/><infAdic/><exporta/></infNFe><Signature/></NFe>', chave_acesso='0001')
         res = client.emit(nfe)
         self.assertTrue(res.success)
         self.assertIsNotNone(res.protocolo)
@@ -15,7 +16,7 @@ class SefazClientTest(TestCase):
 
     def test_production_without_cert_fails(self):
         client = SefazClient(simulate=False, endpoint='http://example.local')
-        nfe = SimpleNamespace(xml_content='<xml/>', chave_acesso='0001')
+        nfe = SimpleNamespace(xml_content='<NFe xmlns="http://www.portalfiscal.inf.br/nfe"><infNFe Id="NFe0001"><emit/><dest/><det/><total/><transp/><infAdic/><exporta/></infNFe><Signature/></NFe>', chave_acesso='0001')
         res = client.emit(nfe, certificado=None)
         self.assertFalse(res.success)
         self.assertIn('Certificado', res.message)
@@ -36,7 +37,7 @@ class SefazClientTest(TestCase):
 
         try:
             client = SefazClient(simulate=False, endpoint='http://example.local')
-            nfe = SimpleNamespace(xml_content='<xml/>', chave_acesso='0001')
+            nfe = SimpleNamespace(xml_content='<NFe xmlns="http://www.portalfiscal.inf.br/nfe"><infNFe Id="NFe0001"><emit/><dest/><det/><total/><transp/><infAdic/><exporta/></infNFe><Signature/></NFe>', chave_acesso='0001')
             fake_cert = SimpleNamespace(id=1)
             res = client.emit(nfe, certificado=fake_cert)
             self.assertTrue(res.success)
@@ -98,7 +99,7 @@ class SefazClientTest(TestCase):
 
         try:
             client = SefazClient(simulate=False, endpoint='http://example.local')
-            nfe = SimpleNamespace(xml_content='<xml/>', chave_acesso='0001')
+            nfe = SimpleNamespace(xml_content='<NFe xmlns="http://www.portalfiscal.inf.br/nfe"><infNFe Id="NFe0001"><emit/><dest/><det/><total/><transp/><infAdic/><exporta/></infNFe><Signature/></NFe>', chave_acesso='0001')
             fake_cert = FakeCert()
             res = client.emit(nfe, certificado=fake_cert)
             self.assertTrue(res.success)
@@ -128,7 +129,7 @@ class SefazClientTest(TestCase):
 
         try:
             client = SefazClient(simulate=False, endpoint='http://example.local')
-            nfe = SimpleNamespace(xml_content='<xml/>', chave_acesso='0001')
+            nfe = SimpleNamespace(xml_content='<NFe xmlns="http://www.portalfiscal.inf.br/nfe"><infNFe Id="NFe0001"><emit/><dest/><det/><total/><transp/><infAdic/><exporta/></infNFe><Signature/></NFe>', chave_acesso='0001')
             fake_cert = SimpleNamespace(id=1)
             res = client.emit(nfe, certificado=fake_cert)
             self.assertFalse(res.success)

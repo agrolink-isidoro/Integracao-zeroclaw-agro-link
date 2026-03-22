@@ -54,9 +54,9 @@ def test_staff_can_access_global_csv():
     client = APIClient()
     staff = User.objects.create_user(username='staff', password='pass', is_staff=True)
     from apps.core.models import Tenant
-    tenant, _ = Tenant.objects.get_or_create(nome='Test Tenant ' + str(hash(user.username) % 10000), defaults={'slug': 'test' + str(hash(user.username) % 10000)})
-    user.tenant = tenant
-    user.save()
+    tenant, _ = Tenant.objects.get_or_create(nome='Test Tenant ' + str(hash(staff.username) % 10000), defaults={'slug': 'test' + str(hash(staff.username) % 10000)})
+    staff.tenant = tenant
+    staff.save()
     client.force_authenticate(user=staff)
 
     e1 = Empresa.objects.create(nome='E1', cnpj='1')

@@ -13,7 +13,7 @@ def test_agregados_requires_authentication():
 
 @pytest.mark.django_db
 def test_agregados_forbidden_for_normal_user():
-    user = User.objects.create_user(username='normal', password='pass')
+    user = User.objects.create_user(username='normal', password='pass', is_staff=False)
     from apps.core.models import Tenant
     tenant, _ = Tenant.objects.get_or_create(nome='Test Tenant ' + str(hash(user.username) % 10000), defaults={'slug': 'test' + str(hash(user.username) % 10000)})
     user.tenant = tenant
