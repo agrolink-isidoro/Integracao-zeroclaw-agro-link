@@ -502,8 +502,11 @@ def legacy_test_hardening_shim(request, db):
     
     def auto_assign_tenant(sender, instance, **kwargs):
         if issubclass(sender, TenantModel) or sender is User:
-            if not getattr(instance, 'tenant_id', None):
-                instance.tenant = tenant
+             if sender.__name__ in ['CertificadoA3', 'ConfiguracaoGlobal']:
+                 return
+             if not getattr(instance, 'tenant_id', None):
+                 custom_tenant = Tenant.objects.exclude(nome='default_test_tenant').first()
+                 instance.tenant = custom_tenant if custom_tenant else tenant
 
     from django.db.models.signals import pre_save
     pre_save.connect(auto_assign_tenant, dispatch_uid="auto_assign_tenant_legacy")

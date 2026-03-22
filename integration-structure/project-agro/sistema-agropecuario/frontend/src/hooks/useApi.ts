@@ -23,7 +23,7 @@ interface ApiError {
 
 // Hook para queries GET
 export function useApiQuery<T>(
-  key: string[],
+  key: (string | null | undefined)[],
   url: string,
   options?: Omit<UseQueryOptions<T, ApiError>, 'queryKey' | 'queryFn'>
 ) {

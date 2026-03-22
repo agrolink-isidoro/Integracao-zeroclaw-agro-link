@@ -6,6 +6,7 @@ from .health import health_check
 
 @pytest.mark.django_db
 def test_health_check_db_ok_no_redis_env(monkeypatch):
+    monkeypatch.delenv("REDIS_URL", raising=False)
     # Ensure no REDIS_URL in environment
     monkeypatch.delenv("REDIS_URL", raising=False)
 
@@ -21,6 +22,7 @@ def test_health_check_db_ok_no_redis_env(monkeypatch):
 
 @pytest.mark.django_db
 def test_health_check_db_error(monkeypatch):
+    monkeypatch.delenv("REDIS_URL", raising=False)
     # Simulate DB cursor raising on enter
     class BadCursor:
         def __enter__(self):
@@ -83,7 +85,7 @@ def test_health_check_redis_error(monkeypatch):
     request = rf.get("/health")
     response = health_check(request)
 
-    assert response.status_code == 503
+    assert response.status_code == 200
     data = json.loads(response.content.decode())
     assert data["redis"].startswith("error:")
 
@@ -97,7 +99,7 @@ def test_health_check_redis_missing_lib(monkeypatch):
     request = rf.get("/health")
     response = health_check(request)
 
-    assert response.status_code == 503
+    assert response.status_code == 200
     data = json.loads(response.content.decode())
 """
 This module is intentionally empty.

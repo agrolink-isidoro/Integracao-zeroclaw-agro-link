@@ -1,4 +1,6 @@
-from django.test import TransactionTestCase
+import uuid
+import uuid
+from django.test import TestCase
 from django.contrib.auth import get_user_model
 from django.utils import timezone
 from decimal import Decimal
@@ -8,14 +10,15 @@ from apps.fiscal.models_overrides import ItemNFeOverride
 from apps.estoque.models import Produto, MovimentacaoEstoque, ProdutoAuditoria
 
 
-class OverrideApplyTests(TransactionTestCase):
+class OverrideApplyTests(TestCase):
     def setUp(self):
         User = get_user_model()
-        self.user = User.objects.create_user(username='applier', password='pwd', is_staff=True)
+        self.user = User.objects.create_user(username=f"applier_{uuid.uuid4().hex}", password='pwd', is_staff=True)
         # In test environments permissions tables can be missing; make this test user a superuser
         # so has_perm(...) returns True and the apply action can proceed.
         self.user.is_superuser = True
         self.user.save()
+        self.tenant = self.user.tenant
         self.client.force_login(self.user)
 
     def test_apply_override_creates_adjustment_when_nfe_confirmed(self):

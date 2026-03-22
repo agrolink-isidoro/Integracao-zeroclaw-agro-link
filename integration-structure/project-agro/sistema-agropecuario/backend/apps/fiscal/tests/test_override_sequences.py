@@ -1,4 +1,6 @@
-from django.test import TransactionTestCase
+import uuid
+import uuid
+from django.test import TestCase
 from django.contrib.auth import get_user_model
 from django.utils import timezone
 from decimal import Decimal
@@ -8,12 +10,13 @@ from apps.fiscal.models_overrides import ItemNFeOverride
 from apps.estoque.models import Produto, MovimentacaoEstoque
 
 
-class OverrideSequenceTests(TransactionTestCase):
+class OverrideSequenceTests(TestCase):
     def setUp(self):
         User = get_user_model()
-        self.user = User.objects.create_user(username='seqtester', password='pwd')
+        self.user = User.objects.create_user(username=f"seqtester_{uuid.uuid4().hex}", password='pwd')
         self.user.is_superuser = True
         self.user.save()
+        self.tenant = self.user.tenant
         self.client.force_login(self.user)
 
     def _create_and_confirm(self, codigo, quantidade, valor_unitario):
