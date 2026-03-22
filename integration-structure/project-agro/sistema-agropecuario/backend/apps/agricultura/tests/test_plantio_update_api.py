@@ -16,25 +16,25 @@ class PlantioUpdateAPITest(TestCase):
             nome='test_tenant_agricultura_plantio_update_api',
             slug='test-tenant-agricultura-plantio-update-api'
         )
-        self.user = User.objects.create_user(username='apiuser', is_staff=False, tenant=self.tenant)
+        self.user = User.objects.create_user(username='apiuser', is_staff=False)
         self.client = APIClient()
         self.client.force_authenticate(self.user)
 
-        self.prop = Proprietario.objects.create(nome='Test', cpf_cnpj='123', tenant=self.tenant)
-        self.faz = Fazenda.objects.create(proprietario=self.prop, name='Faz', matricula='M', tenant=self.tenant)
+        self.prop = Proprietario.objects.create(nome='Test', cpf_cnpj='123')
+        self.faz = Fazenda.objects.create(proprietario=self.prop, name='Faz', matricula='M')
         self.area = Area.objects.create(proprietario=self.prop, fazenda=self.faz, name='A', geom='POINT(0 0)')
-        self.t1 = Talhao.objects.create(area=self.area, name='T1', area_size=10, tenant=self.tenant)
-        self.t2 = Talhao.objects.create(area=self.area, name='T2', area_size=5, tenant=self.tenant)
+        self.t1 = Talhao.objects.create(area=self.area, name='T1', area_size=10)
+        self.t2 = Talhao.objects.create(area=self.area, name='T2', area_size=5)
 
-        self.cultura = Cultura.objects.create(nome='TestC', tenant=self.tenant)
-        self.plantio = Plantio.objects.create(cultura=self.cultura, data_plantio='2025-01-01', criado_por=self.user, tenant=self.tenant)
+        self.cultura = Cultura.objects.create(nome='TestC')
+        self.plantio = Plantio.objects.create(cultura=self.cultura, data_plantio='2025-01-01', criado_por=self.user)
         self.plantio.talhoes.add(self.t1)
 
     def test_update_plantio_change_dates_and_status_and_talhoes(self):
         url = f'/api/agricultura/plantios/{self.plantio.id}/'
         payload = {
             'fazenda': self.faz.id,
-            'talhoes': [self.t1.id, self.t2.id],
+            'talhoes_variedades': [{'talhao': self.t1.id}, {'talhao': self.t2.id}],
             'cultura': self.cultura.id,
             'data_plantio': '2025-02-01',
             'observacoes': 'Atualizando datas',
@@ -51,7 +51,7 @@ class PlantioUpdateAPITest(TestCase):
         url = f'/api/agricultura/plantios/{self.plantio.id}/'
         payload = {
             'fazenda': self.faz.id,
-            'talhoes': [str(self.t1.id), str(self.t2.id)],
+            'talhoes_variedades': [{'talhao': str(self.t1.id)}, {'talhao': str(self.t2.id)}],
             'cultura': self.cultura.id,
             'data_plantio': '2025-02-01',
             'observacoes': 'Strings in talhoes',
@@ -64,7 +64,7 @@ class PlantioUpdateAPITest(TestCase):
         url = f'/api/agricultura/plantios/{self.plantio.id}/'
         payload = {
             'fazenda': self.faz.id,
-            'talhoes': [{'id': self.t1.id}, {'id': self.t2.id}],
+            'talhoes_variedades': [{'talhao': self.t1.id}, {'talhao': self.t2.id}],
             'cultura': self.cultura.id,
             'data_plantio': '2025-02-01',
             'observacoes': 'Objects in talhoes',

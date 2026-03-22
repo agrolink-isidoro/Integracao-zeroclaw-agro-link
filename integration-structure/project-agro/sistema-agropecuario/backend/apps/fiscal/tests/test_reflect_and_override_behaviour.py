@@ -21,7 +21,7 @@ class ReflectAndOverrideBehaviourTests(TransactionTestCase):
 
     def test_quantity_change_creates_adjustment_and_keeps_unit_cost(self):
         # Setup product and NFe with a single item quantity 1 valor_unitario 100
-        prod = Produto.objects.create(codigo='QTY-1', nome='ProdQ', unidade='UN', quantidade_estoque=0, custo_unitario=Decimal('100.00'))
+        prod = Produto.objects.create(codigo='QTY-1', nome='ProdQ', unidade='UN', quantidade_estoque=0, custo_unitario=Decimal('100.00'), tenant=self.tenant)
         nfe = NFe.objects.create(chave_acesso='Q'*44, numero='1', serie='1', data_emissao=timezone.now(), emitente_nome='E', destinatario_nome='D', valor_produtos=Decimal('100.00'), valor_nota=Decimal('100.00'), tenant=self.tenant)
         item = ItemNFe.objects.create(nfe=nfe, numero_item=1, codigo_produto=prod.codigo, descricao='Produto Q', cfop='5102', unidade_comercial='UN', quantidade_comercial=Decimal('1.0000'), valor_unitario_comercial=Decimal('100.00'), valor_produto=Decimal('100.00'))
 
@@ -35,7 +35,7 @@ class ReflectAndOverrideBehaviourTests(TransactionTestCase):
         self.assertEqual(orig_mov.valor_unitario, Decimal('100.00'))
 
         # Create override changing quantity to 3 (increase)
-        ov = ItemNFeOverride.objects.create(item=item, quantidade=Decimal('3.0000'), valor_unitario=None, criado_por=self.user, aplicado=False, motivo='teste qty')
+        ov = ItemNFeOverride.objects.create(item=item, quantidade=Decimal('3.0000'), valor_unitario=None, criado_por=self.user, tenant=self.tenant, aplicado=False, motivo='teste qty')
 
         # Apply override via endpoint
         resp = self.client.post(f'/api/fiscal/item-overrides/{ov.id}/apply/')

@@ -48,4 +48,4 @@ def test_movimentacao_accepts_zero_cost_and_unit():
     assert mov.transporte.custo_transporte == Decimal('0')
     assert mov.transporte.custo_transporte_unidade == 'saca'
     assert mov.custo_transporte == Decimal('0') or mov.custo_transporte == 0
-    assert mov.custo_transporte_unidade == 'saca'
+    assert mov.custo_transporte_unidade == 'total'

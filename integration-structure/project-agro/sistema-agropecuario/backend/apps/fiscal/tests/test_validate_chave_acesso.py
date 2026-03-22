@@ -1,8 +1,8 @@
-from django.test import SimpleTestCase
+from django.test import TestCase
 from apps.fiscal.utils import validate_chave_acesso
 
 
-class ValidateChaveAcessoTest(SimpleTestCase):
+class ValidateChaveAcessoTest(TestCase):
     def test_valid_chave(self):
         # Chave válida retirada do fixture XML
         chave = '52251004621697000179550010000100511374580195'

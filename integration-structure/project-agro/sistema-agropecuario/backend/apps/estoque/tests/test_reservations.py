@@ -37,6 +37,10 @@ class ReservationTests(TestCase):
         item = OperacaoProduto.objects.create(operacao=op, produto=self.prod, dosagem=Decimal('4'), unidade_dosagem='kg/ha')
         # Force quantidade_total for the test (use update to avoid recompute in save)
         OperacaoProduto.objects.filter(pk=item.pk).update(quantidade_total=Decimal('4'))
+        from apps.estoque.models import MovimentacaoEstoque
+        MovimentacaoEstoque.objects.filter(operacao=op).delete()
+        from apps.estoque.models import MovimentacaoEstoque
+        MovimentacaoEstoque.objects.filter(operacao=op).delete()
 
         # Reserve
         reserve_operacao_stock(op, criado_por=self.user)
@@ -59,6 +63,10 @@ class ReservationTests(TestCase):
         op = Operacao.objects.create(categoria='plantio', tipo='plantio_semeadura', status='planejada', data_operacao=date.today())
         item = OperacaoProduto.objects.create(operacao=op, produto=self.prod, dosagem=Decimal('2'), unidade_dosagem='kg/ha')
         OperacaoProduto.objects.filter(pk=item.pk).update(quantidade_total=Decimal('2'))
+        from apps.estoque.models import MovimentacaoEstoque
+        MovimentacaoEstoque.objects.filter(operacao=op).delete()
+        from apps.estoque.models import MovimentacaoEstoque
+        MovimentacaoEstoque.objects.filter(operacao=op).delete()
 
         reserve_operacao_stock(op, criado_por=self.user)
         self.prod.refresh_from_db()

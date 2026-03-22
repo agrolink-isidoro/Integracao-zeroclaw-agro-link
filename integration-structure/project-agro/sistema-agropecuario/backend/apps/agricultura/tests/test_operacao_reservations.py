@@ -15,14 +15,14 @@ class OperacaoReservationSerializerTests(TestCase):
             nome='test_tenant_agricultura_operacao_reservations',
             slug='test-tenant-agricultura-operacao-reservations'
         )
-        self.user = User.objects.create_user(username='opuser', tenant=self.tenant)
-        self.prod = Produto.objects.create(codigo='PX', nome='Produto X', unidade='kg', quantidade_estoque=Decimal('20'), estoque_minimo=Decimal('0'), tenant=self.tenant)
+        self.user = User.objects.create_user(username='opuser')
+        self.prod = Produto.objects.create(codigo='PX', nome='Produto X', unidade='kg', quantidade_estoque=Decimal('20'), estoque_minimo=Decimal('0'))
         from apps.fazendas.models import Fazenda, Talhao, Proprietario
-        self.owner = Proprietario.objects.create(nome='Owner', cpf_cnpj='00000000000', tenant=self.tenant)
-        self.fazenda = Fazenda.objects.create(name='Fazenda Teste', proprietario=self.owner, matricula='M-1', tenant=self.tenant)
+        self.owner = Proprietario.objects.create(nome='Owner', cpf_cnpj='00000000000')
+        self.fazenda = Fazenda.objects.create(name='Fazenda Teste', proprietario=self.owner, matricula='M-1')
         from apps.fazendas.models import Area
         self.area = Area.objects.create(proprietario=self.owner, fazenda=self.fazenda, name='Area 1')
-        self.talhao = Talhao.objects.create(name='Talhao 1', area_size=1.0, area=self.area, tenant=self.tenant)
+        self.talhao = Talhao.objects.create(name='Talhao 1', area_size=1.0, area=self.area)
 
     def test_serializer_create_reserves_stock(self):
         payload = {

@@ -39,16 +39,16 @@ class TenantTestCase(TestCase):
 class ColheitaConfirmTests(TenantTestCase):
     def setUp(self):
         super().setUp()
-        self.cultura = Cultura.objects.create(nome='Soja', tenant=self.tenant)
-        self.plantio = Plantio.objects.create(fazenda=self.fazenda, cultura=self.cultura, data_plantio='2025-01-01', tenant=self.tenant)
+        self.cultura = Cultura.objects.create(nome='Soja')
+        self.plantio = Plantio.objects.create(fazenda=self.fazenda, cultura=self.cultura, data_plantio='2025-01-01')
         self.area = Area.objects.create(proprietario=self.proprietario, fazenda=self.fazenda, name='Area')
-        self.talhao1 = Talhao.objects.create(area=self.area, name='T1', area_size=10, tenant=self.tenant)
+        self.talhao1 = Talhao.objects.create(area=self.area, name='T1', area_size=10)
         self.plantio.talhoes.add(self.talhao1)
 
         # create product and local
         from apps.estoque.models import Produto, LocalArmazenamento
         Produto.objects.create(codigo='SOJA-1', nome='Soja Produto', unidade='kg', quantidade_estoque=0)
-        self.local = LocalArmazenamento.objects.create(nome='Silo A', fazenda=self.fazenda, tenant=self.tenant)
+        self.local = LocalArmazenamento.objects.create(nome='Silo A', fazenda=self.fazenda)
 
         # create a colheita
         url = '/api/agricultura/colheitas/'

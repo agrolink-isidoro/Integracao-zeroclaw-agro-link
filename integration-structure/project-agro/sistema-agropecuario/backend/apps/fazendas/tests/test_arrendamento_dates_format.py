@@ -35,7 +35,7 @@ def test_create_arrendamento_with_ddmmyyyy_dates():
         "custo_sacas_hectare": "1.50"
     }
 
-    resp = client.post("/api/fazendas/arrendamentos/", payload, format='json')
+    resp = client.post("/api/arrendamentos/", payload, format='json')
     assert resp.status_code == 201, resp.content
 
     # Confirm created and parsed dates

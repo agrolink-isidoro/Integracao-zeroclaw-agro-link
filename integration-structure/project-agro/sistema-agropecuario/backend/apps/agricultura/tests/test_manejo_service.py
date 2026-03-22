@@ -14,12 +14,12 @@ class ManejoServiceTests(TestCase):
             nome='test_tenant_agricultura_manejo',
             slug='test-tenant-agricultura-manejo'
         )
-        self.proprietario = Proprietario.objects.create(nome='Produtor', cpf_cnpj='00000000000', tenant=self.tenant)
-        self.fazenda = Fazenda.objects.create(proprietario=self.proprietario, name='Fazenda Teste', matricula='M-001', tenant=self.tenant)
+        self.proprietario = Proprietario.objects.create(nome='Produtor', cpf_cnpj='00000000000')
+        self.fazenda = Fazenda.objects.create(proprietario=self.proprietario, name='Fazenda Teste', matricula='M-001')
         self.area = Area.objects.create(proprietario=self.proprietario, fazenda=self.fazenda, name='A', geom='POINT(0 0)')
-        self.talhao = Talhao.objects.create(area=self.area, name='Talhao 1', area_size=10, tenant=self.tenant)
-        self.user = User.objects.create_user(username='u', is_staff=False, tenant=self.tenant)
-        self.produto = Produto.objects.create(codigo='P1', nome='Semente X', unidade='kg', custo_unitario=5, tenant=self.tenant)
+        self.talhao = Talhao.objects.create(area=self.area, name='Talhao 1', area_size=10)
+        self.user = User.objects.create_user(username='u', is_staff=False)
+        self.produto = Produto.objects.create(codigo='P1', nome='Semente X', unidade='kg', custo_unitario=5)
 
     def test_calcular_custo_manejo_with_products(self):
         manejo = Manejo.objects.create(tipo='capina', data_manejo='2025-06-01', custo_mao_obra=100, custo_maquinas=50, criado_por=self.user)

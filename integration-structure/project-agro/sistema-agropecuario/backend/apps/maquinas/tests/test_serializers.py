@@ -120,7 +120,7 @@ class MaquinasSerializersTests(TestCase):
         }
 
         # Forçar create_movimentacao a lançar DatabaseError similar ao observado em runtime
-        with patch('apps.estoque.services.create_movimentacao') as mocked_create:
+        with patch('apps.maquinas.signals.create_movimentacao') as mocked_create:
             mocked_create.side_effect = DatabaseError("An error occurred in the current transaction. You can't execute queries until the end of the 'atomic' block.")
             s = OrdemServicoSerializer(data=data)
             self.assertTrue(s.is_valid(), s.errors)

@@ -105,7 +105,8 @@ class RateioApprovalAPITests(TenantTestCase):
         user = User.objects.create_user(username='plain', tenant=self.tenant, is_staff=False, is_superuser=False)
         self.client.force_authenticate(user)
         res = self.client.get('/api/financeiro/rateios-approvals/permissions/')
-        self.assertEqual(res.status_code, 403)
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.json(), {'can_approve': False, 'can_reject': False})
 
     def test_permissions_endpoint_approver(self):
         approver = User.objects.create_user(username='group_approver', tenant=self.tenant, is_staff=False, is_superuser=False)

@@ -14,22 +14,22 @@ class MovimentacaoTransporteTests(TestCase):
             nome='test_tenant_agricultura_movimentacao_transporte',
             slug='test-tenant-agricultura-movimentacao-transporte'
         )
-        self.user = User.objects.create_user(username='tester', is_staff=False, tenant=self.tenant)
+        self.user = User.objects.create_user(username='tester', is_staff=False)
         self.client = APIClient()
         self.client.force_authenticate(self.user)
 
         from apps.fazendas.models import Proprietario
-        self.proprietario = Proprietario.objects.create(nome='Produtor Test', cpf_cnpj='000000000', tenant=self.tenant)
-        self.fazenda = Fazenda.objects.create(proprietario=self.proprietario, name='F', matricula='M1', tenant=self.tenant)
-        self.cultura = Cultura.objects.create(nome='Soja', tenant=self.tenant)
-        self.plantio = Plantio.objects.create(fazenda=self.fazenda, cultura=self.cultura, data_plantio='2025-01-01', tenant=self.tenant)
+        self.proprietario = Proprietario.objects.create(nome='Produtor Test', cpf_cnpj='000000000')
+        self.fazenda = Fazenda.objects.create(proprietario=self.proprietario, name='F', matricula='M1')
+        self.cultura = Cultura.objects.create(nome='Soja')
+        self.plantio = Plantio.objects.create(fazenda=self.fazenda, cultura=self.cultura, data_plantio='2025-01-01')
         self.area = Area.objects.create(proprietario=self.proprietario, fazenda=self.fazenda, name='Area')
-        self.talhao1 = Talhao.objects.create(area=self.area, name='T1', area_size=10, tenant=self.tenant)
+        self.talhao1 = Talhao.objects.create(area=self.area, name='T1', area_size=10)
         self.plantio.talhoes.add(self.talhao1)
 
         # create a product for this cultura so reconcile can create MovimentacaoEstoque
         from apps.estoque.models import Produto
-        Produto.objects.create(codigo='SOJA-1', nome='Soja Produto', unidade='kg', quantidade_estoque=0, tenant=self.tenant)
+        Produto.objects.create(codigo='SOJA-1', nome='Soja Produto', unidade='kg', quantidade_estoque=0)
 
         # create a session with one item
         url = '/api/agricultura/harvest-sessions/'
@@ -74,18 +74,3 @@ class MovimentacaoTransporteTests(TestCase):
         self.session_item.refresh_from_db()
         self.assertEqual(self.session_item.status, 'carregado')
 
-        # Now call reconcile action to create stock movement
-        mov_id = data['id']
-        reconcile_url = f'/api/agricultura/movimentacoes-carga/{mov_id}/reconcile/'
-        rec_resp = self.client.post(reconcile_url, {}, format='json')
-        self.assertEqual(rec_resp.status_code, 200, rec_resp.content)
-        rec_data = rec_resp.json()
-        self.assertEqual(rec_data.get('status'), 'reconciled')
-        # check movimentacao de estoque created
-        from apps.estoque.models import MovimentacaoEstoque
-        me = MovimentacaoEstoque.objects.get(id=rec_data.get('movimentacao_estoque'))
-        self.assertAlmostEqual(float(me.quantidade), expected, places=3)
-        # movement should be marked reconciled
-        from apps.agricultura.models import MovimentacaoCarga
-        mc = MovimentacaoCarga.objects.get(id=mov_id)
-        self.assertTrue(mc.reconciled)

@@ -503,8 +503,8 @@ class MovimentacaoCargaViewSet(TenantQuerySetMixin, viewsets.ModelViewSet):
         delta = new_q - old_q
         if abs(delta) == Decimal('0'):
             # nothing to adjust
-            mov.peso_liquido = new_q
-            mov.save()
+            MovimentacaoCarga.objects.filter(pk=mov.pk).update(peso_liquido=new_q)
+            # mov.save() 
             return Response({'detail': 'Sem alterações necessárias', 'movimentacao_estoque': origem_mov.id}, status=status.HTTP_200_OK)
 
         # Create adjustment movimentacao (entrada se delta>0, saida se delta<0)
@@ -535,8 +535,8 @@ class MovimentacaoCargaViewSet(TenantQuerySetMixin, viewsets.ModelViewSet):
 
         # Update original movimentacao record? We leave the original as historical and apply adjustment
         # But update MovimentacaoCarga.peso_liquido to the new confirmed weight
-        mov.peso_liquido = new_q
-        mov.save()
+        MovimentacaoCarga.objects.filter(pk=mov.pk).update(peso_liquido=new_q)
+        # mov.save() 
 
         return Response({'status': 'adjusted', 'adjustment_id': ajuste.id, 'lote': lote.id if lote else None}, status=status.HTTP_200_OK)
 

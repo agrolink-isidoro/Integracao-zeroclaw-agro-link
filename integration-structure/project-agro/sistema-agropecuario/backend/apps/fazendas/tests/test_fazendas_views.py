@@ -18,6 +18,16 @@ def test_list_and_create_fazenda():
         proprietario=proprietario
     )
     client = APIClient()
+    from django.contrib.auth import get_user_model
+    User = get_user_model()
+    user, _ = User.objects.get_or_create(username='testuser_view', defaults={'password':'pw'})
+    client.force_authenticate(user=user)
+
+    from django.contrib.auth import get_user_model
+    User = get_user_model()
+    user, _ = User.objects.get_or_create(username='testuser_view', defaults={'password':'pw'})
+    client.force_authenticate(user=user)
+
 
     # list
     resp = client.get("/api/fazendas/")

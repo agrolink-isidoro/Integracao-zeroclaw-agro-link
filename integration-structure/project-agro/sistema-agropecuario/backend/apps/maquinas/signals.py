@@ -139,7 +139,8 @@ def ordem_post_save(sender, instance, created, **kwargs):
                         logger.info("Movimentacao de reserva criada para insumo %s na OS %s", produto.pk, instance.pk)
                     except Exception as e:
                         logger.exception("Erro ao criar reserva de insumo #%d na OS %s. Detalhes: %s", idx+1, instance.pk, str(e))
-                        continue
+                        from rest_framework.serializers import ValidationError
+                        raise ValidationError(f'Falha ao reservar insumos: {str(e)}')
 
                 # Marcar como reservado usando .update() para não dispara post_save recursivo
                 logger.debug("ordem_post_save: Marcando insumos_reservados=True para OS %s", instance.pk)

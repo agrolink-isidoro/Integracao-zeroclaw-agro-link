@@ -25,22 +25,22 @@ class FullAgricultureFinanceFlowTests(TestCase):
             slug='test-tenant-agricultura-flow'
         )
         # Users and groups
-        self.creator = User.objects.create_user(username='creator_flow', password='pass', is_staff=False, tenant=self.tenant)
-        self.approver = User.objects.create_user(username='approver_flow', password='pass', is_staff=False, tenant=self.tenant)
+        self.creator = User.objects.create_user(username='creator_flow', password='pass', is_staff=False)
+        self.approver = User.objects.create_user(username='approver_flow', password='pass', is_staff=False)
         g, _ = Group.objects.get_or_create(name='financeiro.rateio_approver')
         g.user_set.add(self.approver)
 
         # Fazenda / Talhao / Cultura / Produto / Local
-        self.proprietario = Proprietario.objects.create(nome='Produtor Flow', cpf_cnpj='11111111111', tenant=self.tenant)
-        self.fazenda = Fazenda.objects.create(proprietario=self.proprietario, name='Fazenda Flow', matricula='MF-001', tenant=self.tenant)
+        self.proprietario = Proprietario.objects.create(nome='Produtor Flow', cpf_cnpj='11111111111')
+        self.fazenda = Fazenda.objects.create(proprietario=self.proprietario, name='Fazenda Flow', matricula='MF-001')
         from apps.agricultura.models import Cultura
-        self.cultura = Cultura.objects.create(nome='Cultura Flow', tenant=self.tenant)
+        self.cultura = Cultura.objects.create(nome='Cultura Flow')
         from apps.fazendas.models import Area
         self.area = Area.objects.create(proprietario=self.proprietario, fazenda=self.fazenda, name='A', geom='POINT(0 0)')
-        self.talhao = Talhao.objects.create(area=self.area, name='Talhao Flow', area_size=10, tenant=self.tenant)
+        self.talhao = Talhao.objects.create(area=self.area, name='Talhao Flow', area_size=10)
 
         # Produto for harvested crop (name must include culture name so armazenar_em_estoque finds it)
-        self.produto = Produto.objects.create(nome=f"{self.cultura.nome} - Grãos", quantidade_estoque=0, unidade='kg')
+        self.produto = Produto.objects.create(nome=f"{self.cultura.nome} - Grãos", codigo="FLOW-1", quantidade_estoque=0, unidade='kg')
         self.local = LocalArmazenamento.objects.create(nome='Silo Flow', fazenda=self.fazenda)
 
         # Equipamento
@@ -122,6 +122,8 @@ class FullAgricultureFinanceFlowTests(TestCase):
         # Now approve one pending rateio and ensure Vencimento created
         approval = RateioApproval.objects.filter(status='pending').first()
         self.assertIsNotNone(approval)
+        approval.rateio.destino = 'despesa_adm'
+        approval.rateio.save()
         approval, vencimento = financeiro_services.aprovar_rateio(approval, self.approver)
 
         # check status and vencimento

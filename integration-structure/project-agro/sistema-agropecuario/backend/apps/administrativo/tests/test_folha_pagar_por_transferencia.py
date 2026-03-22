@@ -43,10 +43,10 @@ class FolhaPagarPorTransferenciaAPITests(TenantTestCase):
     def setUp(self):
         super().setUp()
         # Now self.user, self.tenant, self.fazenda are available
-        self.c1 = ContaBancaria.objects.create(banco='Banco A', agencia='0001', conta='1111', saldo_inicial=Decimal('10000'))
-        self.func1 = Funcionario.objects.create(nome='Alice', cpf='123', salario_bruto=Decimal('2000.00'))
-        self.func2 = Funcionario.objects.create(nome='Bob', cpf='456', salario_bruto=Decimal('1500.00'))
-        self.folha = FolhaPagamento.objects.create(descricao='Folha Jan', periodo_ano=2026, periodo_mes=1)
+        self.c1 = ContaBancaria.objects.create(banco='Banco A', agencia='0001', conta='1111', saldo_inicial=Decimal('10000'), tenant=self.tenant)
+        self.func1 = Funcionario.objects.create(nome='Alice', cpf='123', salario_bruto=Decimal('2000.00'), tenant=self.tenant)
+        self.func2 = Funcionario.objects.create(nome='Bob', cpf='456', salario_bruto=Decimal('1500.00'), tenant=self.tenant)
+        self.folha = FolhaPagamento.objects.create(descricao='Folha Jan', periodo_ano=2026, periodo_mes=1, tenant=self.tenant)
         self.item1 = FolhaPagamentoItem.objects.create(folha=self.folha, funcionario=self.func1, liquido=Decimal('150.00'))
         self.item2 = FolhaPagamentoItem.objects.create(folha=self.folha, funcionario=self.func2, liquido=Decimal('75.00'))
 
@@ -63,6 +63,7 @@ class FolhaPagarPorTransferenciaAPITests(TenantTestCase):
         self.assertEqual(resp.status_code, 200)
         data = resp.json()
         self.assertIn('results', data)
+        print(data)
         res1 = data['results'][0]
         self.assertTrue(res1['success'])
         t1 = Transferencia.objects.get(pk=res1['transfer_id'])

@@ -50,6 +50,8 @@ def user_with_tenant():
 def test_create_preview_and_run_folha(user_with_tenant):
     client, tenant, user = user_with_tenant
     # create two funcionarios
+    from apps.administrativo.models import CentroCusto
+    CentroCusto.objects.get_or_create(codigo="ADM", nome="Administrativo")
     f1 = client.post('/api/administrativo/funcionarios/', {'nome': 'F1', 'salario_bruto': '1000.00'}, format='json')
     f2 = client.post('/api/administrativo/funcionarios/', {'nome': 'F2', 'salario_bruto': '1500.00'}, format='json')
     assert f1.status_code == 201
@@ -159,6 +161,8 @@ def test_temporario_requires_diaria(user_with_tenant):
 
 def test_per_employee_overrides_are_used(user_with_tenant):
     client, tenant, user = user_with_tenant
+    from apps.administrativo.models import CentroCusto
+    CentroCusto.objects.get_or_create(codigo="ADM", nome="Administrativo")
     f1 = client.post('/api/administrativo/funcionarios/', {'nome': 'F3', 'salario_bruto': '2000.00'}, format='json')
     assert f1.status_code == 201
 
@@ -188,6 +192,8 @@ def test_per_employee_overrides_are_used(user_with_tenant):
 def test_summary_endpoint_returns_aggregates(user_with_tenant):
     client, tenant, user = user_with_tenant
     # create two funcionarios
+    from apps.administrativo.models import CentroCusto
+    CentroCusto.objects.get_or_create(codigo="ADM", nome="Administrativo")
     f1 = client.post('/api/administrativo/funcionarios/', {'nome': 'S1', 'salario_bruto': '2000.00'}, format='json')
     f2 = client.post('/api/administrativo/funcionarios/', {'nome': 'S2', 'salario_bruto': '3000.00'}, format='json')
     assert f1.status_code == 201
@@ -226,6 +232,8 @@ def test_run_creates_vencimentos_and_aggregate_despesa(user_with_tenant):
     and an aggregate DespesaAdministrativa (centro 'ADM' if present) for reporting/rateio.
     """
     client, tenant, user = user_with_tenant
+    from apps.administrativo.models import CentroCusto
+    CentroCusto.objects.get_or_create(codigo="ADM", nome="Administrativo")
     f1 = client.post('/api/administrativo/funcionarios/', {'nome': 'V1', 'salario_bruto': '1200.00'}, format='json')
     assert f1.status_code == 201
 

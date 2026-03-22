@@ -31,6 +31,8 @@ class ConfirmarEstoqueTest(TestCase):
         prod = Produto.objects.create(codigo='P123', nome='Produto P123', unidade='UN')
         nfe = self._create_basic_nfe_with_item('P123')
 
+        print("USER TENANT:", getattr(self.user, "tenant", None))
+        print("NFE TENANT:", getattr(nfe, "tenant", None))
         resp = self.client.post(f'/api/fiscal/nfes/{nfe.id}/confirmar_estoque/')
         self.assertEqual(resp.status_code, 200)
         nfe.refresh_from_db()
@@ -44,6 +46,8 @@ class ConfirmarEstoqueTest(TestCase):
 
     def test_confirmar_estoque_unmapped_returns_400(self):
         nfe = self._create_basic_nfe_with_item('UNKNOWN')
+        print("USER TENANT:", getattr(self.user, "tenant", None))
+        print("NFE TENANT:", getattr(nfe, "tenant", None))
         resp = self.client.post(f'/api/fiscal/nfes/{nfe.id}/confirmar_estoque/')
         self.assertEqual(resp.status_code, 400)
         self.assertEqual(resp.data.get('error'), 'unmapped_items')

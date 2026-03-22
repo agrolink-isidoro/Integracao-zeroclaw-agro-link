@@ -337,8 +337,10 @@ class OrdemServicoSerializer(serializers.ModelSerializer):
         nfes = validated_data.pop('nfes', None)
         insumos = validated_data.get('insumos')
 
-        # Cria a OS primeiro para que tenhamos um PK (mas ainda não reservamos insumos aqui).
-        obj = super().create(validated_data)
+        from django.db import transaction
+        with transaction.atomic():
+            # Cria a OS primeiro para que tenhamos um PK (mas ainda não reservamos insumos aqui).
+            obj = super().create(validated_data)
 
         # Vincula NFes M2M
         if nfes:

@@ -1,10 +1,10 @@
 import os
-from django.test import SimpleTestCase
+from django.test import TestCase
 
 from apps.fiscal.services.sefaz_client import SefazClient
 
 
-class ManifestacaoIntegrationTest(SimpleTestCase):
+class ManifestacaoIntegrationTest(TestCase):
     def test_sign_with_local_pfx_if_present(self):
         pfx_path = os.environ.get('FISCAL_TEST_PFX_PATH')
         pfx_pass = os.environ.get('FISCAL_TEST_PFX_PASS', None)

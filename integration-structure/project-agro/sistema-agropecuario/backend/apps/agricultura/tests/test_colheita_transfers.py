@@ -34,7 +34,10 @@ class TenantTestCase(TestCase):
             proprietario=self.proprietario,
             defaults={"matricula": "TEST-FARM-003"}
         )
-        self.client.force_login(self.user)
+        self.user.is_superuser = True
+        self.user.save()
+        self.client = APIClient()
+        self.client.force_authenticate(user=self.user)
 
 
 class ColheitaTransferTests(TenantTestCase):
@@ -43,7 +46,7 @@ class ColheitaTransferTests(TenantTestCase):
         self.cultura = Cultura.objects.create(nome='Soja', tenant=self.tenant)
         self.plantio = Plantio.objects.create(fazenda=self.fazenda, cultura=self.cultura, data_plantio='2025-01-01', tenant=self.tenant)
         self.area = Area.objects.create(proprietario=self.proprietario, fazenda=self.fazenda, name='Area')
-        self.talhao = Talhao.objects.create(area=self.area, name='T1', area_size=10, tenant=self.tenant)
+        self.talhao = Talhao.objects.create(area=self.area, name='T1', area_size=10)
         self.plantio.talhoes.add(self.talhao)
 
         self.colheita = Colheita.objects.create(plantio=self.plantio, data_colheita='2025-12-01', quantidade_colhida=1000, tenant=self.tenant)

@@ -12,18 +12,18 @@ User = get_user_model()
 class ColheitaItemTests(TestCase):
     def setUp(self):
         self.tenant = Tenant.objects.create(nome='test_tenant_colheita_items', slug='test-tenant-colheita-items')
-        self.user = User.objects.create_user(username='tester', is_staff=False, tenant=self.tenant)
+        self.user = User.objects.create_user(username='tester', is_staff=False)
         self.client = APIClient()
         self.client.force_authenticate(self.user)
 
         from apps.fazendas.models import Proprietario
-        self.proprietario = Proprietario.objects.create(nome='Produtor Test', cpf_cnpj='000000000', tenant=self.tenant)
-        self.fazenda = Fazenda.objects.create(proprietario=self.proprietario, name='F', matricula='M1', tenant=self.tenant)
-        self.cultura = Cultura.objects.create(nome='Soja', tenant=self.tenant)
-        self.plantio = Plantio.objects.create(fazenda=self.fazenda, cultura=self.cultura, data_plantio='2025-01-01', tenant=self.tenant)
+        self.proprietario = Proprietario.objects.create(nome='Produtor Test', cpf_cnpj='000000000')
+        self.fazenda = Fazenda.objects.create(proprietario=self.proprietario, name='F', matricula='M1')
+        self.cultura = Cultura.objects.create(nome='Soja')
+        self.plantio = Plantio.objects.create(fazenda=self.fazenda, cultura=self.cultura, data_plantio='2025-01-01')
         self.area = Area.objects.create(proprietario=self.proprietario, fazenda=self.fazenda, name='Area')
-        self.talhao1 = Talhao.objects.create(area=self.area, name='T1', area_size=10, tenant=self.tenant)
-        self.talhao2 = Talhao.objects.create(area=self.area, name='T2', area_size=5, tenant=self.tenant)
+        self.talhao1 = Talhao.objects.create(area=self.area, name='T1', area_size=10)
+        self.talhao2 = Talhao.objects.create(area=self.area, name='T2', area_size=5)
         self.plantio.talhoes.add(self.talhao1)
         self.plantio.talhoes.add(self.talhao2)
 
@@ -54,7 +54,7 @@ class ColheitaItemTests(TestCase):
         from apps.agricultura.serializers import ColheitaSerializer
 
         # Criar colheita sem movimentacao_estoque (o campo é opcional)
-        col = Colheita.objects.create(plantio=self.plantio, data_colheita='2025-12-01', quantidade_colhida=100, tenant=self.tenant)
+        col = Colheita.objects.create(plantio=self.plantio, data_colheita='2025-12-01', quantidade_colhida=100)
         ser = ColheitaSerializer(col)
         data = ser.data
         # movimentacao_estoque_info deve ser None e plantio_talhoes uma string (mesmo que vazia)
@@ -63,6 +63,6 @@ class ColheitaItemTests(TestCase):
 
         # Simular plantio sem talhões -> plantio_talhoes deve ser string vazia
         self.plantio.talhoes.clear()
-        col2 = Colheita.objects.create(plantio=self.plantio, data_colheita='2025-12-02', quantidade_colhida=50, tenant=self.tenant)
+        col2 = Colheita.objects.create(plantio=self.plantio, data_colheita='2025-12-02', quantidade_colhida=50)
         ser2 = ColheitaSerializer(col2)
         self.assertEqual(ser2.data.get('plantio_talhoes'), '')

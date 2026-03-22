@@ -485,3 +485,39 @@ def auto_add_tenant_to_users(request):
     # Restaurar métodos originais após testes
     User.objects.create = original_create
     User.objects.create_user = original_create_user
+# ==============================================================================
+# LEGACY TEST SHIM FOR MULTI-TENANCY AND RBAC SECURITY HARDENING
+# ==============================================================================
+@pytest.fixture(autouse=True)
+def legacy_test_hardening_shim(request, db):
+    """
+    Auto-assigns a default tenant and RBAC permissions for all objects in tests
+    to simulate backward compatibility for legacy tests that don't pass tenant explicitly.
+    """
+    from apps.core.models import Tenant, TenantModel, ModulePermission
+    from django.contrib.auth import get_user_model
+    
+    tenant, _ = Tenant.objects.get_or_create(nome='default_test_tenant', slug='default-test-tenant')
+    User = get_user_model()
+    
+    def auto_assign_tenant(sender, instance, **kwargs):
+        if issubclass(sender, TenantModel) or sender is User:
+            if not getattr(instance, 'tenant_id', None):
+                instance.tenant = tenant
+
+    from django.db.models.signals import pre_save
+    pre_save.connect(auto_assign_tenant, dispatch_uid="auto_assign_tenant_legacy")
+    
+    def auto_assign_rbac(sender, instance, created, **kwargs):
+        if sender is User and created:
+            # Grant full access to everything to mimic old superuser/staff behavior in tests
+            for module in ['dashboard', 'fazendas', 'agricultura', 'pecuaria', 'estoque', 'maquinas', 'financeiro', 'administrativo', 'fiscal', 'comercial', 'user_management']:
+                ModulePermission.objects.get_or_create(user=instance, module=module, defaults={'can_view': True, 'can_edit': True})
+
+    from django.db.models.signals import post_save
+    post_save.connect(auto_assign_rbac, dispatch_uid="auto_assign_rbac_legacy")
+    
+    yield
+    
+    pre_save.disconnect(auto_assign_tenant, dispatch_uid="auto_assign_tenant_legacy")
+    post_save.disconnect(auto_assign_rbac, dispatch_uid="auto_assign_rbac_legacy")

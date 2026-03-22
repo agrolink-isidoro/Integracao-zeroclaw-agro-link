@@ -17,7 +17,7 @@ def test_area_total_ha_handles_decimal_and_float(monkeypatch):
 
     # Talhão cuja área virá de area_hectares (float)
     talhao2 = Talhao.objects.create(area=area, name='T2', area_size=None)
-    monkeypatch.setattr(Talhao, 'area_hectares', property(lambda self: 3.25))
+    monkeypatch.setattr(Talhao, 'area_hectares', property(lambda self: 3.25 if self.area_size is None else None))
 
     cultura = Cultura.objects.create(nome='Soja')
     plantio = Plantio.objects.create(fazenda=fazenda, cultura=cultura, data_plantio='2025-01-01')
@@ -35,7 +35,7 @@ def test_ordem_servico_area_total_ha_handles_decimal_and_float(monkeypatch):
 
     talhao1 = Talhao.objects.create(area=area, name='T3', area_size=Decimal('5'))
     talhao2 = Talhao.objects.create(area=area, name='T4', area_size=None)
-    monkeypatch.setattr(Talhao, 'area_hectares', property(lambda self: 2.75))
+    monkeypatch.setattr(Talhao, 'area_hectares', property(lambda self: 2.75 if self.area_size is None else None))
 
     os = OrdemServico.objects.create(fazenda=fazenda, tarefa='Test', data_inicio='2025-01-02')
     os.talhoes.add(talhao1, talhao2)

@@ -12,7 +12,7 @@ from django.test import TestCase
 from django.utils import timezone
 
 
-pytestmark = pytest.mark.django_db(transaction=True)
+pytestmark = pytest.mark.django_db()
 
 
 def test_sync_batch_size_config():

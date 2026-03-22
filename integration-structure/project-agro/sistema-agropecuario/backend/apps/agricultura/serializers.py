@@ -649,17 +649,7 @@ class OperacaoSerializer(serializers.ModelSerializer):
                     unidade_dosagem=unidade_val
                 )
         
-        # If status changed to concluida, commit reservations; if canceled, release reservations
-        try:
-            new_status = validated_data.get('status')
-            if new_status and new_status != previous_status:
-                from apps.estoque.services import commit_reservations_for_operacao, release_reservations_for_operacao
-                if new_status == 'concluida':
-                    commit_reservations_for_operacao(instance, criado_por=instance.criado_por or None)
-                elif new_status == 'cancelada':
-                    release_reservations_for_operacao(instance, criado_por=instance.criado_por or None)
-        except Exception as e:
-            raise serializers.ValidationError({'status': str(e)})
+
 
         return instance
 

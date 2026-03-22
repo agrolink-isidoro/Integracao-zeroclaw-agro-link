@@ -512,7 +512,6 @@ class FolhaPagamentoViewSet(TenantQuerySetMixin, viewsets.ModelViewSet):
                     data=timezone.now().date(),
                     centro=centro,
                     pendente_rateio=True,
-                    criado_por=request.user,
                     **_tk,
                 )
         except Exception:

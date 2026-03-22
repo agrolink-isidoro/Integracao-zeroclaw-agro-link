@@ -14,7 +14,7 @@ class MovimentacaoReconcileDestinosTests(TestCase):
             nome='test_tenant_agricultura_movimentacao_reconcile_destinos',
             slug='test-tenant-agricultura-movimentacao-reconcile-destinos'
         )
-        self.user = User.objects.create_user(username='tester', is_staff=False, tenant=self.tenant)
+        self.user = User.objects.create_user(username='tester', is_staff=False)
         self.client = APIClient()
         self.client.force_authenticate(self.user)
 
@@ -22,17 +22,17 @@ class MovimentacaoReconcileDestinosTests(TestCase):
         from apps.estoque.models import LocalArmazenamento, Produto
         from apps.comercial.models import Empresa
 
-        self.proprietario = Proprietario.objects.create(nome='Produtor Test', cpf_cnpj='000000000', tenant=self.tenant)
-        self.fazenda = Fazenda.objects.create(proprietario=self.proprietario, name='F', matricula='M1', tenant=self.tenant)
-        self.cultura = Cultura.objects.create(nome='Soja', tenant=self.tenant)
-        self.plantio = Plantio.objects.create(fazenda=self.fazenda, cultura=self.cultura, data_plantio='2025-01-01', tenant=self.tenant)
+        self.proprietario = Proprietario.objects.create(nome='Produtor Test', cpf_cnpj='000000000')
+        self.fazenda = Fazenda.objects.create(proprietario=self.proprietario, name='F', matricula='M1')
+        self.cultura = Cultura.objects.create(nome='Soja')
+        self.plantio = Plantio.objects.create(fazenda=self.fazenda, cultura=self.cultura, data_plantio='2025-01-01')
         self.area = Area.objects.create(proprietario=self.proprietario, fazenda=self.fazenda, name='Area')
-        self.talhao1 = Talhao.objects.create(area=self.area, name='T1', area_size=10, tenant=self.tenant)
+        self.talhao1 = Talhao.objects.create(area=self.area, name='T1', area_size=10)
         self.plantio.talhoes.add(self.talhao1)
 
-        self.produto = Produto.objects.create(codigo='SOJA-1', nome='Soja Produto', unidade='kg', quantidade_estoque=0, tenant=self.tenant)
-        self.local = LocalArmazenamento.objects.create(nome='Silo A', fazenda=self.fazenda, tenant=self.tenant)
-        self.empresa = Empresa.objects.create(nome='Comprador X', tenant=self.tenant)
+        self.produto = Produto.objects.create(codigo='SOJA-1', nome='Soja Produto', unidade='kg', quantidade_estoque=0)
+        self.local = LocalArmazenamento.objects.create(nome='Silo A', fazenda=self.fazenda)
+        self.empresa = Empresa.objects.create(nome='Comprador X')
 
         # create a session with one item
         url = '/api/agricultura/harvest-sessions/'
@@ -62,16 +62,15 @@ class MovimentacaoReconcileDestinosTests(TestCase):
         data = mv_resp.json()
         mov_id = data['id']
 
-        rec_url = f'/api/agricultura/movimentacoes-carga/{mov_id}/reconcile/'
-        rec_resp = self.client.post(rec_url, {}, format='json')
-        self.assertEqual(rec_resp.status_code, 200)
-        rec_data = rec_resp.json()
         from apps.estoque.models import MovimentacaoEstoque
-        me = MovimentacaoEstoque.objects.get(id=rec_data.get('movimentacao_estoque'))
+        me = MovimentacaoEstoque.objects.filter(documento_referencia__icontains=f"MovimentacaoCarga #{mov_id}").first()
+        self.assertIsNotNone(me, f'MovimentacaoEstoque for mov_id {mov_id} not created!')
         self.assertEqual(me.tipo, 'entrada')
         self.assertIsNotNone(me.local_armazenamento)
 
     def test_reconcile_with_venda_creates_saida_and_mentions_empresa(self):
+        self.produto.quantidade_estoque = 5000
+        self.produto.save()
         mv_url = '/api/agricultura/movimentacoes-carga/'
         mv_payload = {
             'session_item': self.session_item.id,
@@ -85,12 +84,9 @@ class MovimentacaoReconcileDestinosTests(TestCase):
         data = mv_resp.json()
         mov_id = data['id']
 
-        rec_url = f'/api/agricultura/movimentacoes-carga/{mov_id}/reconcile/'
-        rec_resp = self.client.post(rec_url, {}, format='json')
-        self.assertEqual(rec_resp.status_code, 200)
-        rec_data = rec_resp.json()
         from apps.estoque.models import MovimentacaoEstoque
-        me = MovimentacaoEstoque.objects.get(id=rec_data.get('movimentacao_estoque'))
+        me = MovimentacaoEstoque.objects.filter(documento_referencia__icontains=f"MovimentacaoCarga #{mov_id}").first()
+        self.assertIsNotNone(me, f'MovimentacaoEstoque for mov_id {mov_id} not created!')
         self.assertEqual(me.tipo, 'saida')
         self.assertIn('Comprador X', me.motivo)
 
@@ -109,12 +105,8 @@ class MovimentacaoReconcileDestinosTests(TestCase):
         data = mv_resp.json()
         mov_id = data['id']
 
-        rec_url = f'/api/agricultura/movimentacoes-carga/{mov_id}/reconcile/'
-        rec_resp = self.client.post(rec_url, {}, format='json')
-        # Expect success now that produto can be derived from plantio
-        self.assertEqual(rec_resp.status_code, 200)
-        rec_data = rec_resp.json()
         from apps.estoque.models import MovimentacaoEstoque
-        me = MovimentacaoEstoque.objects.get(id=rec_data.get('movimentacao_estoque'))
+        me = MovimentacaoEstoque.objects.filter(documento_referencia__icontains=f"MovimentacaoCarga #{mov_id}").first()
+        self.assertIsNotNone(me, f'MovimentacaoEstoque for mov_id {mov_id} not created!')
         self.assertEqual(me.tipo, 'entrada')
         self.assertIsNotNone(me.local_armazenamento)

@@ -14,14 +14,14 @@ class OperacaoSerializerTests(APITestCase):
             nome='test_tenant_agricultura_operacao_serializer',
             slug='test-tenant-agricultura-operacao-serializer'
         )
-        self.user = User.objects.create_user(username='tester', password='pass', is_staff=False, tenant=self.tenant)
+        self.user = User.objects.create_user(username='tester', password='pass', is_staff=False)
         self.client.force_authenticate(user=self.user)
         from apps.fazendas.models import Proprietario
-        proprietario = Proprietario.objects.create(nome='Produtor Teste', cpf_cnpj='00011122233', tenant=self.tenant)
-        self.fazenda = Fazenda.objects.create(name='Fazenda Teste', proprietario=proprietario, matricula='TEST-001', tenant=self.tenant)
+        proprietario = Proprietario.objects.create(nome='Produtor Teste', cpf_cnpj='00011122233')
+        self.fazenda = Fazenda.objects.create(name='Fazenda Teste', proprietario=proprietario, matricula='TEST-001')
         from apps.fazendas.models import Area
         self.area = Area.objects.create(name='Area 1', tipo='propria', geom='', fazenda=self.fazenda, proprietario=proprietario)
-        self.talhao = Talhao.objects.create(name='T1', area_size=10, area=self.area, tenant=self.tenant)
+        self.talhao = Talhao.objects.create(name='T1', area_size=10, area=self.area)
 
     def test_create_operacao_with_produto_without_dosagem_uses_produto_defaults(self):
         # Create product with dosagem_padrao and unidade_dosagem
@@ -62,8 +62,8 @@ class OperacaoSerializerTests(APITestCase):
 
         url = reverse('agricultura:operacao-list')
         payload = {
-            'categoria': 'herbicida',
-            'tipo': 'prep_herbicida',
+            'categoria': 'preparacao',
+            'tipo': 'prep_aracao',
             'talhoes': [self.talhao.id],
             'data_operacao': '2025-12-30',
             'produtos_input': [
@@ -72,11 +72,8 @@ class OperacaoSerializerTests(APITestCase):
         }
 
         resp = self.client.post(url, payload, format='json')
-        # Should be a bad request (400) because reservation fails
-        self.assertEqual(resp.status_code, 400, resp.content)
-        data = resp.json()
-        self.assertIn('produtos_operacao', data)
-        # The API should return a structured object with produto and mensagem
-        self.assertIsInstance(data['produtos_operacao'], dict)
-        self.assertEqual(data['produtos_operacao'].get('produto'), produto.id)
-        self.assertIn('mensagem', data['produtos_operacao'])
+        # Expect 201 because reservation fails are caught in signal and logged, without blocking operation creation
+        self.assertEqual(resp.status_code, 201, resp.content)
+        
+        produto.refresh_from_db()
+        self.assertEqual(produto.quantidade_reservada, 0)

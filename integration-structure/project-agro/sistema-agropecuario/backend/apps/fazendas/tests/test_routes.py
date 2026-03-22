@@ -5,6 +5,16 @@ from rest_framework.test import APIClient
 class FazendasRoutesTestCase(TestCase):
     def setUp(self):
         self.client = APIClient()
+        from django.contrib.auth import get_user_model
+        User = get_user_model()
+        self.user, _ = User.objects.get_or_create(username='testuser', defaults={'password':'pw'})
+        self.client.force_authenticate(user=self.user)
+
+        from django.contrib.auth import get_user_model
+        User = get_user_model()
+        self.user, _ = User.objects.get_or_create(username='testuser', defaults={'password':'pw'})
+        self.client.force_authenticate(user=self.user)
+
 
     def test_fazendas_talhoes_list_is_accessible(self):
         # Legacy path may redirect to the canonical '/api/talhoes/' route; follow redirects and assert final status is 200

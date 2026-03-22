@@ -17,7 +17,7 @@ class MovimentacaoAdjustmentTests(TestCase):
         # create user
         self.user = User.objects.create_superuser('admin', 'admin@example.com', 'admin123', tenant=self.tenant)
         # create product and local
-        self.produto = Produto.objects.create(nome='Soja Test', codigo='SJT', local_armazenamento=None, tenant=self.tenant)
+        self.produto = Produto.objects.create(nome='Soja Test', codigo='SJT', unidade='kg', local_armazenamento=None, tenant=self.tenant)
 
         # create a movement (simulate reconciled state by creating MovimentacaoEstoque)
         self.mov = MovimentacaoCarga.objects.create(peso_bruto=1000, tara=0, descontos=0, peso_liquido=1000, destino_tipo='armazenagem_interna', tenant=self.tenant)
@@ -39,6 +39,7 @@ class MovimentacaoAdjustmentTests(TestCase):
         self.assertEqual(float(self.lote.quantidade_atual), 1200)
         # mov updated
         self.mov.refresh_from_db()
+        print(f'\n!!! mov peso_liquido {self.mov.peso_liquido} data {data}')
         self.assertEqual(float(self.mov.peso_liquido), 1200)
 
     def test_adjust_decrease_creates_saida_and_updates_lote(self):

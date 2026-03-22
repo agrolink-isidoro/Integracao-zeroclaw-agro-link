@@ -9,6 +9,10 @@ pytestmark = pytest.mark.django_db
 
 def test_estimate_quantities_and_costs():
     client = APIClient()
+    from django.contrib.auth import get_user_model
+    User = get_user_model()
+    user = User.objects.create_user(username='test_estimate_user123', password='password123')
+    client.force_authenticate(user=user)
 
     # Setup fazenda/area/talhao
     owner = Proprietario.objects.create(nome='Produtor', cpf_cnpj='12345678901')
