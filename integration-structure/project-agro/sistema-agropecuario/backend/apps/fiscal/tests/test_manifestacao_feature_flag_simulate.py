@@ -38,7 +38,7 @@ class ManifestacaoSimulateFlagTest(TestCase):
     def test_send_manifestacao_simulated_success(self):
         m = Manifestacao.objects.create(nfe=self.nfe, tipo='confirmacao', criado_por=self.user)
         # Call the task synchronously (use the wrapped function to run in-process)
-        res = send_manifestacao_task.__wrapped__(send_manifestacao_task, m.id)
+        res = send_manifestacao_task(m.id)
         m.refresh_from_db()
         self.assertEqual(m.status_envio, 'sent')
         self.assertTrue(m.enviado)
