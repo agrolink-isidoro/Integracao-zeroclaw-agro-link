@@ -426,6 +426,7 @@ class NFeViewSet(TenantQuerySetMixin, viewsets.ModelViewSet):
                     produto.quantidade_estoque = (produto.quantidade_estoque or Decimal('0')) + qty_delta
                     produto.save()
                 # Skip creating a new movimentacao; existing one already represents the NFe
+                movimentacoes.append(existing)
                 continue
             saldo_anterior = produto.quantidade_estoque
             mov = MovimentacaoEstoque.objects.create(
