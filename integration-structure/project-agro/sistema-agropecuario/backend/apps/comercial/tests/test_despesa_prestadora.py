@@ -11,6 +11,10 @@ pytestmark = pytest.mark.django_db
 def test_create_and_list_despesa_prestadora():
     client = APIClient()
     user = User.objects.create_user(username='tester', password='pass')
+    from apps.core.models import Tenant
+    tenant, _ = Tenant.objects.get_or_create(nome='Test Tenant ' + str(hash(user.username) % 10000), defaults={'subdominio': 'test' + str(hash(user.username) % 10000)})
+    user.tenant = tenant
+    user.save()
     client.force_authenticate(user=user)
 
     empresa = Empresa.objects.create(nome='Prestadora X', cnpj='12345678000199')

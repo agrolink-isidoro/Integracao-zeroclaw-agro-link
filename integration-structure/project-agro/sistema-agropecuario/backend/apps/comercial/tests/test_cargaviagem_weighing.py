@@ -11,6 +11,10 @@ User = get_user_model()
 class CargaWeighingTests(TestCase):
     def setUp(self):
         self.user = User.objects.create_user(username='tester', is_staff=False)
+        from apps.core.models import Tenant
+        tenant, _ = Tenant.objects.get_or_create(nome='Test Tenant ' + str(hash(self.user.username) % 10000), defaults={'subdominio': 'test' + str(hash(self.user.username) % 10000)})
+        self.user.tenant = tenant
+        self.user.save()
         self.client = APIClient()
         self.client.force_authenticate(self.user)
 

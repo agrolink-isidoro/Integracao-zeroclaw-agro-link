@@ -6,6 +6,10 @@ class FornecedorApiTests(APITestCase):
     def setUp(self):
         from apps.core.models import CustomUser
         self.user = CustomUser.objects.create_user(username='tester', password='pass', is_staff=False)
+        from apps.core.models import Tenant
+        tenant, _ = Tenant.objects.get_or_create(nome='Test Tenant ' + str(hash(self.user.username) % 10000), defaults={'subdominio': 'test' + str(hash(self.user.username) % 10000)})
+        self.user.tenant = tenant
+        self.user.save()
         self.client.force_authenticate(user=self.user)
 
     def test_create_fornecedor_via_formdata_with_documents(self):

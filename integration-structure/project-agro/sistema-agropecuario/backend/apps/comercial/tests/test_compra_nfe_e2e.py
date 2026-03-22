@@ -21,7 +21,15 @@ class CompraNFeE2ETest(TestCase):
         self.tenant = Tenant.objects.create(nome='test_tenant_e2e', slug='test-tenant-e2e')
         
         self.user = User.objects.create_user(username='e2e_user', password='p', is_staff=False, tenant=self.tenant)
+        from apps.core.models import Tenant
+        tenant, _ = Tenant.objects.get_or_create(nome='Test Tenant ' + str(hash(self.user.username) % 10000), defaults={'subdominio': 'test' + str(hash(self.user.username) % 10000)})
+        self.user.tenant = tenant
+        self.user.save()
         self.staff = User.objects.create_user(username='staff', password='p', is_staff=True, tenant=self.tenant)
+        from apps.core.models import Tenant
+        tenant, _ = Tenant.objects.get_or_create(nome='Test Tenant ' + str(hash(user.username) % 10000), defaults={'subdominio': 'test' + str(hash(user.username) % 10000)})
+        user.tenant = tenant
+        user.save()
         self.client = APIClient()
         self.client.force_authenticate(self.staff)
 

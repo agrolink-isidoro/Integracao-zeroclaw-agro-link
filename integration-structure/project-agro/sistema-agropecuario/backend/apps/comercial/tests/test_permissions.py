@@ -35,6 +35,10 @@ def test_unauthenticated_cannot_access_agregados():
 def test_non_staff_cannot_access_global_csv():
     client = APIClient()
     user = User.objects.create_user(username='regular', password='pass', is_staff=False)
+    from apps.core.models import Tenant
+    tenant, _ = Tenant.objects.get_or_create(nome='Test Tenant ' + str(hash(user.username) % 10000), defaults={'subdominio': 'test' + str(hash(user.username) % 10000)})
+    user.tenant = tenant
+    user.save()
     client.force_authenticate(user=user)
 
     e1 = Empresa.objects.create(nome='E1', cnpj='1')
@@ -49,6 +53,10 @@ def test_non_staff_cannot_access_global_csv():
 def test_staff_can_access_global_csv():
     client = APIClient()
     staff = User.objects.create_user(username='staff', password='pass', is_staff=True)
+    from apps.core.models import Tenant
+    tenant, _ = Tenant.objects.get_or_create(nome='Test Tenant ' + str(hash(user.username) % 10000), defaults={'subdominio': 'test' + str(hash(user.username) % 10000)})
+    user.tenant = tenant
+    user.save()
     client.force_authenticate(user=staff)
 
     e1 = Empresa.objects.create(nome='E1', cnpj='1')
@@ -68,6 +76,10 @@ def test_staff_can_access_global_csv():
 def test_authenticated_can_access_empresa_agregados_and_csv():
     client = APIClient()
     user = User.objects.create_user(username='u1', password='pass', is_staff=False)
+    from apps.core.models import Tenant
+    tenant, _ = Tenant.objects.get_or_create(nome='Test Tenant ' + str(hash(user.username) % 10000), defaults={'subdominio': 'test' + str(hash(user.username) % 10000)})
+    user.tenant = tenant
+    user.save()
     client.force_authenticate(user=user)
 
     e = Empresa.objects.create(nome='Emp Y', cnpj='222')
@@ -91,12 +103,20 @@ def test_fornecedores_dashboard_requires_admin():
     client = APIClient()
     # normal user should be forbidden from global fornecedores dashboard
     user = User.objects.create_user(username='normal2', is_staff=False)
+    from apps.core.models import Tenant
+    tenant, _ = Tenant.objects.get_or_create(nome='Test Tenant ' + str(hash(user.username) % 10000), defaults={'subdominio': 'test' + str(hash(user.username) % 10000)})
+    user.tenant = tenant
+    user.save()
     client.force_authenticate(user=user)
     resp = client.get('/api/comercial/fornecedores/dashboard/')
     assert resp.status_code in (403, 404)
 
     # admin user can access
     admin = User.objects.create_user(username='admin2', is_staff=True)
+    from apps.core.models import Tenant
+    tenant, _ = Tenant.objects.get_or_create(nome='Test Tenant ' + str(hash(user.username) % 10000), defaults={'subdominio': 'test' + str(hash(user.username) % 10000)})
+    user.tenant = tenant
+    user.save()
     client.force_authenticate(user=admin)
     resp = client.get('/api/comercial/fornecedores/dashboard/')
     assert resp.status_code == 200

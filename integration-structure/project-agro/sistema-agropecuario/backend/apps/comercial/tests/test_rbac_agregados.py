@@ -14,6 +14,10 @@ def test_agregados_requires_authentication():
 @pytest.mark.django_db
 def test_agregados_forbidden_for_normal_user():
     user = User.objects.create_user(username='normal', password='pass')
+    from apps.core.models import Tenant
+    tenant, _ = Tenant.objects.get_or_create(nome='Test Tenant ' + str(hash(user.username) % 10000), defaults={'subdominio': 'test' + str(hash(user.username) % 10000)})
+    user.tenant = tenant
+    user.save()
     client = APIClient()
     client.force_authenticate(user=user)
     resp = client.get('/api/comercial/agregados/')
@@ -23,6 +27,10 @@ def test_agregados_forbidden_for_normal_user():
 @pytest.mark.django_db
 def test_agregados_allowed_for_staff_user():
     user = User.objects.create_user(username='staff', password='pass', is_staff=True)
+    from apps.core.models import Tenant
+    tenant, _ = Tenant.objects.get_or_create(nome='Test Tenant ' + str(hash(user.username) % 10000), defaults={'subdominio': 'test' + str(hash(user.username) % 10000)})
+    user.tenant = tenant
+    user.save()
     client = APIClient()
     client.force_authenticate(user=user)
     resp = client.get('/api/comercial/agregados/')
@@ -31,6 +39,10 @@ def test_agregados_allowed_for_staff_user():
 @pytest.mark.django_db
 def test_agregados_csv_allowed_for_staff_user():
     user = User.objects.create_user(username='staff2', password='pass', is_staff=True)
+    from apps.core.models import Tenant
+    tenant, _ = Tenant.objects.get_or_create(nome='Test Tenant ' + str(hash(user.username) % 10000), defaults={'subdominio': 'test' + str(hash(user.username) % 10000)})
+    user.tenant = tenant
+    user.save()
     client = APIClient()
     client.force_authenticate(user=user)
     resp = client.get('/api/comercial/agregados/?format=csv')

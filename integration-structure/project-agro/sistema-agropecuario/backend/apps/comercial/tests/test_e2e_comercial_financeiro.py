@@ -41,10 +41,15 @@ User = get_user_model()
 
 @pytest.fixture
 def user(db):
-    return User.objects.create_user(
+    user = User.objects.create_user(
         username='e2e_user', password='e2e_pass',
         is_staff=True, is_superuser=True,
     )
+    from apps.core.models import Tenant
+    tenant, _ = Tenant.objects.get_or_create(nome='Test Tenant', defaults={'subdominio': 'test'})
+    user.tenant = tenant
+    user.save()
+    return user
 
 
 @pytest.fixture

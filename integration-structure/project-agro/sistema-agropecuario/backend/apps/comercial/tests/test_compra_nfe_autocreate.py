@@ -15,6 +15,10 @@ class CompraNFeAutoCreateTest(TestCase):
         self.tenant = Tenant.objects.create(nome='test_tenant_autocreate', slug='test-tenant-autocreate')
         
         self.user = User.objects.create_user(username='compra_user', password='p', is_staff=False, tenant=self.tenant)
+        from apps.core.models import Tenant
+        tenant, _ = Tenant.objects.get_or_create(nome='Test Tenant ' + str(hash(self.user.username) % 10000), defaults={'subdominio': 'test' + str(hash(self.user.username) % 10000)})
+        self.user.tenant = tenant
+        self.user.save()
 
     def test_compra_with_xml_creates_nfe_and_links(self):
         # Use existing fixture XML if available, otherwise skip

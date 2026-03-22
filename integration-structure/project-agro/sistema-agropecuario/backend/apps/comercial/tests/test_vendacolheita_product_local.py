@@ -10,6 +10,10 @@ User = get_user_model()
 @pytest.mark.django_db
 def test_product_must_belong_to_local():
     user = User.objects.create_user(username='prodtest', password='pass')
+    from apps.core.models import Tenant
+    tenant, _ = Tenant.objects.get_or_create(nome='Test Tenant ' + str(hash(user.username) % 10000), defaults={'subdominio': 'test' + str(hash(user.username) % 10000)})
+    user.tenant = tenant
+    user.save()
     client = APIClient()
     client.force_authenticate(user=user)
 
