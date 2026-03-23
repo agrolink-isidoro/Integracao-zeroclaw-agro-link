@@ -8,8 +8,7 @@ User = get_user_model()
 
 
 def load_sample_xml():
-    with open('test_nfe.xml', 'rb') as f:
-        return f.read()
+    return b'<nfeProc><NFe xmlns="http://www.portalfiscal.inf.br/nfe"><infNFe Id="NFe12345678901234567890123456789012345678901234"><emit/><dest/><det/><total/><transp/><infAdic/><exporta/></infNFe><Signature/></NFe></nfeProc>'
 
 
 class UploadSkipChaveValidationTest(TestCase):
